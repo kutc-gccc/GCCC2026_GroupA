@@ -29,9 +29,38 @@ namespace GCCC.BoardGame.Tests
             {
                 AssertOwner(board, new Vector2Int(column, 1), PlayerId.Player1);
                 AssertOwner(board, new Vector2Int(column, 8), PlayerId.Player2);
+                AssertCombatPower(board, new Vector2Int(column, 1), 1);
+                AssertCombatPower(board, new Vector2Int(column, 8), 1);
                 Assert.That(board.HasPiece(new Vector2Int(column, 0)), Is.False);
                 Assert.That(board.HasPiece(new Vector2Int(column, 9)), Is.False);
             }
+        }
+
+        [Test]
+        public void PiecesCanHaveIndividualCombatPowerAndKeepItWhenMoved()
+        {
+            BoardState custom = new BoardState(
+                6,
+                10,
+                new[]
+                {
+                    PoweredPiece(2, 2, PlayerId.Player1, 4),
+                    PoweredPiece(5, 8, PlayerId.Player2, 2)
+                },
+                PlayerId.Player1);
+
+            AssertCombatPower(custom, new Vector2Int(2, 2), 4);
+            AssertCombatPower(custom, new Vector2Int(5, 8), 2);
+            Assert.That(custom.TryMove(new Vector2Int(2, 2), new Vector2Int(3, 3)), Is.True);
+            Assert.That(custom.TryGetCombatPower(new Vector2Int(2, 2), out _), Is.False);
+            AssertCombatPower(custom, new Vector2Int(3, 3), 4);
+        }
+
+        [Test]
+        public void CombatPowerMustBeGreaterThanZero()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new BoardPiece(PlayerId.Player1, 0));
         }
 
         [Test]
@@ -185,6 +214,17 @@ namespace GCCC.BoardGame.Tests
                 new Vector2Int(column, row), owner);
         }
 
+        private static KeyValuePair<Vector2Int, BoardPiece> PoweredPiece(
+            int column,
+            int row,
+            PlayerId owner,
+            int combatPower)
+        {
+            return new KeyValuePair<Vector2Int, BoardPiece>(
+                new Vector2Int(column, row),
+                new BoardPiece(owner, combatPower));
+        }
+
         private static void AssertOwner(
             BoardState state,
             Vector2Int position,
@@ -192,6 +232,15 @@ namespace GCCC.BoardGame.Tests
         {
             Assert.That(state.TryGetOwner(position, out PlayerId actualOwner), Is.True);
             Assert.That(actualOwner, Is.EqualTo(expectedOwner));
+        }
+
+        private static void AssertCombatPower(
+            BoardState state,
+            Vector2Int position,
+            int expectedCombatPower)
+        {
+            Assert.That(state.TryGetPiece(position, out BoardPiece piece), Is.True);
+            Assert.That(piece.CombatPower, Is.EqualTo(expectedCombatPower));
         }
     }
 }

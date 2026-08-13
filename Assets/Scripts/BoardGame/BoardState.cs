@@ -10,14 +10,35 @@ namespace GCCC.BoardGame
         Player2
     }
 
+    public readonly struct BoardPiece
+    {
+        public BoardPiece(PlayerId owner, int combatPower)
+        {
+            if (combatPower <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(combatPower),
+                    "Combat power must be greater than zero.");
+            }
+
+            Owner = owner;
+            CombatPower = combatPower;
+        }
+
+        public PlayerId Owner { get; }
+
+        public int CombatPower { get; }
+    }
+
     /// <summary>
     /// Owns the complete rules state for the two-player territory game.
     /// Coordinates start at (0, 0) in the bottom-left corner.
     /// </summary>
     public sealed class BoardState
     {
-        private readonly Dictionary<Vector2Int, PlayerId> pieces =
-            new Dictionary<Vector2Int, PlayerId>();
+        public const int InitialCombatPower = 1;
+
+        private readonly Dictionary<Vector2Int, BoardPiece> pieces =
+            new Dictionary<Vector2Int, BoardPiece>();
 
         public BoardState(int columns, int rows)
         {
@@ -32,15 +53,24 @@ namespace GCCC.BoardGame
             int rows,
             IEnumerable<KeyValuePair<Vector2Int, PlayerId>> initialPieces,
             PlayerId currentPlayer)
+            : this(columns, rows, AddDefaultCombatPower(initialPieces), currentPlayer)
+        {
+        }
+
+        public BoardState(
+            int columns,
+            int rows,
+            IEnumerable<KeyValuePair<Vector2Int, BoardPiece>> initialPieces,
+            PlayerId currentPlayer)
         {
             ValidateDimensions(columns, rows);
             Columns = columns;
             Rows = rows;
             CurrentPlayer = currentPlayer;
 
-            foreach (KeyValuePair<Vector2Int, PlayerId> piece in initialPieces)
+            foreach (KeyValuePair<Vector2Int, BoardPiece> piece in initialPieces)
             {
-                if (!IsInside(piece.Key) || IsOwnTerritory(piece.Value, piece.Key))
+                if (!IsInside(piece.Key) || IsOwnTerritory(piece.Value.Owner, piece.Key))
                 {
                     throw new ArgumentException("The supplied position contains an invalid piece placement.",
                         nameof(initialPieces));
@@ -52,9 +82,9 @@ namespace GCCC.BoardGame
                         nameof(initialPieces));
                 }
 
-                if (IsOpponentTerritory(piece.Value, piece.Key))
+                if (IsOpponentTerritory(piece.Value.Owner, piece.Key))
                 {
-                    Winner = piece.Value;
+                    Winner = piece.Value.Owner;
                 }
             }
 
@@ -70,7 +100,7 @@ namespace GCCC.BoardGame
 
         public int PieceCount => pieces.Count;
 
-        public IReadOnlyDictionary<Vector2Int, PlayerId> Pieces => pieces;
+        public IReadOnlyDictionary<Vector2Int, BoardPiece> Pieces => pieces;
 
         public PlayerId CurrentPlayer { get; private set; }
 
@@ -113,15 +143,39 @@ namespace GCCC.BoardGame
 
         public bool TryGetOwner(Vector2Int position, out PlayerId owner)
         {
-            return pieces.TryGetValue(position, out owner);
+            if (pieces.TryGetValue(position, out BoardPiece piece))
+            {
+                owner = piece.Owner;
+                return true;
+            }
+
+            owner = default;
+            return false;
+        }
+
+        public bool TryGetPiece(Vector2Int position, out BoardPiece piece)
+        {
+            return pieces.TryGetValue(position, out piece);
+        }
+
+        public bool TryGetCombatPower(Vector2Int position, out int combatPower)
+        {
+            if (pieces.TryGetValue(position, out BoardPiece piece))
+            {
+                combatPower = piece.CombatPower;
+                return true;
+            }
+
+            combatPower = default;
+            return false;
         }
 
         public int GetPieceCount(PlayerId player)
         {
             int count = 0;
-            foreach (PlayerId owner in pieces.Values)
+            foreach (BoardPiece piece in pieces.Values)
             {
-                if (owner == player)
+                if (piece.Owner == player)
                 {
                     count++;
                 }
@@ -132,8 +186,8 @@ namespace GCCC.BoardGame
 
         public IReadOnlyList<Vector2Int> GetLegalMoves(Vector2Int from)
         {
-            if (IsGameOver || !pieces.TryGetValue(from, out PlayerId owner) ||
-                owner != CurrentPlayer)
+            if (IsGameOver || !pieces.TryGetValue(from, out BoardPiece piece) ||
+                piece.Owner != CurrentPlayer)
             {
                 return Array.Empty<Vector2Int>();
             }
@@ -149,7 +203,7 @@ namespace GCCC.BoardGame
                     }
 
                     Vector2Int destination = from + new Vector2Int(xOffset, yOffset);
-                    if (IsLegalDestination(owner, destination))
+                    if (IsLegalDestination(piece.Owner, destination))
                     {
                         legalMoves.Add(destination);
                     }
@@ -161,8 +215,8 @@ namespace GCCC.BoardGame
 
         public bool TryMove(Vector2Int from, Vector2Int to)
         {
-            if (IsGameOver || !pieces.TryGetValue(from, out PlayerId owner) ||
-                owner != CurrentPlayer)
+            if (IsGameOver || !pieces.TryGetValue(from, out BoardPiece movingPiece) ||
+                movingPiece.Owner != CurrentPlayer)
             {
                 return false;
             }
@@ -170,21 +224,21 @@ namespace GCCC.BoardGame
             Vector2Int difference = to - from;
             if ((difference.x == 0 && difference.y == 0) ||
                 Mathf.Abs(difference.x) > 1 || Mathf.Abs(difference.y) > 1 ||
-                !IsLegalDestination(owner, to))
+                !IsLegalDestination(movingPiece.Owner, to))
             {
                 return false;
             }
 
             pieces.Remove(from);
-            pieces[to] = owner;
+            pieces[to] = movingPiece;
 
-            if (IsOpponentTerritory(owner, to))
+            if (IsOpponentTerritory(movingPiece.Owner, to))
             {
-                Winner = owner;
+                Winner = movingPiece.Owner;
                 return true;
             }
 
-            AdvanceTurn(owner);
+            AdvanceTurn(movingPiece.Owner);
             return true;
         }
 
@@ -199,8 +253,10 @@ namespace GCCC.BoardGame
             int player2Row = Rows - 2;
             for (int column = 0; column < Columns; column++)
             {
-                pieces.Add(new Vector2Int(column, player1Row), PlayerId.Player1);
-                pieces.Add(new Vector2Int(column, player2Row), PlayerId.Player2);
+                pieces.Add(new Vector2Int(column, player1Row),
+                    new BoardPiece(PlayerId.Player1, InitialCombatPower));
+                pieces.Add(new Vector2Int(column, player2Row),
+                    new BoardPiece(PlayerId.Player2, InitialCombatPower));
             }
         }
 
@@ -211,15 +267,15 @@ namespace GCCC.BoardGame
                 return false;
             }
 
-            return !pieces.TryGetValue(destination, out PlayerId destinationOwner) ||
-                   destinationOwner != player;
+            return !pieces.TryGetValue(destination, out BoardPiece destinationPiece) ||
+                   destinationPiece.Owner != player;
         }
 
         private bool HasAnyLegalMove(PlayerId player)
         {
-            foreach (KeyValuePair<Vector2Int, PlayerId> piece in pieces)
+            foreach (KeyValuePair<Vector2Int, BoardPiece> piece in pieces)
             {
-                if (piece.Value != player)
+                if (piece.Value.Owner != player)
                 {
                     continue;
                 }
@@ -267,6 +323,17 @@ namespace GCCC.BoardGame
         private static PlayerId Other(PlayerId player)
         {
             return player == PlayerId.Player1 ? PlayerId.Player2 : PlayerId.Player1;
+        }
+
+        private static IEnumerable<KeyValuePair<Vector2Int, BoardPiece>> AddDefaultCombatPower(
+            IEnumerable<KeyValuePair<Vector2Int, PlayerId>> initialPieces)
+        {
+            foreach (KeyValuePair<Vector2Int, PlayerId> piece in initialPieces)
+            {
+                yield return new KeyValuePair<Vector2Int, BoardPiece>(
+                    piece.Key,
+                    new BoardPiece(piece.Value, InitialCombatPower));
+            }
         }
 
         private static void ValidateDimensions(int columns, int rows)

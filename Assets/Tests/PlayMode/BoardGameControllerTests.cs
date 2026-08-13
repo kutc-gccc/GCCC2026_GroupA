@@ -56,14 +56,18 @@ namespace GCCC.BoardGame.Tests
         [UnityTest]
         public IEnumerator PlayerPiecesUseBlueAndRedColors()
         {
-            SpriteRenderer player1Piece = GameObject.Find("Player1 Piece (0, 1)")
-                .GetComponent<SpriteRenderer>();
-            SpriteRenderer player2Piece = GameObject.Find("Player2 Piece (0, 8)")
-                .GetComponent<SpriteRenderer>();
+            GameObject player1Object = GameObject.Find("Player1 Piece (0, 1)");
+            GameObject player2Object = GameObject.Find("Player2 Piece (0, 8)");
+            SpriteRenderer player1Piece = player1Object.GetComponent<SpriteRenderer>();
+            SpriteRenderer player2Piece = player2Object.GetComponent<SpriteRenderer>();
 
             Assert.That(player1Piece.color.b, Is.GreaterThan(player1Piece.color.r));
             Assert.That(player2Piece.color.r, Is.GreaterThan(player2Piece.color.b));
             Assert.That(player1Piece.color, Is.Not.EqualTo(player2Piece.color));
+            Assert.That(player1Object.transform.Find("Combat Power").GetComponent<TextMesh>().text,
+                Is.EqualTo("1"));
+            Assert.That(player2Object.transform.Find("Combat Power").GetComponent<TextMesh>().text,
+                Is.EqualTo("1"));
             yield return null;
         }
 
@@ -95,6 +99,8 @@ namespace GCCC.BoardGame.Tests
             Assert.That(controller.StatusText, Does.Contain("プレイヤー2"));
             Assert.That(controller.SelectedCell, Is.Null);
             Assert.That(controller.MoveIndicatorCount, Is.Zero);
+            Assert.That(GameObject.Find("Player1 Piece (2, 2)")
+                .transform.Find("Combat Power").GetComponent<TextMesh>().text, Is.EqualTo("1"));
             yield return null;
         }
 

@@ -345,7 +345,7 @@ namespace GCCC.BoardGame
                 new Vector2(0.5f, 1f),
                 new Vector2(0f, -12f),
                 new Vector2(520f, 42f));
-            player2TerritoryLabel.text = "プレイヤー2の陣地 / プレイヤー1のゴール";
+            player2TerritoryLabel.text = "プレイヤー2の陣地";
 
             Text player1TerritoryLabel = CreateUiText(
                 "Player 1 Territory Label",
@@ -357,7 +357,7 @@ namespace GCCC.BoardGame
                 new Vector2(0.5f, 0f),
                 new Vector2(0f, 12f),
                 new Vector2(520f, 42f));
-            player1TerritoryLabel.text = "プレイヤー1の陣地 / プレイヤー2のゴール";
+            player1TerritoryLabel.text = "プレイヤー1の陣地";
 
             GameObject buttonObject = new GameObject(
                 "Reset Button",
@@ -487,23 +487,43 @@ namespace GCCC.BoardGame
 
         private void CreateAllPieceViews()
         {
-            foreach (KeyValuePair<Vector2Int, PlayerId> piece in state.Pieces)
+            foreach (KeyValuePair<Vector2Int, BoardPiece> piece in state.Pieces)
             {
                 CreatePieceView(piece.Key, piece.Value);
             }
         }
 
-        private void CreatePieceView(Vector2Int cell, PlayerId owner)
+        private void CreatePieceView(Vector2Int cell, BoardPiece pieceState)
         {
             SpriteRenderer piece = CreateSpriteRenderer(
-                $"{owner} Piece ({cell.x}, {cell.y})",
+                $"{pieceState.Owner} Piece ({cell.x}, {cell.y})",
                 piecesRoot,
                 circleSprite,
-                owner == PlayerId.Player1 ? Player1Color : Player2Color,
+                pieceState.Owner == PlayerId.Player1 ? Player1Color : Player2Color,
                 Vector3.one * PieceScale,
                 3);
             piece.transform.localPosition = CellToLocalPosition(cell);
+            CreateCombatPowerLabel(piece.transform, pieceState.CombatPower);
             pieceViews.Add(cell, piece);
+        }
+
+        private void CreateCombatPowerLabel(Transform pieceTransform, int combatPower)
+        {
+            GameObject labelObject = new GameObject("Combat Power", typeof(TextMesh));
+            labelObject.transform.SetParent(pieceTransform, false);
+            labelObject.transform.localPosition = new Vector3(0f, 0f, -0.01f);
+            labelObject.transform.localScale = Vector3.one / PieceScale;
+
+            TextMesh label = labelObject.GetComponent<TextMesh>();
+            label.text = combatPower.ToString();
+            label.anchor = TextAnchor.MiddleCenter;
+            label.alignment = TextAlignment.Center;
+            label.fontSize = 64;
+            label.characterSize = 0.1f;
+            label.color = Color.white;
+
+            MeshRenderer labelRenderer = labelObject.GetComponent<MeshRenderer>();
+            labelRenderer.sortingOrder = 4;
         }
 
         private void MovePieceView(Vector2Int from, Vector2Int to)
