@@ -129,7 +129,7 @@ namespace GCCC.BoardGame.Tests
         }
 
         [Test]
-        public void MovingOntoAnOpponentCapturesItWithoutEndingTheGame()
+        public void EqualCombatPowerDestroysBothPiecesWithoutEndingTheGame()
         {
             BoardState custom = CreateState(PlayerId.Player1,
                 Piece(2, 2, PlayerId.Player1),
@@ -137,10 +137,51 @@ namespace GCCC.BoardGame.Tests
                 Piece(5, 8, PlayerId.Player2));
 
             Assert.That(custom.TryMove(new Vector2Int(2, 2), new Vector2Int(3, 3)), Is.True);
-            AssertOwner(custom, new Vector2Int(3, 3), PlayerId.Player1);
+            Assert.That(custom.HasPiece(new Vector2Int(2, 2)), Is.False);
+            Assert.That(custom.HasPiece(new Vector2Int(3, 3)), Is.False);
+            Assert.That(custom.GetPieceCount(PlayerId.Player1), Is.Zero);
             Assert.That(custom.GetPieceCount(PlayerId.Player2), Is.EqualTo(1));
             Assert.That(custom.Winner, Is.Null);
             Assert.That(custom.CurrentPlayer, Is.EqualTo(PlayerId.Player2));
+        }
+
+        [Test]
+        public void StrongerAttackerSurvivesWithThePowerDifferenceAndMovesForward()
+        {
+            BoardState custom = CreatePoweredState(PlayerId.Player1,
+                PoweredPiece(2, 2, PlayerId.Player1, 5),
+                PoweredPiece(3, 3, PlayerId.Player2, 2),
+                PoweredPiece(5, 8, PlayerId.Player2, 1));
+
+            Assert.That(custom.TryMove(new Vector2Int(2, 2), new Vector2Int(3, 3),
+                out MoveResult result), Is.True);
+
+            Assert.That(result.CombatOccurred, Is.True);
+            Assert.That(result.AttackerMoved, Is.True);
+            Assert.That(result.DefenderDestroyed, Is.True);
+            Assert.That(result.AttackerDestroyed, Is.False);
+            Assert.That(custom.HasPiece(new Vector2Int(2, 2)), Is.False);
+            AssertOwner(custom, new Vector2Int(3, 3), PlayerId.Player1);
+            AssertCombatPower(custom, new Vector2Int(3, 3), 3);
+        }
+
+        [Test]
+        public void StrongerDefenderSurvivesInPlaceWithThePowerDifference()
+        {
+            BoardState custom = CreatePoweredState(PlayerId.Player1,
+                PoweredPiece(2, 2, PlayerId.Player1, 2),
+                PoweredPiece(3, 3, PlayerId.Player2, 5));
+
+            Assert.That(custom.TryMove(new Vector2Int(2, 2), new Vector2Int(3, 3),
+                out MoveResult result), Is.True);
+
+            Assert.That(result.CombatOccurred, Is.True);
+            Assert.That(result.AttackerMoved, Is.False);
+            Assert.That(result.AttackerDestroyed, Is.True);
+            Assert.That(result.DefenderDestroyed, Is.False);
+            Assert.That(custom.HasPiece(new Vector2Int(2, 2)), Is.False);
+            AssertOwner(custom, new Vector2Int(3, 3), PlayerId.Player2);
+            AssertCombatPower(custom, new Vector2Int(3, 3), 3);
         }
 
         [Test]
@@ -157,11 +198,11 @@ namespace GCCC.BoardGame.Tests
         }
 
         [Test]
-        public void CapturingEveryOpponentPieceAutomaticallyPassesBackWithoutWinning()
+        public void DefeatingEveryOpponentPieceAutomaticallyPassesBackWithoutWinning()
         {
-            BoardState custom = CreateState(PlayerId.Player1,
-                Piece(2, 2, PlayerId.Player1),
-                Piece(3, 3, PlayerId.Player2));
+            BoardState custom = CreatePoweredState(PlayerId.Player1,
+                PoweredPiece(2, 2, PlayerId.Player1, 2),
+                PoweredPiece(3, 3, PlayerId.Player2, 1));
 
             Assert.That(custom.TryMove(new Vector2Int(2, 2), new Vector2Int(3, 3)), Is.True);
             Assert.That(custom.GetPieceCount(PlayerId.Player2), Is.Zero);
@@ -201,6 +242,13 @@ namespace GCCC.BoardGame.Tests
         private static BoardState CreateState(
             PlayerId currentPlayer,
             params KeyValuePair<Vector2Int, PlayerId>[] pieces)
+        {
+            return new BoardState(6, 10, pieces, currentPlayer);
+        }
+
+        private static BoardState CreatePoweredState(
+            PlayerId currentPlayer,
+            params KeyValuePair<Vector2Int, BoardPiece>[] pieces)
         {
             return new BoardState(6, 10, pieces, currentPlayer);
         }

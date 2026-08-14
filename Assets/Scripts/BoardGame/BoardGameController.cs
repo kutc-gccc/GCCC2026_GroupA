@@ -23,7 +23,7 @@ namespace GCCC.BoardGame
         private static readonly Color Player2Color = new Color32(196, 61, 54, 255);
         private static readonly Color SelectionColor = new Color32(255, 193, 7, 175);
         private static readonly Color LegalMoveColor = new Color32(76, 175, 80, 150);
-        private static readonly Color CaptureMoveColor = new Color32(255, 152, 0, 175);
+        private static readonly Color CombatMoveColor = new Color32(255, 152, 0, 175);
         private static readonly Color TerritoryBorderColor = new Color32(255, 255, 255, 235);
 
         private readonly Dictionary<Vector2Int, SpriteRenderer> pieceViews =
@@ -108,19 +108,12 @@ namespace GCCC.BoardGame
                 return;
             }
 
-            bool capturesPiece = state.HasPiece(cell);
-            if (!state.TryMove(from, cell))
+            if (!state.TryMove(from, cell, out MoveResult result))
             {
                 return;
             }
 
-            if (capturesPiece && pieceViews.TryGetValue(cell, out SpriteRenderer capturedView))
-            {
-                pieceViews.Remove(cell);
-                DestroyGeneratedObject(capturedView.gameObject);
-            }
-
-            MovePieceView(from, cell);
+            ApplyMoveResultToViews(from, cell, result);
             selectedCell = null;
             UpdateSelectionAndMoves();
             UpdateStatusLabel();
@@ -540,6 +533,57 @@ namespace GCCC.BoardGame
             piece.transform.localPosition = CellToLocalPosition(to);
         }
 
+        private void ApplyMoveResultToViews(Vector2Int from, Vector2Int to, MoveResult result)
+        {
+            if (!result.CombatOccurred)
+            {
+                MovePieceView(from, to);
+                return;
+            }
+
+            if (result.DefenderDestroyed)
+            {
+                DestroyPieceView(to);
+            }
+
+            if (result.AttackerDestroyed)
+            {
+                DestroyPieceView(from);
+            }
+            else if (result.AttackerMoved)
+            {
+                MovePieceView(from, to);
+            }
+
+            UpdateCombatPowerLabel(to);
+        }
+
+        private void DestroyPieceView(Vector2Int cell)
+        {
+            if (!pieceViews.TryGetValue(cell, out SpriteRenderer piece))
+            {
+                return;
+            }
+
+            pieceViews.Remove(cell);
+            DestroyGeneratedObject(piece.gameObject);
+        }
+
+        private void UpdateCombatPowerLabel(Vector2Int cell)
+        {
+            if (!pieceViews.TryGetValue(cell, out SpriteRenderer pieceView) ||
+                !state.TryGetCombatPower(cell, out int combatPower))
+            {
+                return;
+            }
+
+            Transform labelTransform = pieceView.transform.Find("Combat Power");
+            if (labelTransform != null && labelTransform.TryGetComponent(out TextMesh label))
+            {
+                label.text = combatPower.ToString();
+            }
+        }
+
         private void UpdateSelectionAndMoves()
         {
             ClearMoveIndicators();
@@ -557,12 +601,12 @@ namespace GCCC.BoardGame
             IReadOnlyList<Vector2Int> legalMoves = state.GetLegalMoves(selected);
             foreach (Vector2Int move in legalMoves)
             {
-                bool isCapture = state.HasPiece(move);
+                bool isCombat = state.HasPiece(move);
                 SpriteRenderer indicator = CreateSpriteRenderer(
-                    $"{(isCapture ? "Capture" : "Move")} Candidate ({move.x}, {move.y})",
+                    $"{(isCombat ? "Combat" : "Move")} Candidate ({move.x}, {move.y})",
                     indicatorsRoot,
                     squareSprite,
-                    isCapture ? CaptureMoveColor : LegalMoveColor,
+                    isCombat ? CombatMoveColor : LegalMoveColor,
                     Vector3.one * 0.82f,
                     2);
                 indicator.transform.localPosition = CellToLocalPosition(move);

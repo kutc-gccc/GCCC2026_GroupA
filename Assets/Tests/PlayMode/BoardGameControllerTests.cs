@@ -105,7 +105,7 @@ namespace GCCC.BoardGame.Tests
         }
 
         [UnityTest]
-        public IEnumerator AdjacentOpponentCanBeCaptured()
+        public IEnumerator EqualCombatPowerCollisionRemovesBothPieceViews()
         {
             Move(new Vector2Int(0, 1), new Vector2Int(0, 2));
             Move(new Vector2Int(0, 8), new Vector2Int(0, 7));
@@ -114,12 +114,16 @@ namespace GCCC.BoardGame.Tests
             Move(new Vector2Int(0, 3), new Vector2Int(0, 4));
             Move(new Vector2Int(0, 6), new Vector2Int(0, 5));
             Move(new Vector2Int(0, 4), new Vector2Int(0, 5));
-
-            AssertOwner(new Vector2Int(0, 5), PlayerId.Player1);
-            Assert.That(controller.State.GetPieceCount(PlayerId.Player2), Is.EqualTo(5));
-            Assert.That(controller.PieceViewCount, Is.EqualTo(11));
-            Assert.That(controller.State.Winner, Is.Null);
             yield return null;
+
+            Assert.That(controller.State.HasPiece(new Vector2Int(0, 4)), Is.False);
+            Assert.That(controller.State.HasPiece(new Vector2Int(0, 5)), Is.False);
+            Assert.That(GameObject.Find("Player1 Piece (0, 4)"), Is.Null);
+            Assert.That(GameObject.Find("Player2 Piece (0, 5)"), Is.Null);
+            Assert.That(controller.State.GetPieceCount(PlayerId.Player1), Is.EqualTo(5));
+            Assert.That(controller.State.GetPieceCount(PlayerId.Player2), Is.EqualTo(5));
+            Assert.That(controller.PieceViewCount, Is.EqualTo(10));
+            Assert.That(controller.State.Winner, Is.Null);
         }
 
         [UnityTest]

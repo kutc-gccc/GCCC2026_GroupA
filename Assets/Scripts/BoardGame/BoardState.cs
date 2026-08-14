@@ -29,6 +29,29 @@ namespace GCCC.BoardGame
         public int CombatPower { get; }
     }
 
+    public readonly struct MoveResult
+    {
+        public MoveResult(
+            bool combatOccurred,
+            bool attackerMoved,
+            bool attackerDestroyed,
+            bool defenderDestroyed)
+        {
+            CombatOccurred = combatOccurred;
+            AttackerMoved = attackerMoved;
+            AttackerDestroyed = attackerDestroyed;
+            DefenderDestroyed = defenderDestroyed;
+        }
+
+        public bool CombatOccurred { get; }
+
+        public bool AttackerMoved { get; }
+
+        public bool AttackerDestroyed { get; }
+
+        public bool DefenderDestroyed { get; }
+    }
+
     /// <summary>
     /// Owns the complete rules state for the two-player territory game.
     /// Coordinates start at (0, 0) in the bottom-left corner.
@@ -215,6 +238,12 @@ namespace GCCC.BoardGame
 
         public bool TryMove(Vector2Int from, Vector2Int to)
         {
+            return TryMove(from, to, out _);
+        }
+
+        public bool TryMove(Vector2Int from, Vector2Int to, out MoveResult result)
+        {
+            result = default;
             if (IsGameOver || !pieces.TryGetValue(from, out BoardPiece movingPiece) ||
                 movingPiece.Owner != CurrentPlayer)
             {
@@ -229,8 +258,16 @@ namespace GCCC.BoardGame
                 return false;
             }
 
+            if (pieces.TryGetValue(to, out BoardPiece defendingPiece))
+            {
+                ResolveCombat(from, to, movingPiece, defendingPiece, out result);
+                AdvanceTurn(movingPiece.Owner);
+                return true;
+            }
+
             pieces.Remove(from);
             pieces[to] = movingPiece;
+            result = new MoveResult(false, true, false, false);
 
             if (IsOpponentTerritory(movingPiece.Owner, to))
             {
@@ -240,6 +277,36 @@ namespace GCCC.BoardGame
 
             AdvanceTurn(movingPiece.Owner);
             return true;
+        }
+
+        private void ResolveCombat(
+            Vector2Int from,
+            Vector2Int to,
+            BoardPiece attacker,
+            BoardPiece defender,
+            out MoveResult result)
+        {
+            int attackerRemainingPower = attacker.CombatPower - defender.CombatPower;
+            int defenderRemainingPower = defender.CombatPower - attacker.CombatPower;
+
+            pieces.Remove(from);
+
+            if (attackerRemainingPower > 0)
+            {
+                pieces[to] = new BoardPiece(attacker.Owner, attackerRemainingPower);
+                result = new MoveResult(true, true, false, true);
+                return;
+            }
+
+            if (defenderRemainingPower > 0)
+            {
+                pieces[to] = new BoardPiece(defender.Owner, defenderRemainingPower);
+                result = new MoveResult(true, false, true, false);
+                return;
+            }
+
+            pieces.Remove(to);
+            result = new MoveResult(true, false, true, true);
         }
 
         public void ResetGame()
