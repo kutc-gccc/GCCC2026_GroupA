@@ -1,9 +1,9 @@
 {
-  "name": "GCCC.BoardGame.PlayModeTests",
-  "rootNamespace": "GCCC.BoardGame.Tests",
+  "name": "GCCC.BoardGame.Presentation",
+  "rootNamespace": "GCCC.BoardGame.Presentation",
   "references": [
     "GCCC.BoardGame.Core",
-    "GCCC.BoardGame.Presentation",
+    "Unity.InputSystem",
     "Unity.ugui"
   ],
   "includePlatforms": [],
@@ -11,13 +11,8 @@
   "allowUnsafeCode": false,
   "overrideReferences": false,
   "precompiledReferences": [],
-  "autoReferenced": false,
-  "defineConstraints": [
-    "UNITY_INCLUDE_TESTS"
-  ],
-  "optionalUnityReferences": [
-    "TestAssemblies"
-  ],
+  "autoReferenced": true,
+  "defineConstraints": [],
   "versionDefines": [],
   "noEngineReferences": false
 }

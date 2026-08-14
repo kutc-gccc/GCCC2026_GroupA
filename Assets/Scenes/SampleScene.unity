@@ -267,7 +267,7 @@ GameObject:
   - component: {fileID: 1277418739}
   - component: {fileID: 1277418738}
   m_Layer: 0
-  m_Name: Board Game Controller
+  m_Name: Board Game Bootstrap
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -284,7 +284,11 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5ebd543bdd9c4de38ab867f4e48841fd, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: GCCC.BoardGame::GCCC.BoardGame.BoardGameController
+  m_EditorClassIdentifier: GCCC.BoardGame.Presentation::GCCC.BoardGame.Presentation.Bootstrap.BoardGameBootstrap
+  config: {fileID: 11400000, guid: 08e929f78115db64ba503ef0cb90dd9f, type: 2}
+  boardViewPrefab: {fileID: 4404203097780173733, guid: f42e7715b13b31042923e8f07cbbea4f, type: 3}
+  pieceViewsPrefab: {fileID: 938857701199877985, guid: 0285070ecfb2edc4caff461e3b8a07f9, type: 3}
+  hudViewPrefab: {fileID: 4631774944796141690, guid: cabd2fa888e6b3f499f51f5576245ad3, type: 3}
 --- !u!4 &1277418739
 Transform:
   m_ObjectHideFlags: 0

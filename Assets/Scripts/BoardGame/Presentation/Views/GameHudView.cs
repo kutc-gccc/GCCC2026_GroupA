@@ -1,0 +1,185 @@
+using System;
+using GCCC.BoardGame.Core.Model;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
+using UnityEngine.UI;
+using Object = UnityEngine.Object;
+
+namespace GCCC.BoardGame.Presentation.Views
+{
+    public sealed class GameHudView : MonoBehaviour
+    {
+        private RectTransform resetButtonRect;
+        private Text statusLabel;
+        private GameObject createdEventSystem;
+
+        public event Action ResetRequested;
+
+        public string StatusText => statusLabel != null ? statusLabel.text : string.Empty;
+
+        public void Initialize()
+        {
+            BuildUi();
+        }
+
+        public void Render(GameSnapshot snapshot)
+        {
+            if (snapshot.Winner.HasValue)
+            {
+                statusLabel.text = snapshot.Winner.Value == PlayerId.Player1
+                    ? "プレイヤー1（青）の勝利"
+                    : "プレイヤー2（赤）の勝利";
+                return;
+            }
+
+            if (snapshot.IsDraw)
+            {
+                statusLabel.text = "引き分け";
+                return;
+            }
+
+            statusLabel.text = snapshot.CurrentPlayer == PlayerId.Player1
+                ? "プレイヤー1（青）のターン"
+                : "プレイヤー2（赤）のターン";
+        }
+
+        public bool IsPointerOverControl(Vector2 screenPosition)
+        {
+            return resetButtonRect != null &&
+                   RectTransformUtility.RectangleContainsScreenPoint(
+                       resetButtonRect, screenPosition);
+        }
+
+        private void BuildUi()
+        {
+            GameObject canvasObject = new GameObject(
+                "Board UI", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            canvasObject.transform.SetParent(transform, false);
+            Canvas canvas = canvasObject.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
+            CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+
+            Font font = CreateUiFont();
+            statusLabel = CreateUiText(
+                "Turn Status", canvasObject.transform, font, 28, TextAnchor.MiddleLeft,
+                new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(24f, -24f), new Vector2(520f, 64f));
+
+            Text player2Label = CreateUiText(
+                "Player 2 Territory Label", canvasObject.transform, font, 22,
+                TextAnchor.MiddleCenter, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -12f), new Vector2(520f, 42f));
+            player2Label.text = "プレイヤー2の陣地";
+
+            Text player1Label = CreateUiText(
+                "Player 1 Territory Label", canvasObject.transform, font, 22,
+                TextAnchor.MiddleCenter, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 12f), new Vector2(520f, 42f));
+            player1Label.text = "プレイヤー1の陣地";
+
+            GameObject buttonObject = new GameObject(
+                "Reset Button", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(Image), typeof(Button));
+            buttonObject.transform.SetParent(canvasObject.transform, false);
+            resetButtonRect = buttonObject.GetComponent<RectTransform>();
+            resetButtonRect.anchorMin = Vector2.one;
+            resetButtonRect.anchorMax = Vector2.one;
+            resetButtonRect.pivot = Vector2.one;
+            resetButtonRect.sizeDelta = new Vector2(180f, 64f);
+            resetButtonRect.anchoredPosition = new Vector2(-24f, -24f);
+
+            Image image = buttonObject.GetComponent<Image>();
+            image.color = new Color32(235, 238, 244, 255);
+            Button button = buttonObject.GetComponent<Button>();
+            button.targetGraphic = image;
+            button.onClick.AddListener(OnResetClicked);
+
+            Text resetLabel = CreateUiText(
+                "Label", buttonObject.transform, font, 24, TextAnchor.MiddleCenter,
+                Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
+            resetLabel.rectTransform.anchorMin = Vector2.zero;
+            resetLabel.rectTransform.anchorMax = Vector2.one;
+            resetLabel.rectTransform.offsetMin = Vector2.zero;
+            resetLabel.rectTransform.offsetMax = Vector2.zero;
+            resetLabel.text = "リセット";
+            resetLabel.color = new Color32(35, 41, 52, 255);
+
+            if (EventSystem.current == null)
+            {
+                createdEventSystem = new GameObject("EventSystem", typeof(EventSystem));
+                InputSystemUIInputModule inputModule =
+                    createdEventSystem.AddComponent<InputSystemUIInputModule>();
+                inputModule.AssignDefaultActions();
+            }
+        }
+
+        private void OnResetClicked()
+        {
+            ResetRequested?.Invoke();
+        }
+
+        private static Text CreateUiText(
+            string objectName,
+            Transform parent,
+            Font font,
+            int fontSize,
+            TextAnchor alignment,
+            Vector2 anchor,
+            Vector2 pivot,
+            Vector2 anchoredPosition,
+            Vector2 size)
+        {
+            GameObject labelObject = new GameObject(
+                objectName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            labelObject.transform.SetParent(parent, false);
+            RectTransform rect = labelObject.GetComponent<RectTransform>();
+            rect.anchorMin = anchor;
+            rect.anchorMax = anchor;
+            rect.pivot = pivot;
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = size;
+
+            Text label = labelObject.GetComponent<Text>();
+            label.font = font;
+            label.fontSize = fontSize;
+            label.alignment = alignment;
+            label.color = Color.white;
+            label.raycastTarget = false;
+            return label;
+        }
+
+        private static Font CreateUiFont()
+        {
+            string[] preferredFonts =
+            {
+                "Yu Gothic UI", "Meiryo UI", "Hiragino Sans", "Noto Sans CJK JP", "Arial"
+            };
+            Font font = Font.CreateDynamicFontFromOSFont(preferredFonts, 24);
+            return font != null
+                ? font
+                : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        }
+
+        private void OnDestroy()
+        {
+            if (createdEventSystem == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Object.Destroy(createdEventSystem);
+            }
+            else
+            {
+                Object.DestroyImmediate(createdEventSystem);
+            }
+        }
+    }
+}

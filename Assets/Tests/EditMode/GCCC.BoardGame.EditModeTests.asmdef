@@ -2,7 +2,7 @@
   "name": "GCCC.BoardGame.EditModeTests",
   "rootNamespace": "GCCC.BoardGame.Tests",
   "references": [
-    "GCCC.BoardGame"
+    "GCCC.BoardGame.Core"
   ],
   "includePlatforms": [
     "Editor"
