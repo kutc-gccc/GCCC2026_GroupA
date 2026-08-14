@@ -1,0 +1,135 @@
+# 開発ガイド
+
+## 1. 開発環境
+
+| 項目 | 値 |
+|---|---|
+| Unity | `6000.3.11f1` |
+| Render Pipeline | Universal Render Pipeline `17.3.0`、2D Renderer |
+| Input | Input System `1.19.0` |
+| UI | uGUI `2.0.0` |
+| Test | Unity Test Framework `1.6.0` |
+| Build Scene | `Assets/Scenes/SampleScene.unity` |
+
+Unity Hubで同じEditorバージョンをインストールしてください。異なるUnityバージョンで開くとScene、Prefab、ProjectSettingsが自動更新され、意図しない差分が発生する可能性があります。
+
+## 2. プロジェクトの取得と起動
+
+```powershell
+git clone https://github.com/kutc-gccc/GCCC2026_GroupA
+Set-Location GCCC2026_GroupA
+```
+
+1. Unity Hubの「Add project from disk」でプロジェクトルートを選びます。
+2. Unity `6000.3.11f1`で開き、Packageの解決とコンパイル完了を待ちます。
+3. ConsoleのErrorが0件であることを確認します。
+4. `Assets/Scenes/SampleScene.unity`を開いてPlayします。
+
+初回起動時に生成される`Library`、`Temp`、`Logs`、`UserSettings`はGit管理しません。
+
+## 3. 操作確認
+
+1. Game Viewを16:9にします。
+2. プレイヤー1の青い駒を選択します。
+3. 緑の空きマスへ移動できることを確認します。
+4. 手番がプレイヤー2へ変わることを確認します。
+5. オレンジの敵駒マスへ移動すると戦闘が発生することを確認します。
+6. リセットで12駒とプレイヤー1の手番へ戻ることを確認します。
+
+## 4. フォルダと担当境界
+
+| 領域 | 主な変更場所 | 担当例 |
+|---|---|---|
+| 状態・共通契約 | `Core/Model`、`Core/Commands`、`Core/Events` | Core担当 |
+| 移動 | `Core/Rules/Movement` | 移動担当 |
+| 戦闘 | `Core/Rules/Combat` | 戦闘担当 |
+| 合体 | `Core/Rules/Fusion` | 合体担当 |
+| 特殊マス | `Core/Rules/CellEffects`、Config | 盤面担当 |
+| 入力 | `Presentation/Input`、Coordinator | 入力担当 |
+| 表示 | `Presentation/Views`、Prefab | UI担当 |
+| CPU | 将来の`AI`アセンブリ | AI担当 |
+| 統合 | Bootstrap、Scene、asmdef | 担当者間で調整 |
+
+`GameSession`、`GameCoordinator`、`BoardGameBootstrap`、asmdef、`SampleScene`は複数領域を接続するため、同時編集の衝突が起きやすいファイルです。必要な統合変更を小さくし、担当PRの最後に追加してください。
+
+## 5. `StandardBoardGameConfig`
+
+設定アセットは`Assets/Config/BoardGame/StandardBoardGameConfig.asset`です。
+
+| 設定 | 標準値 | 用途 |
+|---|---:|---|
+| `columns` | 6 | 盤面の列数 |
+| `rows` | 10 | 盤面の行数 |
+| `firstPlayer` | Player1 | 先手 |
+| `player1TerritoryRow` | 0 | プレイヤー1の陣地行 |
+| `player2TerritoryRow` | 9 | プレイヤー2の陣地行 |
+| `player1StartRow` | 1 | プレイヤー1の初期配置行 |
+| `player2StartRow` | 8 | プレイヤー2の初期配置行 |
+| `initialCombatPower` | 1 | 全初期駒の戦闘力 |
+| `initialMoveDirections` | All | 全初期駒の移動方向 |
+| `cellEffects` | 空 | 座標ごとの効果ID |
+
+行設定は盤面内でなければなりません。両陣地を同じ行にする、自分の陣地と初期配置を同じ行にする、両プレイヤーの初期配置を同じ行にすると、`CreateDefinition`が`InvalidOperationException`を送出します。
+
+特殊効果IDを設定する場合は、同じIDの`ICellEffectHandler`を`GameSession`生成時に必ず登録してください。未登録のIDが発動すると`InvalidOperationException`になります。
+
+## 6. SceneとPrefabの編集
+
+- SceneにはMain CameraとBootstrapだけを置く方針です。
+- 盤面表示は`BoardView.prefab`、駒管理は`PieceViews.prefab`、HUDは`GameHud.prefab`を編集します。
+- Prefabの公開設定を増やす場合は、Bootstrapの参照が維持されているかSampleSceneで確認します。
+- Runtime生成されるセル、駒、Canvasの子要素をPlay中に変更してもAssetには保存されません。
+- Scene変更を含むPRでは、意図しないProjectSettings差分がないか必ず確認します。
+
+## 7. PackageとUnity MCP
+
+依存Packageは`Packages/manifest.json`で管理します。Unity MCPはEditorを外部ツールから検査・操作するための開発支援Packageです。
+
+- ゲームのCoreやPresentationはUnity MCP APIへ依存しません。
+- Package追加・更新は専用PRに分けます。
+- `Packages/manifest.json`と`packages-lock.json`は同じPRで更新します。
+- Git URLの`main`参照は将来内容が変わる可能性があるため、安定運用時は検証済みtagまたはcommitへの固定を検討します。
+
+## 8. Gitブランチ運用
+
+ブランチは人ではなく機能・修正単位で作ります。
+
+| 用途 | 例 |
+|---|---|
+| 新機能 | `feature/fusion-rule` |
+| 不具合修正 | `fix/combat-turn-order` |
+| 文書 | `docs/architecture-update` |
+
+推奨手順は次のとおりです。
+
+1. 共有元ブランチを最新化します。
+2. 1つの目的に限定したブランチを作ります。
+3. 自分の担当フォルダを中心に変更します。
+4. Core契約の変更が必要なら、その契約だけを先行PRとして分離します。
+5. EditModeとPlayModeを実行します。
+6. `git status`でScene、Package、ProjectSettingsの意図しない差分を除外します。
+7. 小さなPRを作り、担当外のレビューを1人以上受けます。
+
+人ごとの恒久ブランチは、複数機能が混ざりやすく、レビューとマージが難しくなるため使用しません。
+
+## 9. コミットとPRの確認項目
+
+- [ ] 変更目的が1つに限定されている
+- [ ] 対応する`.meta`ファイルを含めている
+- [ ] `Library`、`Temp`、`Logs`、生成`.csproj`を含めていない
+- [ ] Coreに`UnityEngine`や`UnityEditor`参照を追加していない
+- [ ] Presentationでゲームルールを重複実装していない
+- [ ] 新しい挙動にEditModeテストがある
+- [ ] 表示・入力変更にPlayModeテストがある
+- [ ] SampleSceneの通常再生でConsole Errorが0件
+- [ ] Game Viewで盤面とHUDが欠けていない
+- [ ] Package・ProjectSettings変更が意図したものだけである
+
+## 10. コンフリクトを減らす方法
+
+- 戦闘、合体、特殊効果、View、Inputは対応するフォルダ内で完結させます。
+- SceneではなくPrefabを編集します。
+- 大量の名前変更と機能追加を同じPRで行いません。
+- 共通interfaceを変更する場合は、利用側の実装より先に合意します。
+- Unity Editorを異なるバージョンで開きません。
+- マージ直前に共有元の変更を取り込み、テストを再実行します。
