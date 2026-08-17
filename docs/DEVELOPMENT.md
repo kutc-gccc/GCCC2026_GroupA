@@ -114,16 +114,9 @@ Set-Location GCCC2026_GroupA
 
 ## 9. コミットとPRの確認項目
 
-- [ ] 変更目的が1つに限定されている
-- [ ] 対応する`.meta`ファイルを含めている
-- [ ] `Library`、`Temp`、`Logs`、生成`.csproj`を含めていない
-- [ ] Coreに`UnityEngine`や`UnityEditor`参照を追加していない
-- [ ] Presentationでゲームルールを重複実装していない
-- [ ] 新しい挙動にEditModeテストがある
-- [ ] 表示・入力変更にPlayModeテストがある
-- [ ] SampleSceneの通常再生でConsole Errorが0件
-- [ ] Game Viewで盤面とHUDが欠けていない
-- [ ] Package・ProjectSettings変更が意図したものだけである
+確認項目は[`.github/pull_request_template.md`](../.github/pull_request_template.md)にあります。PRを作成すると本文へ自動で挿入されるので、各項目を確認してチェックを入れてください。
+
+項目を追加・変更する場合はテンプレート側だけを編集します。二重管理を避けるため、この文書へは転記しません。
 
 ## 10. コンフリクトを減らす方法
 
@@ -133,3 +126,21 @@ Set-Location GCCC2026_GroupA
 - 共通interfaceを変更する場合は、利用側の実装より先に合意します。
 - Unity Editorを異なるバージョンで開きません。
 - マージ直前に共有元の変更を取り込み、テストを再実行します。
+
+## 11. 文書の担当範囲
+
+同じ情報を複数の文書へ書くと、片方だけが更新されて食い違います。情報ごとに一次情報源を1つ決め、他の文書からはリンクします。
+
+| 情報 | 一次情報源 |
+|---|---|
+| ゲームルール、8方向、勝敗条件 | [`docs/GAME_RULES.md`](GAME_RULES.md) |
+| 設計方針、レイヤー責務、データフロー | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) |
+| Coreの型の使い方、コード例 | [`docs/CORE_API.md`](CORE_API.md) |
+| 開発環境、Config標準値、Git運用 | `docs/DEVELOPMENT.md`（この文書） |
+| 機能の追加手順 | [`docs/EXTENSION_GUIDE.md`](EXTENSION_GUIDE.md) |
+| テスト方針、実行手順 | [`docs/TESTING.md`](TESTING.md) |
+| テストの一覧と件数 | テストコード本体 |
+| PRの確認項目 | [`.github/pull_request_template.md`](../.github/pull_request_template.md) |
+| 実装状況 | [`README.md`](../README.md) |
+
+文書を追加・変更するときは、書こうとしている内容の一次情報源がすでに他にないかを先に確認してください。

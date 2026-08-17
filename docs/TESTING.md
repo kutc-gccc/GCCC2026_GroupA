@@ -1,53 +1,44 @@
 # テストガイド
 
-## 1. 現在のテスト結果
+このプロジェクトには、Unity表示に依存しないEditModeテストと、Scene・View・入力を含むPlayModeテストがあります。
 
-Unity `6000.3.11f1`での最新ローカル確認結果です。
+テスト名と件数の一次情報源は**テストコード自身**です。この文書は「何を検証する方針か」と「どう実行するか」を扱います。
 
-| Suite | 件数 | 結果 |
-|---|---:|---|
-| EditMode | 15 | 15成功、0失敗 |
-| PlayMode | 8 | 8成功、0失敗 |
-| SampleScene通常再生 | 1 | Console Error・Warning 0件 |
+## 1. EditModeテスト
 
-## 2. EditModeテスト
+[`Assets/Tests/EditMode/GameSessionTests.cs`](../Assets/Tests/EditMode/GameSessionTests.cs)はUnity表示に依存せず、Coreの状態とルールを検証します。
 
-`Assets/Tests/EditMode/GameSessionTests.cs`はUnity表示に依存せず、Coreの状態とルールを検証します。
+検証方針:
 
-| テスト | 検証内容 |
-|---|---|
-| `StandardGameStartsWithTwelveDirectionalPiecesOutsideTerritories` | 6×10、12駒、陣地が空、初期方向 |
-| `PieceMoveDirectionsRestrictLegalCommands` | 駒ごとの方向制限 |
-| `ValidMoveChangesPositionAndSwitchesTurn` | 正常移動と手番交代 |
-| `InvalidPlayerAndDestinationAreRejectedWithoutChangingSnapshot` | 不正プレイヤー・2マス移動の拒否 |
-| `PlayersCannotMoveIntoTheirOwnTerritory` | 自陣進入禁止 |
-| `EqualCombatPowerDestroysBothPieces` | 同戦闘力の相打ち |
-| `StrongerAttackerMovesWithRemainingPower` | 攻撃側生存と残り戦闘力 |
-| `StrongerDefenderStaysWithRemainingPower` | 防御側生存と残り戦闘力 |
-| `ReachingOpponentTerritoryWinsAndLocksCommands` | 到達勝利と終了後拒否 |
-| `DefeatingEveryOpponentDoesNotWinAndPassesTurnBack` | 全滅が勝利ではないこととパス |
-| `NoLegalActionsForEitherPlayerIsDraw` | 両者行動不能の引き分け |
-| `FusionCommandIsExplicitlyRejectedWhileFeatureIsDisabled` | 合体無効の失敗理由 |
-| `CellEffectsRunInDefinitionOrder` | 特殊効果の実行順と累積 |
-| `OldSnapshotDoesNotChangeAfterExecutingACommand` | Snapshotの不変性 |
-| `ResetRestoresStandardPositionAndFirstTurn` | リセットの完全復元 |
+- 標準定義での盤面サイズ、駒数、初期配置、初期移動方向
+- 駒ごとの`MoveDirections`による合法手の制限
+- 正常な移動と手番交代
+- 不正なプレイヤー、距離、自陣進入の拒否と、拒否時にSnapshotが変わらないこと
+- 戦闘の3パターン（相打ち、攻撃側生存、防御側生存）と残り戦闘力
+- 相手陣地到達での勝利と、勝敗確定後のCommand拒否
+- 相手の全滅が勝利にならないことと自動パス
+- 両者行動不能での引き分け
+- 合体が無効なときの失敗理由
+- セル効果の実行順と累積
+- 過去のSnapshotが後続のCommandで変化しないこと
+- リセットによる完全復元
 
-## 3. PlayModeテスト
+## 2. PlayModeテスト
 
-`Assets/Tests/PlayMode/BoardGameBootstrapTests.cs`はBootstrap、View、HUD、Scene統合を検証します。
+[`Assets/Tests/PlayMode/BoardGameBootstrapTests.cs`](../Assets/Tests/PlayMode/BoardGameBootstrapTests.cs)はBootstrap、View、HUD、Scene統合を検証します。
 
-| テスト | 検証内容 |
-|---|---|
-| `AwakeBuildsSeparatedBoardPiecesTerritoriesAndHud` | 60セル、12駒、分割View、陣地、HUD |
-| `PieceViewsRenderOwnersAndCombatPower` | 青・赤の所有者色と戦闘力表示 |
-| `OnlyCurrentPlayerCanSelectAndLegalMovesAreHighlighted` | 選択制限、解除、候補表示 |
-| `ValidInputExecutesOneCommandAndUpdatesViews` | 1操作1Command、Viewと手番更新 |
-| `EqualCombatPowerCollisionRemovesBothPieceViews` | 相打ち時の状態とView削除 |
-| `ReachingOpponentTerritoryWinsAndLocksInput` | 到達勝利、HUD、入力停止 |
-| `ResetButtonRestoresInitialStateAndViews` | UIリセット後の状態と表示 |
-| `SampleSceneLoadsWithBootstrapOnlyCompositionRoot` | SampleSceneとBootstrap統合 |
+検証方針:
 
-## 4. Unity Test Runnerで実行する
+- Bootstrapが盤面セル、駒View、陣地、HUDを分離して構築すること
+- 所有者色と戦闘力の表示
+- 手番プレイヤーだけが選択でき、合法手が強調されること
+- 1操作で1Commandだけ実行され、Viewと手番が更新されること
+- 相打ち時に両方の駒Viewが削除されること
+- 到達勝利でHUDが更新され、盤面入力が停止すること
+- リセットボタンによる状態とViewの復元
+- `SampleScene`がBootstrapだけをCompositionルートとして読み込めること
+
+## 3. Unity Test Runnerで実行する
 
 1. Unity Editorでプロジェクトを開きます。
 2. `Window > General > Test Runner`を開きます。
@@ -57,7 +48,7 @@ Unity `6000.3.11f1`での最新ローカル確認結果です。
 
 PlayMode実行中は一時Sceneが生成・破棄されます。Test Runnerが停止した場合は、Play Modeを終了してから再実行してください。
 
-## 5. Windowsバッチモードで実行する
+## 4. Windowsバッチモードで実行する
 
 同じプロジェクトを開いているUnity Editorを先に閉じます。プロジェクトルートのPowerShellで次を実行します。
 
@@ -92,7 +83,7 @@ Select-String -Path Temp\*ModeTests.log -Pattern 'error CS|Unhandled|Exception'
 
 Test Runnerの結果保存を知らせるUnity内部ログが表示される場合があります。最終判定はTest Result XMLの`result="Passed"`、失敗件数0、通常再生時Console Error 0の組み合わせで行います。
 
-## 6. 手動スモークテスト
+## 5. 手動スモークテスト
 
 - [ ] Game Viewを16:9にして盤面全体と両陣地ラベルが表示される
 - [ ] 60マス、青6駒、赤6駒が表示される
@@ -108,7 +99,7 @@ Test Runnerの結果保存を知らせるUnity内部ログが表示される場�
 - [ ] リセットボタン押下で背後の盤面が反応しない
 - [ ] 通常再生中のConsole Error・Warningが0件
 
-## 7. 新機能に必要なテスト
+## 6. 新機能に必要なテスト
 
 - Coreのルール変更には、成功・拒否・境界値・状態不変性のEditModeテストを追加します。
 - 入力、Prefab、HUD、演出変更にはPlayModeテストを追加します。
@@ -116,7 +107,7 @@ Test Runnerの結果保存を知らせるUnity内部ログが表示される場�
 - 新しいEventは、発生条件、値、順序、Viewへの反映を検証します。
 - Config項目を増やした場合は、標準値と無効値の検証を追加します。
 
-## 8. 現在の未検証領域
+## 7. 現在の未検証領域
 
 - 具体的な合体Resolverと合体UI
 - 実ゲームで使用する特殊マスHandler
