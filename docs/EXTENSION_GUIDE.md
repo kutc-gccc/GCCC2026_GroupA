@@ -23,6 +23,10 @@ public interface IMovementRule
 
 実装時は盤外、自分の陣地、自分の駒、ゲーム終了状態を考慮します。現在の標準実装は`DirectionalMovementRule`です。
 
+戦闘力に応じた方向だけを変更する場合は`IMovementRule`を作り直さず、`PowerMovementProfile`へ`PowerMovementBand`を追加・変更します。`ProfileMoveDirectionResolver`が`PieceState.MovementProfileId`と現在戦闘力から実効方向を返し、`DirectionalMovementRule`が盤外・陣地・占有を判定します。
+
+別系統の移動特性を追加する場合は新しい`MovementProfileId`を割り当てます。合体で方向特性を変える場合は、合体後`PieceState`のプロファイルIDを登録済みIDへ変更します。戦闘力と無関係な距離変更やジャンプなど、方向以外のルールを変える場合だけ新しい`IMovementRule`を検討してください。
+
 差し替え例:
 
 ```csharp
@@ -36,6 +40,8 @@ Bootstrapは現在標準Resolverを暗黙に使用しているため、Unity上�
 必要なテスト:
 
 - 許可された全方向・距離
+- 戦闘力境界での方向変化
+- プロファイル帯域の隙間・重複・未登録IDの拒否
 - 禁止方向、盤外、自陣、自駒上
 - 敵駒マスが戦闘候補になること
 - `GetLegalCommands`と候補表示の一致

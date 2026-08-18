@@ -42,17 +42,20 @@ flowchart TB
 | `PieceId` | 駒を一意に識別する値オブジェクト |
 | `PlayerId` | `Player1`または`Player2` |
 | `MoveDirections` | 8方向を表すフラグ列挙型 |
-| `PieceState` | ID、所有者、位置、戦闘力、移動方向を持つ不変オブジェクト |
+| `MovementProfileId` | 駒が使用する戦闘力別移動プロファイルのID |
+| `PowerMovementBand` | 戦闘力の最小値・最大値と、その範囲で許可する方向 |
+| `PowerMovementProfile` | 戦闘力1以上を隙間なく覆う移動帯域の集合 |
+| `PieceState` | ID、所有者、位置、戦闘力、移動プロファイルIDを持つ不変オブジェクト |
 | `CellDefinition` | 位置、陣地所有者、特殊効果IDの順序付き一覧 |
 | `InitialPieceDefinition` | リセット時に生成する駒の定義 |
-| `GameDefinition` | 盤面サイズ、全セル、初期駒、先手 |
+| `GameDefinition` | 盤面サイズ、全セル、初期駒、先手、移動プロファイル |
 | `GameSnapshot` | 外部へ公開する読み取り専用の状態コピー |
 
 `GridPosition`にUnityの`Vector2Int`を使わないのは、Coreをエンジン非依存に保つためです。同じ理由で、座標が盤内かどうかの判定も`GridPosition`ではなく`GameSnapshot`やRuleが持ちます。
 
 ### 不変性
 
-`PieceState`の変更は`WithPosition`、`WithCombatPower`、`WithAttributes`で新しいインスタンスを作成します。`GameSnapshot`も駒とセルをコピーするため、ViewやCPUが過去のSnapshotや進行中の状態を書き換えることはできません。
+`PieceState`の変更は`WithPosition`、`WithCombatPower`、`WithMovementProfile`、`WithAttributes`で新しいインスタンスを作成します。移動方向は状態として重複保持せず、`MovementProfileId`と現在の戦闘力から`ProfileMoveDirectionResolver`が算出します。`GameSnapshot`も駒とセルをコピーするため、ViewやCPUが過去のSnapshotや進行中の状態を書き換えることはできません。
 
 戦闘力が0以下になった駒は、戦闘力0の`PieceState`として残すのではなく`GameSession`の管理対象から削除されます。「盤上に存在する駒は必ず戦闘力1以上」という不変条件を型のレベルで保証するためです。
 
@@ -152,12 +155,13 @@ Ruleは状態を直接所有せず、`GameSession`から渡された入力を計
 | 型 | 主な入力 | 戻り値・役割 |
 |---|---|---|
 | `IMovementRule` | `GameSnapshot`, `PieceState` | その駒の合法な移動先一覧 |
+| `IMoveDirectionResolver` | `PieceState` | プロファイルと現在戦闘力に対応する実効`MoveDirections` |
 | `ICombatResolver` | 攻撃側と防御側の`PieceState` | 双方の残り戦闘力を持つ`CombatResolution` |
 | `IFusionResolver` | `GameSnapshot`または2個の`PieceState` | 合法ペアと、合体後の駒を持つ`FusionResolution` |
 | `ICellEffectHandler` | Snapshot、駒、セルを持つ`CellEffectContext` | 効果適用後の駒とEventを持つ`CellEffectResult` |
 | `TurnResolver` | 行動した`PlayerId`と、各プレイヤーに合法手があるかを返す関数 | 次の手番、自動パス、引き分けを持つ`TurnResolution` |
 
-標準実装は`DirectionalMovementRule`、`SimultaneousCombatResolver`、`DisabledFusionResolver`です。これらは`GameSession`のコンストラクターへ注入できます。
+標準実装は`DirectionalMovementRule`、`ProfileMoveDirectionResolver`、`SimultaneousCombatResolver`、`DisabledFusionResolver`です。`GameSession`は`GameDefinition.MovementProfiles`から標準Resolverを組み立てます。移動Rule全体を変更する場合は`GameSession`のコンストラクターへ`IMovementRule`を注入できます。
 
 `IPlayerAgent`は、人間と将来のCPUに共通する「誰がCommandを選ぶか」の契約です。
 

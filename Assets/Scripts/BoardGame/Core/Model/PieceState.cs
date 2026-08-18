@@ -9,7 +9,7 @@ namespace GCCC.BoardGame.Core.Model
             PlayerId owner,
             GridPosition position,
             int combatPower,
-            MoveDirections moveDirections)
+            MovementProfileId movementProfileId)
         {
             if (combatPower <= 0)
             {
@@ -17,11 +17,17 @@ namespace GCCC.BoardGame.Core.Model
                     "Combat power must be greater than zero.");
             }
 
+            if (!movementProfileId.IsValid)
+            {
+                throw new ArgumentException(
+                    "Movement profile ID is invalid.", nameof(movementProfileId));
+            }
+
             Id = id;
             Owner = owner;
             Position = position;
             CombatPower = combatPower;
-            MoveDirections = moveDirections;
+            MovementProfileId = movementProfileId;
         }
 
         public PieceId Id { get; }
@@ -32,21 +38,28 @@ namespace GCCC.BoardGame.Core.Model
 
         public int CombatPower { get; }
 
-        public MoveDirections MoveDirections { get; }
+        public MovementProfileId MovementProfileId { get; }
 
         public PieceState WithPosition(GridPosition position)
         {
-            return new PieceState(Id, Owner, position, CombatPower, MoveDirections);
+            return new PieceState(Id, Owner, position, CombatPower, MovementProfileId);
         }
 
         public PieceState WithCombatPower(int combatPower)
         {
-            return new PieceState(Id, Owner, Position, combatPower, MoveDirections);
+            return new PieceState(Id, Owner, Position, combatPower, MovementProfileId);
         }
 
-        public PieceState WithAttributes(int combatPower, MoveDirections moveDirections)
+        public PieceState WithMovementProfile(MovementProfileId movementProfileId)
         {
-            return new PieceState(Id, Owner, Position, combatPower, moveDirections);
+            return new PieceState(Id, Owner, Position, CombatPower, movementProfileId);
+        }
+
+        public PieceState WithAttributes(
+            int combatPower,
+            MovementProfileId movementProfileId)
+        {
+            return new PieceState(Id, Owner, Position, combatPower, movementProfileId);
         }
     }
 }

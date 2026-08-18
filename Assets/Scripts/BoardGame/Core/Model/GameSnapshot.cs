@@ -27,7 +27,7 @@ namespace GCCC.BoardGame.Core.Model
 
             PieceState[] pieceCopies = pieces
                 .Select(piece => new PieceState(piece.Id, piece.Owner, piece.Position,
-                    piece.CombatPower, piece.MoveDirections))
+                    piece.CombatPower, piece.MovementProfileId))
                 .ToArray();
             Pieces = new ReadOnlyCollection<PieceState>(pieceCopies);
             piecesById = new ReadOnlyDictionary<PieceId, PieceState>(

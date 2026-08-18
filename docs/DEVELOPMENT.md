@@ -66,10 +66,13 @@ Set-Location GCCC2026_GroupA
 | `player1StartRow` | 1 | プレイヤー1の初期配置行 |
 | `player2StartRow` | 8 | プレイヤー2の初期配置行 |
 | `initialCombatPower` | 1 | 全初期駒の戦闘力 |
-| `initialMoveDirections` | All | 全初期駒の移動方向 |
+| `initialMovementProfileId` | standard | 全初期駒が参照する移動プロファイルID |
+| `movementProfiles` | standard 1件 | 戦闘力範囲と移動方向の対応表 |
 | `cellEffects` | 空 | 座標ごとの効果ID |
 
 行設定は盤面内でなければなりません。両陣地を同じ行にする、自分の陣地と初期配置を同じ行にする、両プレイヤーの初期配置を同じ行にすると、`CreateDefinition`が`InvalidOperationException`を送出します。
+
+各`movementProfiles`は戦闘力1から`int.MaxValue`までを隙間・重複なく覆う必要があります。`initialMovementProfileId`が未登録、IDが重複、帯域が不連続の場合はCore定義の生成時に例外になります。標準設定は、戦闘力2〜7で順に右上、右下、左上、左下、左、右を除外し、戦闘力1と8以上では全方向を許可します。
 
 特殊効果IDを設定する場合は、同じIDの`ICellEffectHandler`を`GameSession`生成時に必ず登録してください。未登録のIDが発動すると`InvalidOperationException`になります。
 

@@ -16,6 +16,7 @@ Coreは`noEngineReferences: true`のため、ここに登場する型はすべ�
 | `PieceId` | 駒を一意に識別する正の整数ID | `new PieceId(1)` |
 | `PlayerId` | 所有者や手番を`Player1`／`Player2`で表す | `PlayerId.Player1` |
 | `MoveDirections` | 移動可能な8方向をフラグで表す | `MoveDirections.North` |
+| `MovementProfileId` | 戦闘力別移動設定を識別する文字列ID | `new MovementProfileId("standard")` |
 
 `GridPosition`はUnityの`Vector2Int`を使わないCore専用座標です。同じ列・行なら同じ座標として比較でき、`+`演算子で方向オフセットを加算できます。ただし、座標が盤内かどうかは`GridPosition`自身ではなく`GameSnapshot.IsInside`やRuleが判定します。
 
@@ -27,7 +28,7 @@ Coreは`noEngineReferences: true`のため、ここに登場する型はすべ�
 MoveDirections directions = MoveDirections.North | MoveDirections.East;
 ```
 
-各フラグと相対座標の対応は[ゲームルール §5 移動ルール](GAME_RULES.md#5-移動ルール)を参照してください。`MoveDirections`が許可するのは方向であり、現在の`DirectionalMovementRule`では指定方向へ1マスだけ移動できます。
+各フラグと相対座標の対応は[ゲームルール §5 移動ルール](GAME_RULES.md#5-移動ルール)を参照してください。`MoveDirections`は`PieceState`へ直接保存せず、移動プロファイルから戦闘力ごとに解決されます。
 
 ## 2. `PieceState`
 
@@ -39,9 +40,9 @@ MoveDirections directions = MoveDirections.North | MoveDirections.East;
 | `owner` | `PlayerId` | 駒を所有するプレイヤー |
 | `position` | `GridPosition` | 盤面上の現在位置 |
 | `combatPower` | `int` | 現在の戦闘力。1以上を指定する |
-| `moveDirections` | `MoveDirections` | 駒が移動できる方向の組み合わせ |
+| `movementProfileId` | `MovementProfileId` | 駒が使用する戦闘力別移動プロファイル |
 
-たとえば、座標`(2, 1)`にいる「プレイヤー1が所有する、戦闘力2で上と右へ移動できる駒」は次のように生成します。
+たとえば、座標`(2, 1)`にいる「プレイヤー1が所有する、戦闘力2で標準プロファイルを使う駒」は次のように生成します。
 
 ```csharp
 var piece = new PieceState(
@@ -49,12 +50,11 @@ var piece = new PieceState(
     PlayerId.Player1,                  // プレイヤー1の駒
     new GridPosition(2, 1),            // 座標(2, 1)
     2,                                 // 戦闘力2
-    MoveDirections.North |
-    MoveDirections.East                // 上と右へ移動可能
+    PowerMovementProfile.StandardId    // 標準移動プロファイル
 );
 ```
 
-`PieceState`は不変です。変更は`WithPosition`、`WithCombatPower`、`WithAttributes`で新しいインスタンスを作成します。
+`PieceState`は不変です。変更は`WithPosition`、`WithCombatPower`、`WithMovementProfile`、`WithAttributes`で新しいインスタンスを作成します。
 
 ```csharp
 PieceState movedPiece = piece.WithPosition(new GridPosition(2, 2));
@@ -63,13 +63,57 @@ PieceState damagedPiece = movedPiece.WithCombatPower(1);
 
 この例でも元の`piece`と`movedPiece`は変更されません。`combatPower`に0以下を渡すと`ArgumentOutOfRangeException`になります。戦闘力が0以下になった駒は、戦闘力0の`PieceState`として残すのではなく、`GameSession`の管理対象から削除されます。
 
+### 戦闘力別移動プロファイル
+
+`PowerMovementBand`は、戦闘力の範囲とその範囲で許可する方向を定義します。`PowerMovementProfile`は複数の帯域をまとめ、戦闘力1から`int.MaxValue`までを隙間・重複なく覆う必要があります。
+
+```csharp
+var profile = new PowerMovementProfile(
+    new MovementProfileId("standard"),
+    new[]
+    {
+        new PowerMovementBand(1, 1, MoveDirections.All),
+        new PowerMovementBand(
+            2,
+            2,
+            MoveDirections.All & ~MoveDirections.NorthEast),
+        new PowerMovementBand(
+            3,
+            3,
+            MoveDirections.All & ~MoveDirections.SouthEast),
+        new PowerMovementBand(
+            4,
+            4,
+            MoveDirections.All & ~MoveDirections.NorthWest),
+        new PowerMovementBand(
+            5,
+            5,
+            MoveDirections.All & ~MoveDirections.SouthWest),
+        new PowerMovementBand(
+            6,
+            6,
+            MoveDirections.All & ~MoveDirections.West),
+        new PowerMovementBand(
+            7,
+            7,
+            MoveDirections.All & ~MoveDirections.East),
+        new PowerMovementBand(8, int.MaxValue, MoveDirections.All)
+    });
+
+MoveDirections power1Directions = profile.GetDirections(1); // All
+MoveDirections power2Directions = profile.GetDirections(2); // 右上以外
+MoveDirections power7Directions = profile.GetDirections(7); // 右以外
+```
+
+帯域に隙間・重複がある、戦闘力1から始まらない、最後が`int.MaxValue`まで届かない場合は`ArgumentException`になります。`ProfileMoveDirectionResolver`は`PieceState.MovementProfileId`でプロファイルを選び、現在の`CombatPower`に対応する方向を返します。
+
 ## 3. 盤面定義と実行時状態
 
 | クラス | 役割 | 主な内容 |
 |---|---|---|
 | `CellDefinition` | 1マスの固定設定 | 座標、陣地所有者、特殊効果ID |
-| `InitialPieceDefinition` | リセット時に生成する1個の駒の初期設定 | ID、所有者、初期位置、初期戦闘力、移動方向 |
-| `GameDefinition` | ゲーム開始前の設計図 | 盤面サイズ、全セル、全初期駒、先手 |
+| `InitialPieceDefinition` | リセット時に生成する1個の駒の初期設定 | ID、所有者、初期位置、初期戦闘力、移動プロファイルID |
+| `GameDefinition` | ゲーム開始前の設計図 | 盤面サイズ、全セル、全初期駒、先手、移動プロファイル |
 | `GameSnapshot` | ある時点のゲーム状態を外部へ見せる読み取り専用コピー | 現在の全駒、セル、手番、勝者、引き分け |
 
 ### `CellDefinition`
@@ -96,14 +140,14 @@ var initialPiece = new InitialPieceDefinition(
     PlayerId.Player1,
     new GridPosition(0, 1),
     1,
-    MoveDirections.All);
+    PowerMovementProfile.StandardId);
 
 PieceState initialState = initialPiece.CreateState();
 ```
 
 ### `GameDefinition`
 
-`GameDefinition.CreateStandard()`を使うと、6×10盤面、12個の初期駒、プレイヤー1先手という標準定義をまとめて作れます。
+`GameDefinition.CreateStandard()`を使うと、6×10盤面、12個の初期駒、プレイヤー1先手、標準移動プロファイルという定義をまとめて作れます。
 
 ```csharp
 GameDefinition definition = GameDefinition.CreateStandard();
@@ -129,7 +173,8 @@ bool isGameOver = snapshot.IsGameOver;
 ```text
 GameDefinition（ゲーム全体の設計図）
 ├─ CellDefinition（各マスの固定設定）
-└─ InitialPieceDefinition（各駒の初期設定）
+├─ PowerMovementProfile（戦闘力別移動設定）
+└─ InitialPieceDefinition（各駒の初期設定とプロファイルID）
            ↓ GameSessionの開始・Reset
        PieceState（各駒の現在状態）
            ↓ Snapshot取得

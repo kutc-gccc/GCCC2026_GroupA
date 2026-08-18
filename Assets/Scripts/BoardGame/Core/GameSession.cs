@@ -40,7 +40,8 @@ namespace GCCC.BoardGame.Core
             IEnumerable<ICellEffectHandler> cellEffectHandlers = null)
         {
             this.definition = definition ?? throw new ArgumentNullException(nameof(definition));
-            this.movementRule = movementRule ?? new DirectionalMovementRule();
+            this.movementRule = movementRule ?? new DirectionalMovementRule(
+                new ProfileMoveDirectionResolver(definition.MovementProfiles));
             this.combatResolver = combatResolver ?? new SimultaneousCombatResolver();
             this.fusionResolver = fusionResolver ?? new DisabledFusionResolver();
             turnResolver = new TurnResolver();
@@ -215,6 +216,15 @@ namespace GCCC.BoardGame.Core
                 return CommandResult.Failed(CommandFailureReason.IllegalMove);
             }
 
+            if (resolution?.ResultingPiece == null ||
+                !definition.TryGetMovementProfile(
+                    resolution.ResultingPiece.MovementProfileId,
+                    out _))
+            {
+                throw new InvalidOperationException(
+                    "Fusion must return a piece with a registered movement profile.");
+            }
+
             RemovePiece(first.Id);
             RemovePiece(second.Id);
             AddPiece(resolution.ResultingPiece);
@@ -267,7 +277,7 @@ namespace GCCC.BoardGame.Core
                     attacker.Owner,
                     destination,
                     combat.AttackerRemainingPower,
-                    attacker.MoveDirections);
+                    attacker.MovementProfileId);
                 AddPiece(survivingAttacker);
                 events.Add(new PiecePowerChanged(
                     attacker.Id, attacker.CombatPower, combat.AttackerRemainingPower));
@@ -391,13 +401,14 @@ namespace GCCC.BoardGame.Core
             }
         }
 
-        private static void ValidateCellEffectResult(PieceState before, PieceState after)
+        private void ValidateCellEffectResult(PieceState before, PieceState after)
         {
             if (after == null || after.Id != before.Id || after.Owner != before.Owner ||
-                after.Position != before.Position)
+                after.Position != before.Position ||
+                !definition.TryGetMovementProfile(after.MovementProfileId, out _))
             {
                 throw new InvalidOperationException(
-                    "Cell effects may only change a piece's combat power or move directions.");
+                    "Cell effects may only change a piece's combat power or registered movement profile.");
             }
         }
 
@@ -428,6 +439,12 @@ namespace GCCC.BoardGame.Core
 
         private void AddPiece(PieceState piece)
         {
+            if (!definition.TryGetMovementProfile(piece.MovementProfileId, out _))
+            {
+                throw new InvalidOperationException(
+                    $"Movement profile '{piece.MovementProfileId}' is not registered.");
+            }
+
             piecesById.Add(piece.Id, piece);
             pieceIdsByPosition.Add(piece.Position, piece.Id);
         }

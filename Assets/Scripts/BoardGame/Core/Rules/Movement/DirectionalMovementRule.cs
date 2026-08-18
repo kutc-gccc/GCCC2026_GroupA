@@ -6,6 +6,8 @@ namespace GCCC.BoardGame.Core.Rules.Movement
 {
     public sealed class DirectionalMovementRule : IMovementRule
     {
+        private readonly IMoveDirectionResolver directionResolver;
+
         private static readonly DirectionStep[] Steps =
         {
             new DirectionStep(MoveDirections.North, 0, 1),
@@ -18,6 +20,18 @@ namespace GCCC.BoardGame.Core.Rules.Movement
             new DirectionStep(MoveDirections.NorthWest, -1, 1)
         };
 
+        public DirectionalMovementRule()
+            : this(new ProfileMoveDirectionResolver(
+                new[] { PowerMovementProfile.CreateStandard() }))
+        {
+        }
+
+        public DirectionalMovementRule(IMoveDirectionResolver directionResolver)
+        {
+            this.directionResolver = directionResolver ??
+                throw new ArgumentNullException(nameof(directionResolver));
+        }
+
         public IReadOnlyList<GridPosition> GetLegalDestinations(
             GameSnapshot snapshot,
             PieceState piece)
@@ -27,10 +41,11 @@ namespace GCCC.BoardGame.Core.Rules.Movement
                 return Array.Empty<GridPosition>();
             }
 
+            MoveDirections effectiveDirections = directionResolver.Resolve(piece);
             List<GridPosition> legalDestinations = new List<GridPosition>(8);
             foreach (DirectionStep step in Steps)
             {
-                if ((piece.MoveDirections & step.Direction) == 0)
+                if ((effectiveDirections & step.Direction) == 0)
                 {
                     continue;
                 }

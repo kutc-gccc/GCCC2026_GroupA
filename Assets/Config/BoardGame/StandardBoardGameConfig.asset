@@ -20,5 +20,32 @@ MonoBehaviour:
   player1StartRow: 1
   player2StartRow: 8
   initialCombatPower: 1
-  initialMoveDirections: 255
+  initialMovementProfileId: standard
+  movementProfiles:
+  - profileId: standard
+    bands:
+    - minCombatPower: 1
+      maxCombatPower: 1
+      directions: 255
+    - minCombatPower: 2
+      maxCombatPower: 2
+      directions: 253
+    - minCombatPower: 3
+      maxCombatPower: 3
+      directions: 247
+    - minCombatPower: 4
+      maxCombatPower: 4
+      directions: 127
+    - minCombatPower: 5
+      maxCombatPower: 5
+      directions: 223
+    - minCombatPower: 6
+      maxCombatPower: 6
+      directions: 191
+    - minCombatPower: 7
+      maxCombatPower: 7
+      directions: 251
+    - minCombatPower: 8
+      maxCombatPower: 2147483647
+      directions: 255
   cellEffects: []

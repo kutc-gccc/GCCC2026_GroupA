@@ -7,13 +7,13 @@ namespace GCCC.BoardGame.Core.Model
             PlayerId owner,
             GridPosition position,
             int combatPower,
-            MoveDirections moveDirections)
+            MovementProfileId movementProfileId)
         {
             Id = id;
             Owner = owner;
             Position = position;
             CombatPower = combatPower;
-            MoveDirections = moveDirections;
+            MovementProfileId = movementProfileId;
         }
 
         public PieceId Id { get; }
@@ -24,11 +24,11 @@ namespace GCCC.BoardGame.Core.Model
 
         public int CombatPower { get; }
 
-        public MoveDirections MoveDirections { get; }
+        public MovementProfileId MovementProfileId { get; }
 
         public PieceState CreateState()
         {
-            return new PieceState(Id, Owner, Position, CombatPower, MoveDirections);
+            return new PieceState(Id, Owner, Position, CombatPower, MovementProfileId);
         }
     }
 }
