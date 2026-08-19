@@ -138,6 +138,7 @@ Set-Location GCCC2026_GroupA
 |---|---|
 | ゲームルール、8方向、勝敗条件 | [`docs/GAME_RULES.md`](GAME_RULES.md) |
 | 設計方針、レイヤー責務、データフロー | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) |
+| コードの読み方、処理の流れ | [`docs/CODE_WALKTHROUGH.md`](CODE_WALKTHROUGH.md) |
 | Coreの型の使い方、コード例 | [`docs/CORE_API.md`](CORE_API.md) |
 | 開発環境、Config標準値、Git運用 | `docs/DEVELOPMENT.md`（この文書） |
 | 機能の追加手順 | [`docs/EXTENSION_GUIDE.md`](EXTENSION_GUIDE.md) |

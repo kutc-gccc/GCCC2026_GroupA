@@ -53,6 +53,7 @@ Unity 6で開発している、2人対戦の陣地到達型ボードゲームで
 | ルールを知る | [ゲームルール](docs/GAME_RULES.md) |
 | 環境を作って動かす | [開発ガイド](docs/DEVELOPMENT.md) |
 | 全体設計を把握する | [アーキテクチャ](docs/ARCHITECTURE.md) |
+| コードを読み始める | [コード読解ガイド](docs/CODE_WALKTHROUGH.md) |
 | Coreの型を使って書く | [Core APIリファレンス](docs/CORE_API.md) |
 | 機能を追加する | [拡張ガイド](docs/EXTENSION_GUIDE.md) |
 | テストする | [テストガイド](docs/TESTING.md) |
