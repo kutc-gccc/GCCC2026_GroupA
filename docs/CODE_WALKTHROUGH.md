@@ -24,7 +24,7 @@ Core（Unity非依存）          盤面状態・ルール・勝敗判定
 
 `GCCC.BoardGame.Core.asmdef` の `noEngineReferences: true` によって、Coreに`UnityEngine`を書くとコンパイルが通りません。この境界はコンパイラが守っています。
 
-規模はおおよそ次のとおりです（`45e4464`時点の概数）。
+規模はおおよそ次のとおりです（`29e6adf`時点の概数）。
 
 | 層 | ファイル | 行数 |
 |---|---:|---:|
@@ -62,7 +62,11 @@ Sceneのルートには **Main Camera と Bootstrap しかありません**。�
 6. `GameCoordinator` を作り、`GameHudView.ResetRequested` を接続する
 7. `BoardInputController` を作って配線する
 
-依存関係の組み立てがこの1メソッドに集まっています（Composition Root）。Prefab参照が未設定でも、同じComponentを持つGameObjectを実行時に作るフォールバックがあるため、Sceneが壊れていても動きます。
+依存関係の組み立てがこの1メソッドに集まっています（Composition Root）。Prefab参照が未設定でも、同じComponentを持つGameObjectを実行時に作るフォールバックがあります。
+
+独自のRule、Resolver、Handler、AgentをCoreへ追加しただけでは、標準Sceneの実行経路には接続されません。実ゲームで使う実装はこのComposition Rootで生成し、`GameSession`または`GameCoordinator`へ注入します。変更箇所の一覧は[拡張ガイドの変更影響マトリクス](EXTENSION_GUIDE.md#変更影響マトリクス)を参照してください。
+
+なお、ここで生成される`GameCoordinator`と`GameSession`は`MonoBehaviour`ではありません。Presentationで毎フレーム動くのは`BoardInputController`だけで、それ以外は入力とEventで駆動されます。CPUのように自分から時間をかけて動く実装を足すときはこの前提が効いてくるので、[拡張ガイド §6](EXTENSION_GUIDE.md#6-cpuを追加する)を先に読んでください。
 
 ## 4. 1手を指すと何が起きるか
 

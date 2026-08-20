@@ -72,7 +72,7 @@ Set-Location GCCC2026_GroupA
 
 行設定は盤面内でなければなりません。両陣地を同じ行にする、自分の陣地と初期配置を同じ行にする、両プレイヤーの初期配置を同じ行にすると、`CreateDefinition`が`InvalidOperationException`を送出します。
 
-各`movementProfiles`は戦闘力1から`int.MaxValue`までを隙間・重複なく覆う必要があります。`initialMovementProfileId`が未登録、IDが重複、帯域が不連続の場合はCore定義の生成時に例外になります。標準設定は、戦闘力2〜7で順に右上、右下、左上、左下、左、右を除外し、戦闘力1と8以上では全方向を許可します。
+各`movementProfiles`は戦闘力1から`int.MaxValue`までを隙間・重複なく覆う必要があります。`initialMovementProfileId`が未登録、IDが重複、帯域が不連続の場合はCore定義の生成時に例外になります。標準設定の正確な方向表は[ゲームルール §5](GAME_RULES.md#5-移動ルール)を参照してください。
 
 特殊効果IDを設定する場合は、同じIDの`ICellEffectHandler`を`GameSession`生成時に必ず登録してください。未登録のIDが発動すると`InvalidOperationException`になります。
 
@@ -84,11 +84,10 @@ Set-Location GCCC2026_GroupA
 - Runtime生成されるセル、駒、Canvasの子要素をPlay中に変更してもAssetには保存されません。
 - Scene変更を含むPRでは、意図しないProjectSettings差分がないか必ず確認します。
 
-## 7. PackageとUnity MCP
+## 7. Package管理
 
-依存Packageは`Packages/manifest.json`で管理します。Unity MCPはEditorを外部ツールから検査・操作するための開発支援Packageです。
+依存Packageは`Packages/manifest.json`で管理します。
 
-- ゲームのCoreやPresentationはUnity MCP APIへ依存しません。
 - Package追加・更新は専用PRに分けます。
 - `Packages/manifest.json`と`packages-lock.json`は同じPRで更新します。
 - Git URLの`main`参照は将来内容が変わる可能性があるため、安定運用時は検証済みtagまたはcommitへの固定を検討します。
@@ -121,6 +120,16 @@ Set-Location GCCC2026_GroupA
 
 項目を追加・変更する場合はテンプレート側だけを編集します。二重管理を避けるため、この文書へは転記しません。
 
+### 変更同期チェック
+
+実装を始める前に、[拡張ガイドの変更影響マトリクス](EXTENSION_GUIDE.md#変更影響マトリクス)で変更範囲を決めます。PRを作る前に、次の対応が揃っていることを確認します。
+
+- Coreの標準定義、PresentationのConfig既定値、Sceneが参照するAssetに同じ設定が重複する場合、すべてを同期する。
+- 差し替え可能なRule、Resolver、Handler、Agentを追加した場合、`BoardGameBootstrap`または`GameCoordinator`から本番経路へ接続する。
+- 新しいCommandを`GameSession`のdispatchへ登録し、新しいEventをPresentationのViewへ反映する。
+- 振る舞いの一次情報源と、変更種別に対応するEditMode／PlayModeテストを更新する。
+- 関連する`.meta`、Prefab、Config Assetだけを明示的に含め、PackageやProjectSettingsの無関係な差分を除外する。
+
 ## 10. コンフリクトを減らす方法
 
 - 戦闘、合体、特殊効果、View、Inputは対応するフォルダ内で完結させます。
@@ -139,12 +148,12 @@ Set-Location GCCC2026_GroupA
 | ゲームルール、8方向、勝敗条件 | [`docs/GAME_RULES.md`](GAME_RULES.md) |
 | 設計方針、レイヤー責務、データフロー | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) |
 | コードの読み方、処理の流れ | [`docs/CODE_WALKTHROUGH.md`](CODE_WALKTHROUGH.md) |
-| Coreの型の使い方、コード例 | [`docs/CORE_API.md`](CORE_API.md) |
+| Coreの型の使い方、コード例、Rule差し替えで使う型 | [`docs/CORE_API.md`](CORE_API.md) |
 | 開発環境、Config標準値、Git運用 | `docs/DEVELOPMENT.md`（この文書） |
-| 機能の追加手順 | [`docs/EXTENSION_GUIDE.md`](EXTENSION_GUIDE.md) |
+| 機能の追加手順、変更影響範囲 | [`docs/EXTENSION_GUIDE.md`](EXTENSION_GUIDE.md) |
 | テスト方針、実行手順 | [`docs/TESTING.md`](TESTING.md) |
 | テストの一覧と件数 | テストコード本体 |
 | PRの確認項目 | [`.github/pull_request_template.md`](../.github/pull_request_template.md) |
 | 実装状況 | [`README.md`](../README.md) |
 
-文書を追加・変更するときは、書こうとしている内容の一次情報源がすでに他にないかを先に確認してください。
+文書を追加・変更するときは、書こうとしている内容の一次情報源がすでに他にないかを先に確認してください。標準ルールの正確な数値表は`GAME_RULES.md`だけに置き、API例や概要からはリンクします。

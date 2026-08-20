@@ -69,43 +69,19 @@ PieceState damagedPiece = movedPiece.WithCombatPower(1);
 
 ```csharp
 var profile = new PowerMovementProfile(
-    new MovementProfileId("standard"),
+    new MovementProfileId("vertical-only"),
     new[]
     {
-        new PowerMovementBand(1, 1, MoveDirections.All),
         new PowerMovementBand(
-            2,
-            2,
-            MoveDirections.All & ~MoveDirections.NorthEast),
-        new PowerMovementBand(
-            3,
-            3,
-            MoveDirections.All & ~MoveDirections.SouthEast),
-        new PowerMovementBand(
-            4,
-            4,
-            MoveDirections.All & ~MoveDirections.NorthWest),
-        new PowerMovementBand(
-            5,
-            5,
-            MoveDirections.All & ~MoveDirections.SouthWest),
-        new PowerMovementBand(
-            6,
-            6,
-            MoveDirections.All & ~MoveDirections.West),
-        new PowerMovementBand(
-            7,
-            7,
-            MoveDirections.All & ~MoveDirections.East),
-        new PowerMovementBand(8, int.MaxValue, MoveDirections.All)
+            1,
+            int.MaxValue,
+            MoveDirections.North | MoveDirections.South)
     });
 
-MoveDirections power1Directions = profile.GetDirections(1); // All
-MoveDirections power2Directions = profile.GetDirections(2); // 右上以外
-MoveDirections power7Directions = profile.GetDirections(7); // 右以外
+MoveDirections directions = profile.GetDirections(3); // North | South
 ```
 
-帯域に隙間・重複がある、戦闘力1から始まらない、最後が`int.MaxValue`まで届かない場合は`ArgumentException`になります。`ProfileMoveDirectionResolver`は`PieceState.MovementProfileId`でプロファイルを選び、現在の`CombatPower`に対応する方向を返します。
+帯域に隙間・重複がある、戦闘力1から始まらない、最後が`int.MaxValue`まで届かない場合は`ArgumentException`になります。`ProfileMoveDirectionResolver`は`PieceState.MovementProfileId`でプロファイルを選び、現在の`CombatPower`に対応する方向を返します。標準プロファイルの正確な対応表は[ゲームルール §5](GAME_RULES.md#5-移動ルール)を参照してください。
 
 ## 3. 盤面定義と実行時状態
 
@@ -274,3 +250,33 @@ else
 | `GameEnded` | `Winner`, `IsDraw` |
 
 各Eventがどういうときに発生するかは[アーキテクチャ §5](ARCHITECTURE.md#5-event)を参照してください。
+
+## 8. Rule差し替えで使う型
+
+`ICombatResolver`、`IFusionResolver`、`ICellEffectHandler`を実装するときに受け取る型と返す型です。差し替え口そのものの一覧は[アーキテクチャ §7](ARCHITECTURE.md#7-ruleとplayeragentの差し替え口)、実装手順は[拡張ガイド](EXTENSION_GUIDE.md)を参照してください。
+
+| 型 | 用途 | コンストラクタ引数 |
+|---|---|---|
+| `CombatResolution` | `ICombatResolver.Resolve`の戻り値 | `attackerRemainingPower`, `defenderRemainingPower` |
+| `FusionPair` | `IFusionResolver.GetLegalFusions`が返す一覧の要素 | `firstPieceId`, `secondPieceId` |
+| `FusionResolution` | `IFusionResolver.TryResolve`の`out`値 | `resultingPiece` |
+| `CellEffectContext` | `ICellEffectHandler.Apply`の引数 | `snapshot`, `piece`, `cell` |
+| `CellEffectResult` | `ICellEffectHandler.Apply`の戻り値 | `piece`, `events`（省略可） |
+
+`CombatResolution`と`FusionPair`は値型（`readonly struct`）、残りは参照型です。
+
+```csharp
+var resolution = new CombatResolution(
+    attacker.CombatPower - defender.CombatPower,
+    defender.CombatPower - attacker.CombatPower);
+
+var pair = new FusionPair(new PieceId(1), new PieceId(3));
+
+var result = new CellEffectResult(context.Piece.WithCombatPower(3));
+```
+
+`CombatResolution`の残り戦闘力に0以下を渡すのは正常な使い方です。`GameSession`が0以下の駒を盤面から削除し、`PieceDestroyed`を発生させます。0以下の値を`PieceState`へ渡すことはできません。
+
+`CellEffectResult.Piece`は、ID・所有者・位置が`CellEffectContext.Piece`と同一で、`MovementProfileId`が`GameDefinition`へ登録済みでなければなりません。変更できるのは戦闘力と登録済みプロファイルだけで、違反すると`GameSession`が`InvalidOperationException`を送出します。詳細は[拡張ガイド §5](EXTENSION_GUIDE.md#5-特殊マスを追加する)を参照してください。
+
+`FusionResolution.ResultingPiece`が満たすべき条件と、違反した場合に送出される例外は[拡張ガイド §4](EXTENSION_GUIDE.md#4-合体を有効化する)にあります。
