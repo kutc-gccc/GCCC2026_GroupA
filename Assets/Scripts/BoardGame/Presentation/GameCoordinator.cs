@@ -5,6 +5,7 @@ using GCCC.BoardGame.Core.Commands;
 using GCCC.BoardGame.Core.Model;
 using GCCC.BoardGame.Core.Players;
 using GCCC.BoardGame.Presentation.Views;
+using UnityEngine; // Debug.Log 使用のため追加
 
 namespace GCCC.BoardGame.Presentation
 {
@@ -35,8 +36,43 @@ namespace GCCC.BoardGame.Presentation
                 [PlayerId.Player2] = player2Agent ?? new HumanPlayerAgent(PlayerId.Player2)
             };
 
+            if (this.hudView != null)
+            {
+                this.hudView.OnRandomizePowerButtonClicked += HandleRandomizePowerButtonClicked;
+            }
+
             hudView.Render(session.Snapshot);
             BeginCurrentTurn();
+        }
+
+        private void HandleRandomizePowerButtonClicked()
+        {
+            Debug.Log("[Coordinator] ボタン押下イベントを受信しました。");
+
+            GameSnapshot snapshot = session.Snapshot;
+            if (snapshot.IsGameOver)
+            {
+                Debug.LogWarning("[Coordinator] ゲーム終了済みのため処理をスキップしました。");
+                return;
+            }
+
+            if (!selectedPieceId.HasValue)
+            {
+                Debug.LogWarning("[Coordinator] 駒が選択されていません！ 駒をクリックして選択してからボタンを押してください。");
+                return;
+            }
+
+            Debug.Log($"[Coordinator] 選択中の駒(ID: {selectedPieceId.Value})に対して RandomizePowerCommand を送信します。");
+
+            var command = new RandomizePowerCommand(snapshot.CurrentPlayer, selectedPieceId.Value);
+            if (agents[snapshot.CurrentPlayer] is HumanPlayerAgent humanAgent)
+            {
+                humanAgent.TrySubmit(command);
+            }
+            else
+            {
+                Debug.LogError("[Coordinator] 現在のプレイヤー Agent が HumanPlayerAgent ではありません。");
+            }
         }
 
         public GridPosition? SelectedCell
@@ -69,6 +105,8 @@ namespace GCCC.BoardGame.Presentation
                 selectedPieceId = selectedPieceId == clickedPiece.Id
                     ? (PieceId?)null
                     : clickedPiece.Id;
+                
+                Debug.Log($"[Coordinator] 駒が選択されました: ID={clickedPiece.Id}");
                 RenderSelection();
                 return;
             }
@@ -107,13 +145,18 @@ namespace GCCC.BoardGame.Presentation
 
         private void ExecuteSubmittedCommand(GameCommand command)
         {
+            Debug.Log($"[Coordinator] コマンド実行開始: {command.GetType().Name}");
+
             agents[command.Player].EndTurn();
             CommandResult result = session.Execute(command);
             if (!result.Success)
             {
+                Debug.LogError($"[Coordinator] コマンドの実行に失敗しました。 理由: {result.FailureReason}");
                 BeginCurrentTurn();
                 return;
             }
+
+            Debug.Log("ターンを更新します。");
 
             ExecutedCommandCount++;
             selectedPieceId = null;
@@ -137,8 +180,19 @@ namespace GCCC.BoardGame.Presentation
 
             IReadOnlyList<GameCommand> legalCommands =
                 session.GetLegalCommands(snapshot.CurrentPlayer);
+
+            GameSnapshot snapshotWithLegalCommands = new GameSnapshot(
+                snapshot.Columns,
+                snapshot.Rows,
+                snapshot.Pieces,
+                snapshot.Cells,
+                snapshot.CurrentPlayer,
+                snapshot.Winner,
+                snapshot.IsDraw,
+                legalCommands);
+
             agents[snapshot.CurrentPlayer].BeginTurn(
-                snapshot, legalCommands, ExecuteSubmittedCommand);
+                snapshotWithLegalCommands, legalCommands, ExecuteSubmittedCommand);
         }
 
         private void RenderSelection()

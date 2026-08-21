@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using GCCC.BoardGame.Core.Commands;
 
 namespace GCCC.BoardGame.Core.Model
 {
@@ -10,20 +12,25 @@ namespace GCCC.BoardGame.Core.Model
         private readonly IReadOnlyDictionary<GridPosition, PieceState> piecesByPosition;
         private readonly IReadOnlyDictionary<GridPosition, CellDefinition> cellsByPosition;
 
-        internal GameSnapshot(
+        // ★ ４．２修正: アクセシビリティを public に変更し、8つ目の引数 legalCommands を追加
+        public GameSnapshot(
             int columns,
             int rows,
             IEnumerable<PieceState> pieces,
             IEnumerable<CellDefinition> cells,
             PlayerId currentPlayer,
             PlayerId? winner,
-            bool isDraw)
+            bool isDraw,
+            IReadOnlyList<GameCommand> legalCommands = null)
         {
             Columns = columns;
             Rows = rows;
             CurrentPlayer = currentPlayer;
             Winner = winner;
             IsDraw = isDraw;
+
+            // ★ ４．２追加: 実行可能コマンドのプロパティを初期化（nullの場合は空配列）
+            LegalCommands = legalCommands ?? Array.Empty<GameCommand>();
 
             PieceState[] pieceCopies = pieces
                 .Select(piece => new PieceState(piece.Id, piece.Owner, piece.Position,
@@ -56,6 +63,9 @@ namespace GCCC.BoardGame.Core.Model
         public PlayerId? Winner { get; }
 
         public bool IsDraw { get; }
+
+        // ★ ４．２追加: 実行可能なコマンド一覧を保持するプロパティ
+        public IReadOnlyList<GameCommand> LegalCommands { get; }
 
         public bool IsGameOver => Winner.HasValue || IsDraw;
 

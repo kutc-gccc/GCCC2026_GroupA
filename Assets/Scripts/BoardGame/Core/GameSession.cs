@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using GCCC.BoardGame.Core.Commands;
@@ -51,7 +51,8 @@ namespace GCCC.BoardGame.Core
             commandHandlers = new IGameCommandHandler[]
             {
                 new MovePieceCommandHandler(),
-                new FusePiecesCommandHandler()
+                new FusePiecesCommandHandler(),
+                new RandomizePowerCommandHandler()
             }.ToDictionary(handler => handler.CommandType);
 
             ValidateAndLoadCells();
@@ -105,11 +106,15 @@ namespace GCCC.BoardGame.Core
                     continue;
                 }
 
+                // 移動コマンドの追加
                 foreach (GridPosition destination in
                          movementRule.GetLegalDestinations(snapshot, piece))
                 {
                     commands.Add(new MovePieceCommand(player, piece.Id, destination));
                 }
+
+                // 戦闘力ランダムコマンドの追加
+                commands.Add(new RandomizePowerCommand(player, piece.Id));
             }
 
             if (fusionResolver.IsEnabled)
@@ -233,6 +238,37 @@ namespace GCCC.BoardGame.Core
             {
                 new PiecesFused(first.Id, second.Id, resolution.ResultingPiece.Id)
             };
+            ResolveNextTurn(command.Player, events);
+            return CommandResult.Succeeded(events);
+        }
+
+        internal CommandResult ExecuteRandomizePower(RandomizePowerCommand command)
+        {
+            if (!piecesById.TryGetValue(command.PieceId, out PieceState piece))
+            {
+                return CommandResult.Failed(CommandFailureReason.PieceNotFound);
+            }
+
+            if (piece.Owner != command.Player)
+            {
+                return CommandResult.Failed(CommandFailureReason.NotPieceOwner);
+            }
+
+            int previousPower = piece.CombatPower;
+
+            // System.Random を使用して1〜3の値をランダム取得（第2引数は「未満」）
+            Random random = new Random();
+            int newPower = random.Next(1, 4);
+
+            PieceState updatedPiece = piece.WithCombatPower(newPower);
+            piecesById[piece.Id] = updatedPiece;
+
+            List<GameEvent> events = new List<GameEvent>
+            {
+                new RandomizePowerEvent(piece.Id, previousPower, newPower),
+                new PiecePowerChanged(piece.Id, previousPower, newPower)
+            };
+
             ResolveNextTurn(command.Player, events);
             return CommandResult.Succeeded(events);
         }
@@ -363,15 +399,13 @@ namespace GCCC.BoardGame.Core
             GameSnapshot snapshot = Snapshot;
             foreach (PieceState piece in snapshot.Pieces)
             {
-                if (piece.Owner == player &&
-                    movementRule.GetLegalDestinations(snapshot, piece).Count > 0)
+                if (piece.Owner == player)
                 {
                     return true;
                 }
             }
 
-            return fusionResolver.IsEnabled &&
-                   fusionResolver.GetLegalFusions(snapshot, player).Count > 0;
+            return false;
         }
 
         private void ValidateAndLoadCells()
@@ -458,6 +492,41 @@ namespace GCCC.BoardGame.Core
 
             piecesById.Remove(id);
             pieceIdsByPosition.Remove(piece.Position);
+        }
+    }
+
+    // --- コマンドハンドラーのインターフェース・実装クラス群 ---
+
+    public interface IGameCommandHandler
+    {
+        Type CommandType { get; }
+        CommandResult Execute(GameSession session, GameCommand command);
+    }
+
+    internal sealed class MovePieceCommandHandler : IGameCommandHandler
+    {
+        public Type CommandType => typeof(MovePieceCommand);
+        public CommandResult Execute(GameSession session, GameCommand command)
+        {
+            return session.ExecuteMove((MovePieceCommand)command);
+        }
+    }
+
+    internal sealed class FusePiecesCommandHandler : IGameCommandHandler
+    {
+        public Type CommandType => typeof(FusePiecesCommand);
+        public CommandResult Execute(GameSession session, GameCommand command)
+        {
+            return session.ExecuteFusion((FusePiecesCommand)command);
+        }
+    }
+
+    internal sealed class RandomizePowerCommandHandler : IGameCommandHandler
+    {
+        public Type CommandType => typeof(RandomizePowerCommand);
+        public CommandResult Execute(GameSession session, GameCommand command)
+        {
+            return session.ExecuteRandomizePower((RandomizePowerCommand)command);
         }
     }
 }

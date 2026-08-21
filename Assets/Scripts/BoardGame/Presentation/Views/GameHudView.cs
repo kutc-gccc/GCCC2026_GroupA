@@ -10,21 +10,50 @@ namespace GCCC.BoardGame.Presentation.Views
 {
     public sealed class GameHudView : MonoBehaviour
     {
+        [SerializeField] private Button randomizePowerButton;
+
         private RectTransform resetButtonRect;
+        private RectTransform randomizeButtonRect; // ★追加
         private Text statusLabel;
         private GameObject createdEventSystem;
 
         public event Action ResetRequested;
+        public event Action OnRandomizePowerButtonClicked; // ★ ボタン押下イベント
 
         public string StatusText => statusLabel != null ? statusLabel.text : string.Empty;
+        public Button RandomizePowerButton => randomizePowerButton;
+
+        private void Start()
+        {
+            // インスペクター側でボタンが割り当てられている場合の予備リスナー登録
+            if (randomizePowerButton != null)
+            {
+                randomizePowerButton.onClick.RemoveAllListeners();
+                randomizePowerButton.onClick.AddListener(() =>
+                {
+                    Debug.Log("[GameHudView] Inspector割り当てボタンが押されました");
+                    OnRandomizePowerButtonClicked?.Invoke();
+                });
+            }
+        }
 
         public void Initialize()
         {
             BuildUi();
         }
 
+        public void SetRandomizeButtonInteractable(bool interactable)
+        {
+            if (randomizePowerButton != null)
+            {
+                randomizePowerButton.interactable = interactable;
+            }
+        }
+
         public void Render(GameSnapshot snapshot)
         {
+            if (statusLabel == null) return;
+
             if (snapshot.Winner.HasValue)
             {
                 statusLabel.text = snapshot.Winner.Value == PlayerId.Player1
@@ -46,9 +75,15 @@ namespace GCCC.BoardGame.Presentation.Views
 
         public bool IsPointerOverControl(Vector2 screenPosition)
         {
-            return resetButtonRect != null &&
+            bool overReset = resetButtonRect != null &&
                    RectTransformUtility.RectangleContainsScreenPoint(
                        resetButtonRect, screenPosition);
+
+            bool overRandomize = randomizeButtonRect != null &&
+                   RectTransformUtility.RectangleContainsScreenPoint(
+                       randomizeButtonRect, screenPosition);
+
+            return overReset || overRandomize;
         }
 
         private void BuildUi()
@@ -82,6 +117,7 @@ namespace GCCC.BoardGame.Presentation.Views
                 new Vector2(0f, 12f), new Vector2(520f, 42f));
             player1Label.text = "プレイヤー1の陣地";
 
+            // --- 1. リセットボタン生成 ---
             GameObject buttonObject = new GameObject(
                 "Reset Button", typeof(RectTransform), typeof(CanvasRenderer),
                 typeof(Image), typeof(Button));
@@ -109,6 +145,43 @@ namespace GCCC.BoardGame.Presentation.Views
             resetLabel.text = "リセット";
             resetLabel.color = new Color32(35, 41, 52, 255);
 
+            // --- 2. パワーランダム化ボタン生成 (追加) ---
+            GameObject randButtonObject = new GameObject(
+                "Randomize Power Button", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(Image), typeof(Button));
+            randButtonObject.transform.SetParent(canvasObject.transform, false);
+            randomizeButtonRect = randButtonObject.GetComponent<RectTransform>();
+            randomizeButtonRect.anchorMin = Vector2.one;
+            randomizeButtonRect.anchorMax = Vector2.one;
+            randomizeButtonRect.pivot = Vector2.one;
+            randomizeButtonRect.sizeDelta = new Vector2(220f, 64f);
+            // リセットボタンの左側に配置
+            randomizeButtonRect.anchoredPosition = new Vector2(-220f, -24f);
+
+            Image randImage = randButtonObject.GetComponent<Image>();
+            randImage.color = new Color32(235, 238, 244, 255);
+            Button randButton = randButtonObject.GetComponent<Button>();
+            randButton.targetGraphic = randImage;
+            
+            // 生成したボタンをメンバー変数に割り当て＆イベント登録
+            randomizePowerButton = randButton;
+            randButton.onClick.AddListener(() =>
+            {
+                Debug.Log("[GameHudView] 動的生成されたパワー変更ボタンが押されました");
+                OnRandomizePowerButtonClicked?.Invoke();
+            });
+
+            Text randLabel = CreateUiText(
+                "Label", randButtonObject.transform, font, 20, TextAnchor.MiddleCenter,
+                Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
+            randLabel.rectTransform.anchorMin = Vector2.zero;
+            randLabel.rectTransform.anchorMax = Vector2.one;
+            randLabel.rectTransform.offsetMin = Vector2.zero;
+            randLabel.rectTransform.offsetMax = Vector2.zero;
+            randLabel.text = "パワーランダム化";
+            randLabel.color = new Color32(35, 41, 52, 255);
+
+            // --- EventSystem生成 ---
             if (EventSystem.current == null)
             {
                 createdEventSystem = new GameObject("EventSystem", typeof(EventSystem));
