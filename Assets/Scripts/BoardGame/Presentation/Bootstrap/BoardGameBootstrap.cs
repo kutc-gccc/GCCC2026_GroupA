@@ -58,6 +58,7 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
 
             Coordinator = new GameCoordinator(Session, BoardView, PieceViews, hudView);
             hudView.ResetRequested += Coordinator.Reset;
+            hudView.FuseRequested += Coordinator.ToggleFusionMode;
 
             GameObject inputObject = new GameObject("Board Input");
             inputObject.transform.SetParent(transform, false);
@@ -118,6 +119,7 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
             if (hudView != null && Coordinator != null)
             {
                 hudView.ResetRequested -= Coordinator.Reset;
+                hudView.FuseRequested -= Coordinator.ToggleFusionMode;
             }
 
             spriteFactory?.Dispose();

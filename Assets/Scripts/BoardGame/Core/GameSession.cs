@@ -43,7 +43,7 @@ namespace GCCC.BoardGame.Core
             this.movementRule = movementRule ?? new DirectionalMovementRule(
                 new ProfileMoveDirectionResolver(definition.MovementProfiles));
             this.combatResolver = combatResolver ?? new SimultaneousCombatResolver();
-            this.fusionResolver = fusionResolver ?? new DisabledFusionResolver();
+            this.fusionResolver = fusionResolver ?? new AdjacentFusionResolver();
             turnResolver = new TurnResolver();
             this.cellEffectHandlers = (cellEffectHandlers ?? Array.Empty<ICellEffectHandler>())
                 .ToDictionary(handler => handler.EffectId, StringComparer.Ordinal);
@@ -213,10 +213,21 @@ namespace GCCC.BoardGame.Core
 
             if (!fusionResolver.TryResolve(first, second, out FusionResolution resolution))
             {
+                // そもそも合体を試みることができない（隣接していない等）。ターンは消費しない。
                 return CommandResult.Failed(CommandFailureReason.IllegalMove);
             }
 
-            if (resolution?.ResultingPiece == null ||
+            List<GameEvent> events = new List<GameEvent>();
+
+            if (!resolution.IsSuccessful)
+            {
+                // 合体の試み自体は正当だったが、判定に失敗した。ターンは消費する。
+                events.Add(new FusionAttemptFailed(first.Id, second.Id));
+                ResolveNextTurn(command.Player, events);
+                return CommandResult.Succeeded(events);
+            }
+
+            if (resolution.ResultingPiece == null ||
                 !definition.TryGetMovementProfile(
                     resolution.ResultingPiece.MovementProfileId,
                     out _))
@@ -229,10 +240,8 @@ namespace GCCC.BoardGame.Core
             RemovePiece(second.Id);
             AddPiece(resolution.ResultingPiece);
 
-            List<GameEvent> events = new List<GameEvent>
-            {
-                new PiecesFused(first.Id, second.Id, resolution.ResultingPiece.Id)
-            };
+            events.Add(new PiecesFused(
+                first.Id, second.Id, resolution.ResultingPiece.Id, resolution.Bonus));
             ResolveNextTurn(command.Player, events);
             return CommandResult.Succeeded(events);
         }

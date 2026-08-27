@@ -11,10 +11,14 @@ namespace GCCC.BoardGame.Presentation.Views
     public sealed class GameHudView : MonoBehaviour
     {
         private RectTransform resetButtonRect;
+        private RectTransform fuseButtonRect;
+        private Button fuseButton;
         private Text statusLabel;
+        private Text messageLabel;
         private GameObject createdEventSystem;
 
         public event Action ResetRequested;
+        public event Action FuseRequested;
 
         public string StatusText => statusLabel != null ? statusLabel.text : string.Empty;
 
@@ -46,9 +50,30 @@ namespace GCCC.BoardGame.Presentation.Views
 
         public bool IsPointerOverControl(Vector2 screenPosition)
         {
-            return resetButtonRect != null &&
-                   RectTransformUtility.RectangleContainsScreenPoint(
-                       resetButtonRect, screenPosition);
+            bool overReset = resetButtonRect != null &&
+                RectTransformUtility.RectangleContainsScreenPoint(
+                    resetButtonRect, screenPosition);
+            bool overFuse = fuseButtonRect != null &&
+                RectTransformUtility.RectangleContainsScreenPoint(
+                    fuseButtonRect, screenPosition);
+            return overReset || overFuse;
+        }
+
+        public void SetFuseButtonInteractable(bool interactable)
+        {
+            if (fuseButton != null)
+            {
+                fuseButton.interactable = interactable;
+            }
+        }
+
+        /// <summary>合体結果など、一時的なメッセージをHUDに表示する。空文字で非表示扱いになる。</summary>
+        public void ShowMessage(string text)
+        {
+            if (messageLabel != null)
+            {
+                messageLabel.text = text ?? string.Empty;
+            }
         }
 
         private void BuildUi()
@@ -69,6 +94,13 @@ namespace GCCC.BoardGame.Presentation.Views
                 "Turn Status", canvasObject.transform, font, 28, TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(24f, -24f), new Vector2(520f, 64f));
+
+            messageLabel = CreateUiText(
+                "Fusion Message", canvasObject.transform, font, 24, TextAnchor.MiddleLeft,
+                new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(24f, -96f), new Vector2(520f, 48f));
+            messageLabel.color = new Color32(255, 213, 79, 255);
+            messageLabel.text = string.Empty;
 
             Text player2Label = CreateUiText(
                 "Player 2 Territory Label", canvasObject.transform, font, 22,
@@ -109,6 +141,34 @@ namespace GCCC.BoardGame.Presentation.Views
             resetLabel.text = "リセット";
             resetLabel.color = new Color32(35, 41, 52, 255);
 
+            GameObject fuseButtonObject = new GameObject(
+                "Fuse Button", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(Image), typeof(Button));
+            fuseButtonObject.transform.SetParent(canvasObject.transform, false);
+            fuseButtonRect = fuseButtonObject.GetComponent<RectTransform>();
+            fuseButtonRect.anchorMin = Vector2.one;
+            fuseButtonRect.anchorMax = Vector2.one;
+            fuseButtonRect.pivot = Vector2.one;
+            fuseButtonRect.sizeDelta = new Vector2(180f, 64f);
+            fuseButtonRect.anchoredPosition = new Vector2(-220f, -24f);
+
+            Image fuseImage = fuseButtonObject.GetComponent<Image>();
+            fuseImage.color = new Color32(235, 238, 244, 255);
+            fuseButton = fuseButtonObject.GetComponent<Button>();
+            fuseButton.targetGraphic = fuseImage;
+            fuseButton.onClick.AddListener(OnFuseClicked);
+            fuseButton.interactable = false;
+
+            Text fuseLabel = CreateUiText(
+                "Label", fuseButtonObject.transform, font, 24, TextAnchor.MiddleCenter,
+                Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
+            fuseLabel.rectTransform.anchorMin = Vector2.zero;
+            fuseLabel.rectTransform.anchorMax = Vector2.one;
+            fuseLabel.rectTransform.offsetMin = Vector2.zero;
+            fuseLabel.rectTransform.offsetMax = Vector2.zero;
+            fuseLabel.text = "合体";
+            fuseLabel.color = new Color32(35, 41, 52, 255);
+
             if (EventSystem.current == null)
             {
                 createdEventSystem = new GameObject("EventSystem", typeof(EventSystem));
@@ -121,6 +181,11 @@ namespace GCCC.BoardGame.Presentation.Views
         private void OnResetClicked()
         {
             ResetRequested?.Invoke();
+        }
+
+        private void OnFuseClicked()
+        {
+            FuseRequested?.Invoke();
         }
 
         private static Text CreateUiText(
