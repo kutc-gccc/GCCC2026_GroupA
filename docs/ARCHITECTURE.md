@@ -157,7 +157,7 @@ Ruleは状態を直接所有せず、`GameSession`から渡された入力を計
 | `IMovementRule` | `GameSnapshot`, `PieceState` | その駒の合法な移動先一覧 |
 | `IMoveDirectionResolver` | `PieceState` | プロファイルと現在戦闘力に対応する実効`MoveDirections` |
 | `ICombatResolver` | 攻撃側と防御側の`PieceState` | 双方の残り戦闘力を持つ`CombatResolution` |
-| `IFusionResolver` | `GameSnapshot`または2個の`PieceState` | 合法ペアと、合体後の駒を持つ`FusionResolution` |
+| `IFusionResolver` | `GameSnapshot`または2個の`PieceState` | 合法ペアの`FusionPair`一覧と、合体後の駒を持つ`FusionResolution` |
 | `ICellEffectHandler` | Snapshot、駒、セルを持つ`CellEffectContext` | 効果適用後の駒とEventを持つ`CellEffectResult` |
 | `TurnResolver` | 行動した`PlayerId`と、各プレイヤーに合法手があるかを返す関数 | 次の手番、自動パス、引き分けを持つ`TurnResolution` |
 
@@ -186,6 +186,8 @@ Ruleは状態を直接所有せず、`GameSession`から渡された入力を計
 5. `GameCoordinator`と`BoardInputController`を接続する。
 
 Prefab参照が未設定の場合は、同じComponentを持つGameObjectを実行時に生成するフォールバックがあります。
+
+`BoardGameBootstrap`はPresentationのComposition Rootです。独自の`IMovementRule`、`ICombatResolver`、`IFusionResolver`、`ICellEffectHandler`、`IPlayerAgent`を実ゲームで使用する場合は、ここで生成して`GameSession`または`GameCoordinator`へ注入します。Coreへ型を追加しただけでは標準Sceneの実行経路へ接続されません。変更種別ごとの配線手順は[拡張ガイドの変更影響マトリクス](EXTENSION_GUIDE.md#変更影響マトリクス)を参照してください。
 
 ### View
 

@@ -24,6 +24,22 @@
 - 過去のSnapshotが後続のCommandで変化しないこと
 - リセットによる完全復元
 
+### 既存のテストヘルパー
+
+新しいEditModeテストを書くときは、`GameSessionTests`が持つ次のヘルパーを再利用します。盤面生成やDefinition組み立てを書き直す必要はありません。
+
+| ヘルパー | 用途 |
+|---|---|
+| `CreateSession(firstPlayer, params pieces)` | 標準プロファイルの6×10盤面でSessionを作る |
+| `CreateDefinition(firstPlayer, cellEffects, params pieces)` | セル効果を指定した`GameDefinition`を作る |
+| `CreateDefinitionWithProfiles(firstPlayer, profiles, cellEffects, params pieces)` | 独自の移動プロファイルを差し込む |
+| `InitialPiece(id, column, row, owner, power, movementProfileId)` | 初期駒定義を1行で書く。戦闘力とプロファイルIDは省略可 |
+| `GetPiece(snapshot, position)` | 位置を指定して駒を取得する |
+| `AssertPiece(snapshot, position, owner, combatPower)` | 位置・所有者・戦闘力をまとめて検証する |
+| `RecordingPowerEffect` | 呼び出し順を記録するテスト用`ICellEffectHandler` |
+
+これらは`private static`なので、別のテストクラスを追加する場合は同等のヘルパーをそちらにも用意するか、共有するヘルパークラスへ切り出してください。
+
 ## 2. PlayModeテスト
 
 [`Assets/Tests/PlayMode/BoardGameBootstrapTests.cs`](../Assets/Tests/PlayMode/BoardGameBootstrapTests.cs)はBootstrap、View、HUD、Scene統合を検証します。
@@ -107,6 +123,8 @@ Test Runnerの結果保存を知らせるUnity内部ログが表示される場�
 - 新しいCommandは、手番外、所有権違反、ゲーム終了後、無効な対象を検証します。
 - 新しいEventは、発生条件、値、順序、Viewへの反映を検証します。
 - Config項目を増やした場合は、標準値と無効値の検証を追加します。
+- Core標準定義、Config既定値、実際のAssetに同じ設定がある場合は、それらの整合性を検証します。
+- Rule、Resolver、Handler、Agentを差し替えた場合は、Bootstrapから注入した実装が標準Sceneで使われることをPlayModeで検証します。
 
 ## 7. 現在の未検証領域
 
@@ -119,3 +137,21 @@ Test Runnerの結果保存を知らせるUnity内部ログが表示される場�
 - CI上での自動テスト
 
 現行PlayModeテストは`HandleCellClick`からの操作経路を検証していますが、Input Systemへ物理Mouse・Touchイベントを注入するテストではありません。実機入力は手動確認が必要です。
+
+## 8. PR前の検証
+
+機能変更では[拡張ガイドの変更影響マトリクス](EXTENSION_GUIDE.md#変更影響マトリクス)を確認し、対象となるCore、Bootstrap、Config・Asset、テスト、文書が同じPRに揃っていることを確認します。
+
+- EditModeとPlayModeの必要なテストが成功している。
+- Config使用時とCore Fallbackで標準設定が一致している。
+- 差し替えた実装がBootstrapから本番経路へ注入されている。
+- Markdownの相対リンクと見出しリンクがGitHub Previewで開ける。
+- `git status --short`に意図しないScene、Package、ProjectSettings、生成ファイルがない。
+- `git diff --check`が成功する。
+
+```powershell
+git status --short
+git diff --check
+```
+
+文書だけを変更した場合はUnity Test Runnerの再実行を必須としません。ただし、文書中の型名、メソッド名、コンストラクタ引数を現行ソースと照合し、変更したリンクを確認します。
