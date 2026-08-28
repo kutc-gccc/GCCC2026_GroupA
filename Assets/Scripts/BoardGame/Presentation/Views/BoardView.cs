@@ -16,8 +16,10 @@ namespace GCCC.BoardGame.Presentation.Views
         private static readonly Color LegalMoveColor = new Color32(76, 175, 80, 150);
         private static readonly Color CombatMoveColor = new Color32(255, 152, 0, 175);
         private static readonly Color TerritoryBorderColor = new Color32(255, 255, 255, 235);
+        private static readonly Color FusionCandidateColor = new Color32(33, 150, 243, 175);
 
         private readonly List<SpriteRenderer> moveIndicators = new List<SpriteRenderer>();
+        private readonly List<SpriteRenderer> fusionIndicators = new List<SpriteRenderer>();
         private Camera boardCamera;
         private Sprite squareSprite;
         private Transform indicatorsRoot;
@@ -28,6 +30,7 @@ namespace GCCC.BoardGame.Presentation.Views
         public int GeneratedCellCount { get; private set; }
 
         public int MoveIndicatorCount => moveIndicators.Count;
+        public int FusionIndicatorCount => fusionIndicators.Count;
 
         public void Initialize(Camera camera, Sprite cellSprite, GameSnapshot snapshot)
         {
@@ -39,37 +42,53 @@ namespace GCCC.BoardGame.Presentation.Views
         }
 
         public void ShowSelection(
-            GridPosition? selectedCell,
-            IReadOnlyList<GridPosition> legalDestinations,
-            GameSnapshot snapshot)
-        {
-            ClearMoveIndicators();
-            if (!selectedCell.HasValue)
-            {
-                selectionIndicator.enabled = false;
-                return;
-            }
+    GridPosition? selectedCell,
+    IReadOnlyList<GridPosition> legalDestinations,
+    IReadOnlyList<GridPosition> fusionTargets,
+    GameSnapshot snapshot)
+{
+    ClearMoveIndicators();
+    ClearFusionIndicators();
 
-            selectionIndicator.transform.localPosition =
-                BoardGeometry.CellToLocalPosition(selectedCell.Value, columns, rows);
-            selectionIndicator.enabled = true;
+    if (!selectedCell.HasValue)
+    {
+        selectionIndicator.enabled = false;
+        return;
+    }
 
-            foreach (GridPosition destination in legalDestinations)
-            {
-                bool isCombat = snapshot.TryGetPiece(destination, out _);
-                SpriteRenderer indicator = CreateSpriteRenderer(
-                    $"{(isCombat ? "Combat" : "Move")} Candidate ({destination.Column}, {destination.Row})",
-                    indicatorsRoot,
-                    squareSprite,
-                    isCombat ? CombatMoveColor : LegalMoveColor,
-                    Vector3.one * 0.82f,
-                    2);
-                indicator.transform.localPosition =
-                    BoardGeometry.CellToLocalPosition(destination, columns, rows);
-                moveIndicators.Add(indicator);
-            }
-        }
+    selectionIndicator.transform.localPosition =
+        BoardGeometry.CellToLocalPosition(selectedCell.Value, columns, rows);
+    selectionIndicator.enabled = true;
 
+    foreach (GridPosition destination in legalDestinations)
+    {
+        bool isCombat = snapshot.TryGetPiece(destination, out _);
+        SpriteRenderer indicator = CreateSpriteRenderer(
+            $"{(isCombat ? "Combat" : "Move")} Candidate ({destination.Column}, {destination.Row})",
+            indicatorsRoot,
+            squareSprite,
+            isCombat ? CombatMoveColor : LegalMoveColor,
+            Vector3.one * 0.82f,
+            2);
+        indicator.transform.localPosition =
+            BoardGeometry.CellToLocalPosition(destination, columns, rows);
+        moveIndicators.Add(indicator);
+    }
+
+    foreach (GridPosition target in fusionTargets)
+    {
+        SpriteRenderer indicator = CreateSpriteRenderer(
+            $"Fusion Candidate ({target.Column}, {target.Row})",
+            indicatorsRoot,
+            squareSprite,
+            FusionCandidateColor,
+            Vector3.one * 0.82f,
+            2);
+        indicator.transform.localPosition =
+            BoardGeometry.CellToLocalPosition(target, columns, rows);
+        fusionIndicators.Add(indicator);
+    }
+}
         public bool TryScreenToCell(Vector2 screenPosition, out GridPosition cell)
         {
             Vector3 worldPosition = boardCamera.ScreenToWorldPoint(screenPosition);
@@ -160,7 +179,17 @@ namespace GCCC.BoardGame.Presentation.Views
 
             moveIndicators.Clear();
         }
+    
+        private void ClearFusionIndicators()
+        {
+            foreach (SpriteRenderer indicator in fusionIndicators)
+            {
+                DestroyGeneratedObject(indicator.gameObject);
+            }
 
+            fusionIndicators.Clear();
+        }
+        
         private static SpriteRenderer CreateSpriteRenderer(
             string objectName,
             Transform parent,

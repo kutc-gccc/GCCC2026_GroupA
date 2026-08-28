@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using GCCC.BoardGame.Core;
 using GCCC.BoardGame.Core.Commands;
+using GCCC.BoardGame.Core.Events;
 using GCCC.BoardGame.Core.Model;
 using GCCC.BoardGame.Core.Players;
 using GCCC.BoardGame.Presentation.Views;
@@ -17,6 +18,7 @@ namespace GCCC.BoardGame.Presentation
         private readonly GameHudView hudView;
         private readonly Dictionary<PlayerId, IPlayerAgent> agents;
         private PieceId? selectedPieceId;
+        private bool isFusionModeActive;
 
         public GameCoordinator(
             GameSession session,
@@ -99,6 +101,12 @@ namespace GCCC.BoardGame.Presentation
                 return;
             }
 
+            if (isFusionModeActive)
+            {
+                HandleFusionModeClick(cell, snapshot);
+                return;
+            }
+
             if (snapshot.TryGetPiece(cell, out PieceState clickedPiece) &&
                 clickedPiece.Owner == snapshot.CurrentPlayer)
             {
@@ -128,6 +136,46 @@ namespace GCCC.BoardGame.Presentation
             humanAgent.TrySubmit(move);
         }
 
+        /// <summary>
+        /// 「合体」ボタンから呼び出される。駒が選択されている間だけ合体モードをON/OFFする。
+        /// </summary>
+        public void ToggleFusionMode()
+        {
+            if (!selectedPieceId.HasValue)
+            {
+                return;
+            }
+
+            isFusionModeActive = !isFusionModeActive;
+            RenderSelection();
+        }
+
+        private void HandleFusionModeClick(GridPosition cell, GameSnapshot snapshot)
+        {
+            if (!selectedPieceId.HasValue)
+            {
+                isFusionModeActive = false;
+                return;
+            }
+
+            if (snapshot.TryGetPiece(cell, out PieceState clickedPiece) &&
+                clickedPiece.Id != selectedPieceId.Value &&
+                clickedPiece.Owner == snapshot.CurrentPlayer &&
+                agents[snapshot.CurrentPlayer] is HumanPlayerAgent humanAgent)
+            {
+                var fusion = new FusePiecesCommand(
+                    snapshot.CurrentPlayer, selectedPieceId.Value, clickedPiece.Id);
+                isFusionModeActive = false;
+                humanAgent.TrySubmit(fusion);
+                RenderSelection();
+                return;
+            }
+
+            // 合体対象にならないマスをクリックしたら、選択は残したまま合体モードだけ抜ける
+            isFusionModeActive = false;
+            RenderSelection();
+        }
+
         public void Reset()
         {
             foreach (IPlayerAgent agent in agents.Values)
@@ -137,9 +185,12 @@ namespace GCCC.BoardGame.Presentation
 
             session.Reset();
             selectedPieceId = null;
+            isFusionModeActive = false;
             pieceViews.Rebuild(session.Snapshot);
-            boardView.ShowSelection(null, new List<GridPosition>(), session.Snapshot);
+            boardView.ShowSelection(
+                null, new List<GridPosition>(), new List<GridPosition>(), session.Snapshot);
             hudView.Render(session.Snapshot);
+            hudView.ShowMessage(string.Empty);
             BeginCurrentTurn();
         }
 
@@ -162,12 +213,36 @@ namespace GCCC.BoardGame.Presentation
             selectedPieceId = null;
             GameSnapshot snapshot = session.Snapshot;
             pieceViews.ApplyEvents(result.Events, snapshot);
-            boardView.ShowSelection(null, new List<GridPosition>(), snapshot);
+            boardView.ShowSelection(
+                null, new List<GridPosition>(), new List<GridPosition>(), snapshot);
             hudView.Render(snapshot);
+            ShowFusionResultMessage(result.Events);
             if (!snapshot.IsGameOver)
             {
                 BeginCurrentTurn();
             }
+        }
+
+        private void ShowFusionResultMessage(IReadOnlyList<GameEvent> events)
+        {
+            foreach (GameEvent gameEvent in events)
+            {
+                if (gameEvent is PiecesFused fused)
+                {
+                    hudView.ShowMessage(fused.Bonus >= 2
+                        ? "大成功！ 戦闘力+2で合体しました"
+                        : "合体成功！ 戦闘力+1で合体しました");
+                    return;
+                }
+
+                if (gameEvent is FusionAttemptFailed)
+                {
+                    hudView.ShowMessage("合体失敗…　駒はそのまま残りました");
+                    return;
+                }
+            }
+
+            hudView.ShowMessage(string.Empty);
         }
 
         private void BeginCurrentTurn()
@@ -201,16 +276,49 @@ namespace GCCC.BoardGame.Presentation
             if (!selectedPieceId.HasValue ||
                 !snapshot.TryGetPiece(selectedPieceId.Value, out PieceState selectedPiece))
             {
-                boardView.ShowSelection(null, new List<GridPosition>(), snapshot);
+                isFusionModeActive = false;
+                hudView.SetFuseButtonInteractable(false);
+                boardView.ShowSelection(
+                    null, new List<GridPosition>(), new List<GridPosition>(), snapshot);
                 return;
             }
 
-            List<GridPosition> destinations = session.GetLegalCommands(snapshot.CurrentPlayer)
+            IReadOnlyList<GameCommand> legalCommands =
+                session.GetLegalCommands(snapshot.CurrentPlayer);
+
+            List<GridPosition> fusionTargets = legalCommands
+                .OfType<FusePiecesCommand>()
+                .Where(command =>
+                    command.FirstPieceId == selectedPiece.Id ||
+                    command.SecondPieceId == selectedPiece.Id)
+                .Select(command =>
+                {
+                    PieceId otherId = command.FirstPieceId == selectedPiece.Id
+                        ? command.SecondPieceId
+                        : command.FirstPieceId;
+                    snapshot.TryGetPiece(otherId, out PieceState other);
+                    return other.Position;
+                })
+                .ToList();
+
+            hudView.SetFuseButtonInteractable(fusionTargets.Count > 0);
+
+            if (isFusionModeActive)
+            {
+                // 合体モード中は移動先ハイライトを隠し、合体対象だけを見せる
+                boardView.ShowSelection(
+                    selectedPiece.Position, new List<GridPosition>(), fusionTargets, snapshot);
+                return;
+            }
+
+            List<GridPosition> destinations = legalCommands
                 .OfType<MovePieceCommand>()
                 .Where(command => command.PieceId == selectedPiece.Id)
                 .Select(command => command.Destination)
                 .ToList();
-            boardView.ShowSelection(selectedPiece.Position, destinations, snapshot);
+
+            boardView.ShowSelection(
+                selectedPiece.Position, destinations, new List<GridPosition>(), snapshot);
         }
     }
 }
