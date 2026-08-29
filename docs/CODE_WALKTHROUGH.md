@@ -24,15 +24,7 @@ Core（Unity非依存）          盤面状態・ルール・勝敗判定
 
 `GCCC.BoardGame.Core.asmdef` の `noEngineReferences: true` によって、Coreに`UnityEngine`を書くとコンパイルが通りません。この境界はコンパイラが守っています。
 
-規模はおおよそ次のとおりです（`29e6adf`時点の概数）。
-
-| 層 | ファイル | 行数 |
-|---|---:|---:|
-| Core | 約47 | 約1,900 |
-| Presentation | 約10 | 約1,200 |
-| テスト | 2 | 約680 |
-
-Coreのほうが大きいことが、この構成の性格をよく表しています。
+Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力、View、音声、Composition Rootに分かれています。ファイル数や行数ではなく、この依存方向を起点に読むと機能追加後も迷いにくくなります。
 
 ## 2. コードを読む順番
 
@@ -43,24 +35,24 @@ Coreのほうが大きいことが、この構成の性格をよく表してい�
 3. **`Core/Commands/` と `Core/Events/`** — Coreへの入力（要求）と出力（起きた事実）の形
 4. **`Core/GameSession.cs`** — 中心。まず `Execute`、次に `ExecuteMove` を読む
 5. **`Core/Rules/`** — 移動・戦闘・手番の実装。どれも短い
-6. **`Presentation/GameCoordinator.cs`** — CoreとUnityの唯一の接続点
+6. **`Presentation/GameCoordinator.cs`** — Human入力、Agent、Command、View、音声を仲介する中心
 7. **`Presentation/Views/`** — 表示。Coreを理解した後なら素直に読める
 
 `GameSession.ExecuteMove` と `GameCoordinator.HandleCellClick` の2つを読めば、全体の8割が分かります。
 
 ## 3. 起動時に何が起きるか
 
-Sceneのルートには **Main Camera と Bootstrap しかありません**。残りは全部コードが実行時に組み立てます。
+ゲーム本体の`SampleScene`のルートには **Main Camera と Bootstrap しかありません**。残りはコードが実行時に組み立てます。
 
 `Presentation/Bootstrap/BoardGameBootstrap.cs` の `Awake()` が順に行うことは次のとおりです。
 
 1. `BoardGameConfig.CreateDefinition()` で設定アセットから `GameDefinition` を作る（未設定なら `GameDefinition.CreateStandard()`）
 2. Configからセル効果Handlerを作り、`new GameSession(definition, cellEffectHandlers: ...)`でゲーム本体を作る
 3. `new RuntimeSpriteFactory()` で画像を実行時に生成する
-4. `ConfigureCamera()` で盤面が収まる正投影サイズを計算してカメラに設定する
-5. `BoardView` / `PieceViewManager` / `GameHudView` を生成して `Initialize()` する
-6. `GameCoordinator` を作り、`GameHudView.ResetRequested` を接続する
-7. `BoardInputController` を作って配線する
+4. `ConfigureCamera()`で盤面が収まる正投影サイズを設定し、`BoardGameAudioManager`を取得または生成する
+5. `BoardView` / `PieceViewManager` / `GameHudView`を生成して`Initialize()`する
+6. `GameCoordinator`を作り、リセット、合体、パワーランダム化、タイトル復帰、音声の経路を接続する
+7. `BoardInputController`を作って配線する
 
 依存関係の組み立てがこの1メソッドに集まっています（Composition Root）。Prefab参照が未設定でも、同じComponentを持つGameObjectを実行時に作るフォールバックがあります。
 
@@ -77,7 +69,7 @@ Sceneのルートには **Main Camera と Bootstrap しかありません**。�
      毎フレーム、Touchscreen または Mouse の押下を検出
           ↓
 ② GameHudView.IsPointerOverControl()
-     リセットボタンの上なら中断（UIクリックが盤面へ貫通しない）
+     操作ボタン、音量UI、リザルト上なら中断（UIクリックが盤面へ貫通しない）
           ↓
 ③ BoardView.TryScreenToCell()
      スクリーン座標 → ワールド → ローカル → (列, 行)
@@ -95,6 +87,7 @@ Sceneのルートには **Main Camera と Bootstrap しかありません**。�
           ↓
 ⑦ GameSession.ExecuteMove()
      駒の存在と所有権を確認し、DirectionalMovementRule で合法性を判定
+     移動元の滞在中効果を失効してから処理する
      ├─ 空きマス → ResolveUnoccupiedMove()
      └─ 敵駒     → ResolveCombatMove() → SimultaneousCombatResolver
           ↓
@@ -104,10 +97,10 @@ Sceneのルートには **Main Camera と Bootstrap しかありません**。�
           ↓
 ⑩ CommandResult に GameEvent のリストを詰めて返す
           ↓
-⑪ PieceViewManager.ApplyEvents(events, snapshot)
-     Eventの型で switch し、View を生成 / 更新 / 削除
+⑪ PieceViewManager.ApplyEvents(events, snapshot) / BoardGameAudioManager.PlayEvents(events)
+     Eventの型に応じてViewを更新し、対応するSFXを再生
           ↓
-⑫ GameHudView.Render(snapshot) で手番・勝敗テキストを更新
+⑫ BoardViewの選択表示を解除し、GameHudView.Render(snapshot)で手番・勝敗・リザーブを更新
 ```
 
 ### 読むときの要点
@@ -148,7 +141,7 @@ MoveDirections（実効的な移動方向）
 
 コードを読むと気づく、細かいが効いている部分です。
 
-### 画像アセットが1枚もない
+### 盤面と駒の基本Spriteは実行時生成
 
 `Presentation/Views/RuntimeSpriteFactory.cs` が起動時にテクスチャを生成しています。
 
@@ -156,6 +149,8 @@ MoveDirections（実効的な移動方向）
 - **駒の丸** — 64×64のテクスチャに、中心からの距離でアルファ値を計算して円を描く。境界でアルファを補間しているのでアンチエイリアスが効く
 
 どちらも `HideFlags.DontSave` 付きで生成し、`Dispose()` で破棄します。
+
+タイトル背景、フォント、BGM、SFXはAssetとして保持します。実行時生成なのは盤面セルと円形駒の基本Spriteであり、プロジェクト全体が画像・音声Assetを持たないわけではありません。
 
 ### Sceneをほぼ空にしてある
 

@@ -91,7 +91,7 @@ MoveDirections directions = profile.GetDirections(3); // North | South
 |---|---|---|
 | `CellDefinition` | 1マスの固定設定 | 座標、陣地所有者、特殊効果ID |
 | `InitialPieceDefinition` | リセット時に生成する1個の駒の初期設定 | ID、所有者、初期位置、初期戦闘力、移動プロファイルID |
-| `GameDefinition` | ゲーム開始前の設計図 | 盤面サイズ、全セル、全初期駒、先手、移動プロファイル |
+| `GameDefinition` | ゲーム開始前の設計図 | 盤面サイズ、全セル、全初期駒、先手、移動プロファイル、効果定義 |
 | `CellEffectDefinition` | 特殊効果の固定設定 | 効果ID、`WhileOccupied`／`PermanentOncePerPiece` |
 | `PlayerState` | プレイヤーの実行時状態 | 盤外に保管されている`ReservePieceState` |
 | `GameSnapshot` | ある時点のゲーム状態を外部へ見せる読み取り専用コピー | 現在の全駒、セル、効果定義、リザーブ、手番、勝敗 |
@@ -149,17 +149,19 @@ int reserveCount = snapshot.GetPlayer(PlayerId.Player1).ReservePieces.Count;
 bool isGameOver = snapshot.IsGameOver;
 ```
 
-### 4クラスの関係
+### 定義と実行時状態の関係
 
 ```text
 GameDefinition（ゲーム全体の設計図）
 ├─ CellDefinition（各マスの固定設定）
 ├─ PowerMovementProfile（戦闘力別移動設定）
+├─ CellEffectDefinition（特殊効果IDとLifetime）
 └─ InitialPieceDefinition（各駒の初期設定とプロファイルID）
            ↓ GameSessionの開始・Reset
        PieceState（各駒の現在状態）
+       PlayerState（各プレイヤーのリザーブ状態）
            ↓ Snapshot取得
-       GameSnapshot（盤面全体の読み取り専用コピー）
+       GameSnapshot（盤面・効果・プレイヤー状態の読み取り専用コピー）
 ```
 
 ## 4. `GameSession`
@@ -220,6 +222,10 @@ var fusion = new FusePiecesCommand(
     PlayerId.Player1,
     new PieceId(1),
     new PieceId(3));
+
+var randomize = new RandomizePowerCommand(
+    PlayerId.Player1,
+    new PieceId(1));
 ```
 
 Commandの検証順序は[アーキテクチャ §4](ARCHITECTURE.md#4-commandとresult)を参照してください。
@@ -251,7 +257,8 @@ else
 | `CombatResolved` | 攻撃・防御のID、戦闘前後の戦闘力 |
 | `PiecePowerChanged` | `PieceId`, `PreviousPower`, `CurrentPower` |
 | `PieceDestroyed` | `PieceId`, `Position` |
-| `PiecesFused` | 合体元2個と合体後の`PieceId` |
+| `PiecesFused` | 合体元2個と合体後の`PieceId`、`Bonus` |
+| `FusionAttemptFailed` | 合体を試みた2個の`PieceId` |
 | `CellEffectTriggered` | `EffectId`, `PieceId`, `Position` |
 | `CellEffectExpired` | `EffectId`, `PieceId`, `Position` |
 | `ReservePieceAdded` | 追加された`ReservePieceState` |
@@ -265,11 +272,11 @@ else
 
 `ICombatResolver`、`IFusionResolver`、`ICellEffectHandler`を実装するときに受け取る型と返す型です。差し替え口そのものの一覧は[アーキテクチャ §7](ARCHITECTURE.md#7-ruleとplayeragentの差し替え口)、実装手順は[拡張ガイド](EXTENSION_GUIDE.md)を参照してください。
 
-| 型 | 用途 | コンストラクタ引数 |
+| 型 | 用途 | 生成方法・引数 |
 |---|---|---|
 | `CombatResolution` | `ICombatResolver.Resolve`の戻り値 | `damageToAttacker`, `damageToDefender` |
 | `FusionPair` | `IFusionResolver.GetLegalFusions`が返す一覧の要素 | `firstPieceId`, `secondPieceId` |
-| `FusionResolution` | `IFusionResolver.TryResolve`の`out`値 | `resultingPiece` |
+| `FusionResolution` | `IFusionResolver.TryResolve`の`out`値 | `Success(resultingPiece, bonus)`／`Attempted()` |
 | `CellEffectContext` | `ICellEffectHandler.Apply`の引数 | `snapshot`, `piece`, `cell`, `definition` |
 | `CellEffectResult` | `ICellEffectHandler.Apply`の戻り値 | `piece`, `events`, `reservePieceGrants`（後二者は省略可） |
 
@@ -289,4 +296,4 @@ var result = new CellEffectResult(context.Piece.WithCombatPower(3));
 
 `CellEffectResult.Piece`は、ID・所有者・位置が`CellEffectContext.Piece`と同一で、`MovementProfileId`が`GameDefinition`へ登録済みでなければなりません。戦闘力、効果状態、登録済みプロファイルを変更でき、`ReservePieceGrant`でリザーブ追加を要求できます。
 
-`FusionResolution.ResultingPiece`が満たすべき条件と、違反した場合に送出される例外は[拡張ガイド §4](EXTENSION_GUIDE.md#4-合体を有効化する)にあります。
+`FusionResolution.ResultingPiece`が満たすべき条件と、違反した場合に送出される例外は[拡張ガイド §4](EXTENSION_GUIDE.md#4-合体ルールを変更する)にあります。

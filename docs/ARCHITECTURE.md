@@ -30,6 +30,7 @@ flowchart TB
 | Presentation Input | マウス・タッチを盤面座標へ変換 | ルール判定の再実装 |
 | `GameCoordinator` | 選択状態、Agent、Command、Viewの仲介 | Core状態の直接変更 |
 | Presentation Views | SnapshotとEventに従った表示 | 勝敗やダメージの独自計算 |
+| Presentation Audio | Eventに対応するBGM・SFX再生と音量管理 | 戦闘・合体結果の独自判定 |
 | Bootstrap | Config、Core、Prefab、Cameraの組み立て | ゲームルールの実装 |
 
 ## 3. Coreの状態モデル
@@ -45,11 +46,13 @@ flowchart TB
 | `MovementProfileId` | 駒が使用する戦闘力別移動プロファイルのID |
 | `PowerMovementBand` | 戦闘力の最小値・最大値と、その範囲で許可する方向 |
 | `PowerMovementProfile` | 戦闘力1以上を隙間なく覆う移動帯域の集合 |
-| `PieceState` | ID、所有者、位置、戦闘力、移動プロファイルIDを持つ不変オブジェクト |
+| `PieceState` | ID、所有者、位置、通常／一時戦闘力、移動プロファイルID、効果状態を持つ不変オブジェクト |
 | `CellDefinition` | 位置、陣地所有者、特殊効果IDの順序付き一覧 |
+| `CellEffectDefinition` | 効果IDと`WhileOccupied`／`PermanentOncePerPiece`の固定定義 |
 | `InitialPieceDefinition` | リセット時に生成する駒の定義 |
-| `GameDefinition` | 盤面サイズ、全セル、初期駒、先手、移動プロファイル |
-| `GameSnapshot` | 外部へ公開する読み取り専用の状態コピー |
+| `GameDefinition` | 盤面サイズ、全セル、初期駒、先手、移動プロファイル、効果定義 |
+| `PlayerState` | プレイヤーごとのリザーブ駒を持つ不変の実行時状態 |
+| `GameSnapshot` | 駒、セル、効果定義、Player状態、手番、勝敗を公開する読み取り専用コピー |
 
 `GridPosition`にUnityの`Vector2Int`を使わないのは、Coreをエンジン非依存に保つためです。同じ理由で、座標が盤内かどうかの判定も`GridPosition`ではなく`GameSnapshot`やRuleが持ちます。
 
@@ -117,6 +120,8 @@ Eventは「何をしてほしいか」ではなく、Command実行によって�
 | `PiecePowerChanged` | 生存駒の戦闘力が変わった |
 | `PieceDestroyed` | 駒が盤面から消滅した |
 | `PiecesFused` | 2個の駒が新しい駒へ合体した |
+| `FusionAttemptFailed` | 合法な合体を試みたが確率判定に失敗した |
+| `RandomizePowerEvent` | パワーランダム化による変更前後の値が確定した |
 | `CellEffectTriggered` | セル効果が順序どおりに発動した |
 | `CellEffectExpired` | 退出により滞在中効果が終了した |
 | `ReservePieceAdded` | プレイヤーのリザーブへ駒が追加された |
@@ -136,6 +141,7 @@ sequenceDiagram
     participant Session as GameSession
     participant Rules as Rule/Resolver
     participant Views as Board/Piece/HUD Views
+    participant Audio as BoardGameAudioManager
 
     User->>Input: マスをクリックまたはタッチ
     Input->>Coordinator: HandleCellClick(GridPosition)
@@ -147,6 +153,7 @@ sequenceDiagram
     Rules-->>Session: 解決結果
     Session-->>Coordinator: CommandResult + Events
     Coordinator->>Views: Eventsと最新Snapshotを反映
+    Coordinator->>Audio: Eventsに対応するSFXを再生
 ```
 
 `HumanPlayerAgent.BeginTurn`は最新Snapshot、合法Command一覧、送信用callbackを受け取ります。将来のCPUも同じ`IPlayerAgent`契約を利用します。

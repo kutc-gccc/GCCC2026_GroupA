@@ -224,7 +224,12 @@ var session = new GameSession(
 
 ### 設定
 
-`StandardBoardGameConfig.asset`の対象座標へ、Handlerと同じ`EffectId`を実行順に設定します。見た目が必要な場合は`BoardView`へ表示を追加しますが、効果計算はCoreに残します。
+1. `CombatPowerBoostEffectConfig`、`ReservePieceGrantEffectConfig`、または新しい`CellEffectConfig`派生Assetを作成し、固有の`EffectId`とLifetime、効果値を設定します。
+2. 作成したAssetを`StandardBoardGameConfig.asset`の`cellEffectDefinitions`へ登録します。
+3. 対象座標の`cellEffects`へ同じ`EffectId`を実行順に設定します。
+4. 見た目が必要な場合は`BoardView`へ表示を追加しますが、効果計算はCoreに残します。
+
+標準Configは現在どちらの一覧も空で、特殊マスは未配置です。効果定義だけ、または座標のIDだけを設定した状態ではゲーム定義の生成時に拒否されます。
 
 ### テスト
 
@@ -299,9 +304,9 @@ CPU実装は将来の`GCCC.BoardGame.AI`アセンブリへ置き、Coreだけを
 
 ### Core実装
 
-新しい操作が既存のMoveまたはFuseで表現できない場合にだけCommandを追加します。
+新しい操作が既存の`MovePieceCommand`、`FusePiecesCommand`、`RandomizePowerCommand`で表現できない場合にだけCommandを追加します。
 
-Commandの追加はCoreアセンブリ内でのみ可能です。`IGameCommandHandler`は`internal`、`GameSession.ExecuteMove`と`ExecuteFusion`も`internal`で、Handlerの登録先は`GameSession`のコンストラクタ内にある固定配列です。外部アセンブリからHandlerを登録する口はありません。他の拡張と違って`GameSession`本体の変更を伴うため、[§1](#1-拡張時の共通原則)のとおり契約だけを先行PRとして確定してから進めます。
+Commandの追加はCoreアセンブリ内でのみ可能です。`IGameCommandHandler`と`GameSession`の各操作実行メソッドは`internal`で、Handlerの登録先は`GameSession`のコンストラクタ内にある固定配列です。外部アセンブリからHandlerを登録する口はありません。他の拡張と違って`GameSession`本体の変更を伴うため、[§1](#1-拡張時の共通原則)のとおり契約だけを先行PRとして確定してから進めます。
 
 1. Core Commandsへ`GameCommand`派生型を追加します。
 2. `IGameCommandHandler`実装を追加します。
