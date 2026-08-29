@@ -252,7 +252,10 @@ namespace GCCC.BoardGame.Tests
                 Is.EqualTo(BoardGameSceneNames.Title));
             Assert.That(
                 GameObject.Find("Title Text").GetComponent<Text>().text,
-                Is.EqualTo("BOARD GAME（仮）"));
+                Is.EqualTo("Number War"));
+            Assert.That(
+                GameObject.Find("Background").GetComponent<Image>().sprite,
+                Is.Not.Null);
 
             Button startButton = GameObject.Find("Game Start Button").GetComponent<Button>();
             Assert.That(startButton.interactable, Is.True);
