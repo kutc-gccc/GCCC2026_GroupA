@@ -177,13 +177,16 @@ Ruleは状態を直接所有せず、`GameSession`から渡された入力を計
 
 ### SceneとBootstrap
 
-`SampleScene`のルートはMain Cameraと`Board Game Bootstrap`だけです。`BoardGameBootstrap`は次を組み立てます。
+起動Sceneは`TitleScene`です。`TitleScreenController`が「ゲーム開始」を受け取り、ゲーム本体の`SampleScene`を読み込みます。ゲーム終了時は`GameHudView`がリザルトを重ね、`BoardGameBootstrap`が「スタート画面に戻る」を受け取って`TitleScene`へ遷移します。Scene遷移はPresentationに閉じ、CoreはScene名や`SceneManager`を参照しません。
+
+`SampleScene`のルートはMain Cameraと`Board Game Bootstrap`です。Bootstrapと同じGameObjectに`BoardGameAudioManager`を配置し、EventSystem、BGM／SFX用AudioSource、盤面UIは実行時に生成します。`BoardGameBootstrap`は次を組み立てます。
 
 1. `BoardGameConfig`から`GameDefinition`を生成する。
 2. `GameSession`と`RuntimeSpriteFactory`を作る。
 3. Cameraを盤面全体が収まる正投影に設定する。
-4. Board、Piece、HUDのPrefabを生成する。
-5. `GameCoordinator`と`BoardInputController`を接続する。
+4. `BoardGameAudioManager`を取得または生成する。
+5. Board、Piece、HUDのPrefabを生成する。
+6. `GameCoordinator`、`BoardInputController`、音声イベントを接続する。
 
 Prefab参照が未設定の場合は、同じComponentを持つGameObjectを実行時に生成するフォールバックがあります。
 
@@ -196,7 +199,7 @@ Prefab参照が未設定の場合は、同じComponentを持つGameObjectを実�
 | `BoardView` | 60セル、陣地枠、ラベル、選択、移動候補、座標変換 | 駒の戦闘力や勝敗ルール |
 | `PieceViewManager` | `PieceView`の生成、Eventに従った更新・削除、リセット時の再構築 | 戦闘結果の再計算 |
 | `PieceView` | 1個の駒の所有者色、位置、戦闘力テキスト | Coreの`PieceState`の直接変更 |
-| `GameHudView` | 手番・勝敗テキスト、リセットボタン、UI入力判定 | 手番や勝者の決定 |
+| `GameHudView` | 手番、操作ボタン、音量スライダー、リザルト表示、UI入力遮断 | 手番や勝者の決定 |
 | `RuntimeSpriteFactory` | セルと円形駒のSpriteを実行時生成 | ゲーム状態 |
 
 `PieceState`と`PieceView`は1対1で対応しますが、役割は異なります。`PieceState`はCore上の正しいゲーム状態、`PieceView`はUnity上の見た目です。各駒GameObjectへ戦闘ルールを持たせず、`PieceViewManager`がSnapshotとEventを使って見た目だけを同期します。
@@ -205,7 +208,7 @@ Prefab参照が未設定の場合は、同じComponentを持つGameObjectを実�
 
 盤面の初期設定は`StandardBoardGameConfig.asset`が持ちます。設定項目と標準値は[開発ガイド §5](DEVELOPMENT.md#5-standardboardgameconfig)を参照してください。
 
-盤面、駒、HUDを個別Prefabに分けているのは、UI担当と盤面担当が同じScene YAMLを同時に編集する可能性を減らすためです。同じ理由で、Sceneのルートに置くのはMain CameraとBootstrapだけにしています。
+盤面、駒、HUDを個別Prefabに分けているのは、UI担当と盤面担当が同じScene YAMLを同時に編集する可能性を減らすためです。ゲーム本体はBootstrapをComposition Rootとし、Scene上ではAudioManagerをBootstrapと同じGameObjectへ保持します。EventSystemとAudioSourceは実行時に生成します。
 
 ## 10. 共有変更になりやすい箇所
 

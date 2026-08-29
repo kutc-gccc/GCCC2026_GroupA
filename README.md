@@ -22,7 +22,9 @@ Unity 6で開発している、2人対戦の陣地到達型ボードゲームで
 | 同時相互ダメージ戦闘 | 実装済み | 戦闘力の更新・消滅を含む |
 | 陣地到達勝利 | 実装済み | リセットまで入力を停止 |
 | マウス・タッチ入力 | 実装済み | UI上の入力は盤面へ伝播しない |
-| 合体 | 拡張口のみ | `FusePiecesCommand`は現在`FusionDisabled`を返す |
+| 合体 | 実装済み | 隣接する自駒同士を確率判定で合体 |
+| スタート・リザルト画面 | 実装済み | タイトルから開始し、終了後はタイトルへ戻る |
+| BGM・効果音・音量調節 | 実装済み | 移動・戦闘・破壊・合体イベントとBGM／SFXスライダーに対応 |
 | 特殊マス | 拡張口のみ | 現行設定に効果とHandlerは未登録 |
 | CPU | 拡張口のみ | `IPlayerAgent`を実装して追加する |
 | CI | 未導入 | Unity Test Runnerをローカル実行する |
@@ -39,10 +41,11 @@ Unity 6で開発している、2人対戦の陣地到達型ボードゲームで
 ## クイックスタート
 
 1. リポジトリを取得し、Unity Hubでプロジェクトルートを開きます。
-2. Unity `6000.3.11f1`で`Assets/Scenes/SampleScene.unity`を開きます。
-3. Game Viewを16:9にして再生します。
+2. Unity `6000.3.11f1`で`Assets/Scenes/TitleScene.unity`を開きます。
+3. Game Viewを16:9にして再生し、「ゲーム開始」を押します。
 4. 自分の駒をクリックし、緑またはオレンジで示された移動先をクリックします。
-5. 初期状態へ戻す場合は右上の「リセット」を押します。
+5. 左上のBGM／SFXスライダーで音量を調節できます。
+6. ゲーム終了後は「スタート画面に戻る」でタイトルへ戻れます。初期状態へ戻す場合は右上の「リセット」を押します。
 
 テストの実行方法は[テストガイド](docs/TESTING.md)を参照してください。
 
@@ -66,7 +69,9 @@ Unity 6で開発している、2人対戦の陣地到達型ボードゲームで
 Assets/
 ├─ Config/BoardGame/              盤面・初期配置の設定アセット
 ├─ Prefabs/BoardGame/             盤面、駒、HUDのPrefab
-├─ Scenes/SampleScene.unity       実行用Scene
+├─ Scenes/
+│  ├─ TitleScene.unity            起動時のスタート画面
+│  └─ SampleScene.unity           ゲーム本体
 ├─ Scripts/BoardGame/
 │  ├─ Core/                       Unity非依存の状態・ルール
 │  └─ Presentation/               Unityの入力・表示・組み立て

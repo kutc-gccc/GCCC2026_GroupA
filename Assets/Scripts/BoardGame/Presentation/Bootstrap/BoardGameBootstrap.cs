@@ -5,6 +5,7 @@ using GCCC.BoardGame.Presentation.Config;
 using GCCC.BoardGame.Presentation.Input;
 using GCCC.BoardGame.Presentation.Views;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace GCCC.BoardGame.Presentation.Bootstrap
 {
@@ -31,6 +32,10 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
         public int MoveIndicatorCount => BoardView != null ? BoardView.MoveIndicatorCount : 0;
         public string StatusText => hudView != null ? hudView.StatusText : string.Empty;
 
+        public string ResultText => hudView != null ? hudView.ResultText : string.Empty;
+
+        public bool IsResultVisible => hudView != null && hudView.IsResultVisible;
+
         private void Awake()
         {
             GameDefinition definition = config != null
@@ -40,7 +45,14 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
             spriteFactory = new RuntimeSpriteFactory();
 
             Camera boardCamera = ConfigureCamera(definition.Columns, definition.Rows);
-            audioManager = CreatePresentationComponent(audioManagerPrefab, "Board Game Audio");
+            audioManager = audioManagerPrefab != null
+                ? CreatePresentationComponent(audioManagerPrefab, "Board Game Audio")
+                : GetComponent<BoardGameAudioManager>();
+            if (audioManager == null)
+            {
+                audioManager = CreatePresentationComponent<BoardGameAudioManager>(
+                    null, "Board Game Audio");
+            }
 
             BoardView = CreatePresentationComponent(boardViewPrefab, "Board View");
             BoardView.Initialize(boardCamera, spriteFactory.SquareSprite, Session.Snapshot);
@@ -55,6 +67,7 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
                 Session, BoardView, PieceViews, hudView, audioManager: audioManager);
             hudView.ResetRequested += Coordinator.Reset;
             hudView.FuseRequested += Coordinator.ToggleFusionMode;
+            hudView.StartScreenRequested += ReturnToTitleScreen;
 
             GameObject inputObject = new GameObject("Board Input");
             inputObject.transform.SetParent(transform, false);
@@ -85,6 +98,11 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
         public void ResetGame()
         {
             Coordinator.Reset();
+        }
+
+        private static void ReturnToTitleScreen()
+        {
+            SceneManager.LoadScene(BoardGameSceneNames.Title, LoadSceneMode.Single);
         }
 
         private static Camera ConfigureCamera(int columns, int rows)
@@ -127,8 +145,10 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
             {
                 hudView.ResetRequested -= Coordinator.Reset;
                 hudView.FuseRequested -= Coordinator.ToggleFusionMode;
+                hudView.StartScreenRequested -= ReturnToTitleScreen;
             }
 
+            Coordinator?.Dispose();
             spriteFactory?.Dispose();
         }
     }

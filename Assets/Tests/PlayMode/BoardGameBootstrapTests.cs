@@ -1,6 +1,9 @@
 using System.Collections;
 using GCCC.BoardGame.Core.Model;
+using GCCC.BoardGame.Presentation;
+using GCCC.BoardGame.Presentation.Audio;
 using GCCC.BoardGame.Presentation.Bootstrap;
+using GCCC.BoardGame.Presentation.Views;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -40,11 +43,16 @@ namespace GCCC.BoardGame.Tests
             Assert.That(bootstrap.PieceViewCount, Is.EqualTo(12));
             Assert.That(bootstrap.Snapshot.CurrentPlayer, Is.EqualTo(PlayerId.Player1));
             Assert.That(bootstrap.StatusText, Does.Contain("プレイヤー1"));
+            Assert.That(bootstrap.IsResultVisible, Is.False);
+            Assert.That(bootstrap.ResultText, Is.Empty);
             Assert.That(GameObject.Find("Board View"), Is.Not.Null);
             Assert.That(GameObject.Find("Piece Views"), Is.Not.Null);
             Assert.That(GameObject.Find("Game HUD"), Is.Not.Null);
             Assert.That(GameObject.Find("Board Input"), Is.Not.Null);
             Assert.That(GameObject.Find("Reset Button"), Is.Not.Null);
+            Assert.That(GameObject.Find("Audio Volume Controls"), Is.Not.Null);
+            Assert.That(GameObject.Find("BGM Slider"), Is.Not.Null);
+            Assert.That(GameObject.Find("SFX Slider"), Is.Not.Null);
             Assert.That(GameObject.Find("Player 1 Territory Border"), Is.Not.Null);
             Assert.That(GameObject.Find("Player 2 Territory Border"), Is.Not.Null);
 
@@ -127,7 +135,7 @@ namespace GCCC.BoardGame.Tests
         }
 
         [UnityTest]
-        public IEnumerator ReachingOpponentTerritoryWinsAndLocksInput()
+        public IEnumerator ReachingOpponentTerritoryShowsResultLocksInputAndReturnsToTitle()
         {
             Move(new GridPosition(0, 1), new GridPosition(0, 2));
             Move(new GridPosition(0, 8), new GridPosition(1, 7));
@@ -147,9 +155,127 @@ namespace GCCC.BoardGame.Tests
 
             Assert.That(bootstrap.Snapshot.Winner, Is.EqualTo(PlayerId.Player1));
             Assert.That(bootstrap.StatusText, Does.Contain("勝利"));
+            Assert.That(bootstrap.IsResultVisible, Is.True);
+            Assert.That(bootstrap.ResultText, Is.EqualTo("プレイヤー1（青）の勝利"));
             bootstrap.HandleCellClick(new GridPosition(1, 7));
             Assert.That(bootstrap.SelectedCell, Is.Null);
+
+            Button resetButton = GameObject.Find("Reset Button").GetComponent<Button>();
+            Button randomizeButton = GameObject.Find("Randomize Power Button")
+                .GetComponent<Button>();
+            Button fuseButton = GameObject.Find("Fuse Button").GetComponent<Button>();
+            Slider bgmSlider = GameObject.Find("BGM Slider").GetComponent<Slider>();
+            Slider sfxSlider = GameObject.Find("SFX Slider").GetComponent<Slider>();
+            Assert.That(resetButton.interactable, Is.False);
+            Assert.That(randomizeButton.interactable, Is.False);
+            Assert.That(fuseButton.interactable, Is.False);
+            Assert.That(bgmSlider.interactable, Is.False);
+            Assert.That(sfxSlider.interactable, Is.False);
+
+            resetButton.onClick.Invoke();
+            randomizeButton.onClick.Invoke();
+            fuseButton.onClick.Invoke();
+            Assert.That(bootstrap.Snapshot.Winner, Is.EqualTo(PlayerId.Player1));
+            Assert.That(bootstrap.IsResultVisible, Is.True);
+
+            Button returnButton = GameObject.Find("Return To Title Button")
+                .GetComponent<Button>();
+            Assert.That(returnButton.interactable, Is.True);
+            Assert.That(
+                returnButton.transform.Find("Label").GetComponent<Text>().text,
+                Is.EqualTo("スタート画面に戻る"));
+            returnButton.onClick.Invoke();
             yield return null;
+
+            Assert.That(SceneManager.GetActiveScene().name,
+                Is.EqualTo(BoardGameSceneNames.Title));
+            Assert.That(GameObject.Find("Title Text"), Is.Not.Null);
+            Assert.That(Object.FindFirstObjectByType<BoardGameAudioManager>(), Is.Null);
+            Assert.That(GameObject.Find("BGM Source"), Is.Null);
+            bootstrapObject = null;
+            bootstrap = null;
+        }
+
+        [UnityTest]
+        public IEnumerator ResultOverlayRendersSecondPlayerAndDraw()
+        {
+            GameObject hudObject = new GameObject("Result HUD Test");
+            GameHudView hud = hudObject.AddComponent<GameHudView>();
+            hud.Initialize();
+
+            GameSnapshot initial = bootstrap.Snapshot;
+            GameSnapshot player2Win = new GameSnapshot(
+                initial.Columns,
+                initial.Rows,
+                initial.Pieces,
+                initial.Cells,
+                initial.CurrentPlayer,
+                PlayerId.Player2,
+                false);
+            hud.Render(player2Win);
+
+            Assert.That(hud.IsResultVisible, Is.True);
+            Assert.That(hud.ResultText, Is.EqualTo("プレイヤー2（赤）の勝利"));
+            Assert.That(hud.IsPointerOverControl(new Vector2(100f, 100f)), Is.True);
+
+            GameSnapshot draw = new GameSnapshot(
+                initial.Columns,
+                initial.Rows,
+                initial.Pieces,
+                initial.Cells,
+                initial.CurrentPlayer,
+                null,
+                true);
+            hud.Render(draw);
+
+            Assert.That(hud.IsResultVisible, Is.True);
+            Assert.That(hud.ResultText, Is.EqualTo("引き分け"));
+
+            hud.Render(initial);
+            Assert.That(hud.IsResultVisible, Is.False);
+            Assert.That(hud.ResultText, Is.Empty);
+
+            Object.Destroy(hudObject);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator TitleSceneStartsFreshGame()
+        {
+            Assert.That(SceneUtility.GetScenePathByBuildIndex(0),
+                Is.EqualTo("Assets/Scenes/TitleScene.unity"));
+
+            SceneManager.LoadScene(BoardGameSceneNames.Title, LoadSceneMode.Single);
+            yield return null;
+
+            Assert.That(SceneManager.GetActiveScene().name,
+                Is.EqualTo(BoardGameSceneNames.Title));
+            Assert.That(
+                GameObject.Find("Title Text").GetComponent<Text>().text,
+                Is.EqualTo("BOARD GAME（仮）"));
+
+            Button startButton = GameObject.Find("Game Start Button").GetComponent<Button>();
+            Assert.That(startButton.interactable, Is.True);
+            Assert.That(
+                startButton.transform.Find("Label").GetComponent<Text>().text,
+                Is.EqualTo("ゲーム開始"));
+
+            startButton.onClick.Invoke();
+            yield return null;
+
+            Assert.That(SceneManager.GetActiveScene().name,
+                Is.EqualTo(BoardGameSceneNames.Game));
+            BoardGameBootstrap sceneBootstrap =
+                Object.FindFirstObjectByType<BoardGameBootstrap>();
+            Assert.That(sceneBootstrap, Is.Not.Null);
+            Assert.That(sceneBootstrap.Snapshot.Pieces.Count, Is.EqualTo(12));
+            Assert.That(sceneBootstrap.Snapshot.CurrentPlayer, Is.EqualTo(PlayerId.Player1));
+            Assert.That(sceneBootstrap.Snapshot.IsGameOver, Is.False);
+            Assert.That(Object.FindFirstObjectByType<BoardGameAudioManager>(), Is.Not.Null);
+            Assert.That(GameObject.Find("BGM Source"), Is.Not.Null);
+
+            bootstrapObject = sceneBootstrap.gameObject;
+            bootstrap = sceneBootstrap;
         }
 
         [UnityTest]
@@ -170,9 +296,39 @@ namespace GCCC.BoardGame.Tests
         }
 
         [UnityTest]
-        public IEnumerator SampleSceneLoadsWithBootstrapOnlyCompositionRoot()
+        public IEnumerator AudioControlsUpdateSingleManagerAndSources()
         {
-            SceneManager.LoadScene("SampleScene", LoadSceneMode.Single);
+            SceneManager.LoadScene(BoardGameSceneNames.Game, LoadSceneMode.Single);
+            yield return null;
+
+            BoardGameAudioManager[] managers =
+                Object.FindObjectsByType<BoardGameAudioManager>(FindObjectsSortMode.None);
+            Assert.That(managers, Has.Length.EqualTo(1));
+
+            Slider bgmSlider = GameObject.Find("BGM Slider").GetComponent<Slider>();
+            Slider sfxSlider = GameObject.Find("SFX Slider").GetComponent<Slider>();
+            bgmSlider.value = 0.4f;
+            sfxSlider.value = 0.35f;
+            yield return null;
+
+            Assert.That(managers[0].BgmVolume, Is.EqualTo(0.4f).Within(0.001f));
+            Assert.That(managers[0].SfxVolume, Is.EqualTo(0.35f).Within(0.001f));
+
+            AudioSource bgmSource = GameObject.Find("BGM Source").GetComponent<AudioSource>();
+            AudioSource sfxSource = GameObject.Find("SFX Source").GetComponent<AudioSource>();
+            Assert.That(bgmSource.loop, Is.True);
+            Assert.That(bgmSource.volume, Is.EqualTo(0.04f).Within(0.001f));
+            Assert.That(sfxSource.loop, Is.False);
+            Assert.That(sfxSource.volume, Is.EqualTo(0.35f).Within(0.001f));
+
+            bootstrapObject = Object.FindFirstObjectByType<BoardGameBootstrap>().gameObject;
+            bootstrap = bootstrapObject.GetComponent<BoardGameBootstrap>();
+        }
+
+        [UnityTest]
+        public IEnumerator SampleSceneLoadsCompositionRootEventSystemAndBgm()
+        {
+            SceneManager.LoadScene(BoardGameSceneNames.Game, LoadSceneMode.Single);
             yield return null;
 
             BoardGameBootstrap sceneBootstrap =
@@ -182,6 +338,9 @@ namespace GCCC.BoardGame.Tests
             Assert.That(sceneBootstrap.Snapshot.Pieces.Count, Is.EqualTo(12));
             Assert.That(GameObject.Find("Board View"), Is.Not.Null);
             Assert.That(GameObject.Find("Game HUD"), Is.Not.Null);
+            Assert.That(GameObject.Find("EventSystem"), Is.Not.Null);
+            Assert.That(Object.FindFirstObjectByType<BoardGameAudioManager>(), Is.Not.Null);
+            Assert.That(GameObject.Find("BGM Source"), Is.Not.Null);
 
             bootstrapObject = null;
         }

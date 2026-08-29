@@ -9,7 +9,7 @@
 | Input | Input System `1.19.0` |
 | UI | uGUI `2.0.0` |
 | Test | Unity Test Framework `1.6.0` |
-| Build Scene | `Assets/Scenes/SampleScene.unity` |
+| Build Scenes | `TitleScene`（起動）、`SampleScene`（ゲーム本体） |
 
 Unity Hubで同じEditorバージョンをインストールしてください。異なるUnityバージョンで開くとScene、Prefab、ProjectSettingsが自動更新され、意図しない差分が発生する可能性があります。
 
@@ -23,18 +23,21 @@ Set-Location GCCC2026_GroupA
 1. Unity Hubの「Add project from disk」でプロジェクトルートを選びます。
 2. Unity `6000.3.11f1`で開き、Packageの解決とコンパイル完了を待ちます。
 3. ConsoleのErrorが0件であることを確認します。
-4. `Assets/Scenes/SampleScene.unity`を開いてPlayします。
+4. `Assets/Scenes/TitleScene.unity`を開いてPlayし、「ゲーム開始」を押します。
 
 初回起動時に生成される`Library`、`Temp`、`Logs`、`UserSettings`はGit管理しません。
 
 ## 3. 操作確認
 
-1. Game Viewを16:9にします。
-2. プレイヤー1の青い駒を選択します。
-3. 緑の空きマスへ移動できることを確認します。
+1. Game Viewを16:9にし、タイトルと「ゲーム開始」が表示されることを確認します。
+2. 「ゲーム開始」で`SampleScene`へ移動します。
+3. プレイヤー1の青い駒を選択し、緑の空きマスへ移動できることを確認します。
 4. 手番がプレイヤー2へ変わることを確認します。
 5. オレンジの敵駒マスへ移動すると戦闘が発生することを確認します。
-6. リセットで12駒とプレイヤー1の手番へ戻ることを確認します。
+6. 移動・戦闘・破壊・合体で対応する効果音が再生され、BGM／SFXスライダーが音量へ反映されることを確認します。
+7. リセットで12駒とプレイヤー1の手番へ戻ることを確認します。
+8. 勝敗確定後にリザルトが表示され、背後の操作と音量スライダーが無効になることを確認します。
+9. 「スタート画面に戻る」でBGMが停止し、タイトルへ戻ることを確認します。
 
 ## 4. フォルダと担当境界
 
@@ -78,7 +81,8 @@ Set-Location GCCC2026_GroupA
 
 ## 6. SceneとPrefabの編集
 
-- SceneにはMain CameraとBootstrapだけを置く方針です。
+- `TitleScene`にはタイトルUIとScene遷移用Controllerを置きます。
+- `SampleScene`にはMain CameraとBootstrapを置き、Bootstrapと同じGameObjectへ`BoardGameAudioManager`を追加します。EventSystemとAudioSourceは実行時に生成されます。
 - 盤面表示は`BoardView.prefab`、駒管理は`PieceViews.prefab`、HUDは`GameHud.prefab`を編集します。
 - Prefabの公開設定を増やす場合は、Bootstrapの参照が維持されているかSampleSceneで確認します。
 - Runtime生成されるセル、駒、Canvasの子要素をPlay中に変更してもAssetには保存されません。
