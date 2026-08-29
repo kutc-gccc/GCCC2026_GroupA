@@ -4,6 +4,7 @@ using GCCC.BoardGame.Core;
 using GCCC.BoardGame.Core.Commands;
 using GCCC.BoardGame.Core.Model;
 using GCCC.BoardGame.Core.Players;
+using GCCC.BoardGame.Presentation.Audio;
 using GCCC.BoardGame.Presentation.Views;
 
 namespace GCCC.BoardGame.Presentation
@@ -14,6 +15,7 @@ namespace GCCC.BoardGame.Presentation
         private readonly BoardView boardView;
         private readonly PieceViewManager pieceViews;
         private readonly GameHudView hudView;
+        private readonly BoardGameAudioManager audioManager;
         private readonly Dictionary<PlayerId, IPlayerAgent> agents;
         private PieceId? selectedPieceId;
 
@@ -23,12 +25,14 @@ namespace GCCC.BoardGame.Presentation
             PieceViewManager pieceViews,
             GameHudView hudView,
             IPlayerAgent player1Agent = null,
-            IPlayerAgent player2Agent = null)
+            IPlayerAgent player2Agent = null,
+            BoardGameAudioManager audioManager = null)
         {
             this.session = session;
             this.boardView = boardView;
             this.pieceViews = pieceViews;
             this.hudView = hudView;
+            this.audioManager = audioManager;
             agents = new Dictionary<PlayerId, IPlayerAgent>
             {
                 [PlayerId.Player1] = player1Agent ?? new HumanPlayerAgent(PlayerId.Player1),
@@ -119,6 +123,7 @@ namespace GCCC.BoardGame.Presentation
             selectedPieceId = null;
             GameSnapshot snapshot = session.Snapshot;
             pieceViews.ApplyEvents(result.Events, snapshot);
+            audioManager?.PlayEvents(result.Events);
             boardView.ShowSelection(null, new List<GridPosition>(), snapshot);
             hudView.Render(snapshot);
             if (!snapshot.IsGameOver)
