@@ -1,5 +1,6 @@
 using GCCC.BoardGame.Core;
 using GCCC.BoardGame.Core.Model;
+using GCCC.BoardGame.Presentation.Audio;
 using GCCC.BoardGame.Presentation.Config;
 using GCCC.BoardGame.Presentation.Input;
 using GCCC.BoardGame.Presentation.Views;
@@ -13,28 +14,21 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
         [SerializeField] private BoardView boardViewPrefab;
         [SerializeField] private PieceViewManager pieceViewsPrefab;
         [SerializeField] private GameHudView hudViewPrefab;
+        [SerializeField] private BoardGameAudioManager audioManagerPrefab;
 
         private RuntimeSpriteFactory spriteFactory;
         private GameHudView hudView;
+        private BoardGameAudioManager audioManager;
 
         public GameSession Session { get; private set; }
-
         public GameCoordinator Coordinator { get; private set; }
-
         public BoardView BoardView { get; private set; }
-
         public PieceViewManager PieceViews { get; private set; }
-
         public GameSnapshot Snapshot => Session?.Snapshot;
-
         public GridPosition? SelectedCell => Coordinator?.SelectedCell;
-
         public int GeneratedCellCount => BoardView != null ? BoardView.GeneratedCellCount : 0;
-
         public int PieceViewCount => PieceViews != null ? PieceViews.PieceViewCount : 0;
-
         public int MoveIndicatorCount => BoardView != null ? BoardView.MoveIndicatorCount : 0;
-
         public string StatusText => hudView != null ? hudView.StatusText : string.Empty;
 
         private void Awake()
@@ -46,6 +40,7 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
             spriteFactory = new RuntimeSpriteFactory();
 
             Camera boardCamera = ConfigureCamera(definition.Columns, definition.Rows);
+            audioManager = CreatePresentationComponent(audioManagerPrefab, "Board Game Audio");
 
             BoardView = CreatePresentationComponent(boardViewPrefab, "Board View");
             BoardView.Initialize(boardCamera, spriteFactory.SquareSprite, Session.Snapshot);
@@ -54,9 +49,10 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
             PieceViews.Initialize(spriteFactory.CircleSprite, Session.Snapshot);
 
             hudView = CreatePresentationComponent(hudViewPrefab, "Game HUD");
-            hudView.Initialize();
+            hudView.Initialize(audioManager);
 
-            Coordinator = new GameCoordinator(Session, BoardView, PieceViews, hudView);
+            Coordinator = new GameCoordinator(
+                Session, BoardView, PieceViews, hudView, audioManager: audioManager);
             hudView.ResetRequested += Coordinator.Reset;
             hudView.FuseRequested += Coordinator.ToggleFusionMode;
 
@@ -99,6 +95,17 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
                 GameObject cameraObject = new GameObject("Main Camera", typeof(Camera));
                 cameraObject.tag = "MainCamera";
                 boardCamera = cameraObject.GetComponent<Camera>();
+            }
+
+            AudioListener[] listeners = FindObjectsByType<AudioListener>(FindObjectsSortMode.None);
+            foreach (AudioListener listener in listeners)
+            {
+                listener.enabled = listener.GetComponent<Camera>() == boardCamera;
+            }
+
+            if (boardCamera.GetComponent<AudioListener>() == null)
+            {
+                boardCamera.gameObject.AddComponent<AudioListener>();
             }
 
             boardCamera.transform.SetPositionAndRotation(
