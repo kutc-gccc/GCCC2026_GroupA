@@ -303,7 +303,7 @@ namespace GCCC.BoardGame.Tests
         }
 
         [Test]
-        public void FusionCommandIsExplicitlyRejectedWhileFeatureIsDisabled()
+        public void AdjacentFriendlyPiecesCanAttemptFusion()
         {
             PieceState first = GetPiece(session.Snapshot, new GridPosition(0, 1));
             PieceState second = GetPiece(session.Snapshot, new GridPosition(1, 1));
@@ -311,7 +311,13 @@ namespace GCCC.BoardGame.Tests
             CommandResult result = session.Execute(new FusePiecesCommand(
                 PlayerId.Player1, first.Id, second.Id));
 
-            Assert.That(result.FailureReason, Is.EqualTo(CommandFailureReason.FusionDisabled));
+            Assert.That(result.Success, Is.True);
+            Assert.That(result.FailureReason, Is.EqualTo(CommandFailureReason.None));
+            Assert.That(
+                result.Events.Any(gameEvent =>
+                    gameEvent is PiecesFused || gameEvent is FusionAttemptFailed),
+                Is.True);
+            Assert.That(session.Snapshot.CurrentPlayer, Is.EqualTo(PlayerId.Player2));
         }
 
         [Test]
