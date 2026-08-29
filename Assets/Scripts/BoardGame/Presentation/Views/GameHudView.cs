@@ -20,6 +20,8 @@ namespace GCCC.BoardGame.Presentation.Views
         private Text statusLabel;
         private Text messageLabel;
         private Text resultLabel;
+        private Text reserveLabel;
+        private GameObject effectLegend;
         private GameObject resultOverlay;
         private GameObject createdEventSystem;
         private Slider bgmSlider;
@@ -27,7 +29,7 @@ namespace GCCC.BoardGame.Presentation.Views
         private Button resetButton;
         private Button fuseButton;
         private Button resultButton;
-        private bool randomizeButtonInteractable = true;
+        private bool randomizeButtonInteractable;
         private bool fuseButtonInteractable;
         private BoardGameAudioManager audioManager;
 
@@ -40,6 +42,9 @@ namespace GCCC.BoardGame.Presentation.Views
         public string ResultText => resultLabel != null ? resultLabel.text : string.Empty;
         public bool IsResultVisible => resultOverlay != null && resultOverlay.activeSelf;
         public Button RandomizePowerButton => randomizePowerButton;
+        public string ReserveText => reserveLabel != null ? reserveLabel.text : string.Empty;
+        public bool IsEffectLegendVisible =>
+            effectLegend != null && effectLegend.activeSelf;
 
         private void Start()
         {
@@ -73,6 +78,11 @@ namespace GCCC.BoardGame.Presentation.Views
         public void Render(GameSnapshot snapshot)
         {
             if (statusLabel == null) return;
+
+            reserveLabel.text =
+                $"リザーブ　青: {snapshot.GetPlayer(PlayerId.Player1).ReservePieces.Count}" +
+                $"　赤: {snapshot.GetPlayer(PlayerId.Player2).ReservePieces.Count}";
+            effectLegend.SetActive(snapshot.CellEffectDefinitions.Count > 0);
 
             if (snapshot.Winner.HasValue)
             {
@@ -153,6 +163,13 @@ namespace GCCC.BoardGame.Presentation.Views
             messageLabel.color = new Color32(255, 213, 79, 255);
             messageLabel.text = string.Empty;
 
+            reserveLabel = CreateUiText(
+                "Reserve Status", canvasObject.transform, font, 20,
+                TextAnchor.MiddleRight, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-24f, -104f), new Vector2(500f, 42f));
+
+            effectLegend = CreateEffectLegend(canvasObject.transform, font);
+
             if (audioManager != null)
             {
                 audioControlsRect = CreateAudioControls(
@@ -214,6 +231,7 @@ namespace GCCC.BoardGame.Presentation.Views
             randomizePowerButton = randomizeObject.GetComponent<Button>();
             randomizePowerButton.targetGraphic = randomizeImage;
             randomizePowerButton.onClick.AddListener(OnRandomizeClicked);
+            randomizePowerButton.interactable = false;
 
             Text randomizeLabel = CreateUiText(
                 "Label", randomizeObject.transform, font, 20, TextAnchor.MiddleCenter,
@@ -428,6 +446,36 @@ namespace GCCC.BoardGame.Presentation.Views
             buttonLabel.color = new Color32(35, 41, 52, 255);
 
             resultOverlay.SetActive(false);
+        }
+
+        private static GameObject CreateEffectLegend(Transform parent, Font font)
+        {
+            GameObject panelObject = new GameObject(
+                "Cell Effect Legend", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(Image));
+            panelObject.transform.SetParent(parent, false);
+            RectTransform panelRect = panelObject.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0f, 0f);
+            panelRect.anchorMax = new Vector2(0f, 0f);
+            panelRect.pivot = new Vector2(0f, 0f);
+            panelRect.anchoredPosition = new Vector2(24f, 24f);
+            panelRect.sizeDelta = new Vector2(300f, 74f);
+
+            Image panelImage = panelObject.GetComponent<Image>();
+            panelImage.color = new Color32(35, 41, 52, 225);
+            panelImage.raycastTarget = false;
+
+            Text label = CreateUiText(
+                "Legend Text", panelObject.transform, font, 18,
+                TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero,
+                Vector2.zero, Vector2.zero);
+            label.rectTransform.anchorMin = Vector2.zero;
+            label.rectTransform.anchorMax = Vector2.one;
+            label.rectTransform.offsetMin = new Vector2(12f, 6f);
+            label.rectTransform.offsetMax = new Vector2(-12f, -6f);
+            label.text = "シアン: 滞在中効果\n紫: 一度で永続する効果";
+            panelObject.SetActive(false);
+            return panelObject;
         }
 
         private static bool IsPointerOverRect(RectTransform rect, Vector2 screenPosition)

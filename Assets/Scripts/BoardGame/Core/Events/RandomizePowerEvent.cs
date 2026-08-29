@@ -1,22 +1,23 @@
-using GCCC.BoardGame.Core.Events; // ★ 必要に応じて追加
 using GCCC.BoardGame.Core.Model;
 
 namespace GCCC.BoardGame.Core.Events
 {
     /// <summary>
-    /// 駒の戦闘力がランダムに変更されたことを表すイベント
+    /// 鬧偵�ｮ謌ｦ髣伜鴨縺後Λ繝ｳ繝繝縺ｫ螟画峩縺輔ｌ縺溘％縺ｨ繧定｡ｨ縺吶う繝吶Φ繝医�
     /// </summary>
     public sealed class RandomizePowerEvent : GameEvent
     {
-        public PieceId PieceId { get; }
-        public int PreviousPower { get; }
-        public int NewPower { get; }
-
         public RandomizePowerEvent(PieceId pieceId, int previousPower, int newPower)
         {
             PieceId = pieceId;
             PreviousPower = previousPower;
             NewPower = newPower;
         }
+
+        public PieceId PieceId { get; }
+
+        public int PreviousPower { get; }
+
+        public int NewPower { get; }
     }
 }

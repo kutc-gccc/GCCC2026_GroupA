@@ -6,6 +6,7 @@ using GCCC.BoardGame.Core.Commands;
 using GCCC.BoardGame.Core.Events;
 using GCCC.BoardGame.Core.Model;
 using GCCC.BoardGame.Core.Rules.CellEffects;
+using GCCC.BoardGame.Core.Rules.Random;
 using NUnit.Framework;
 
 namespace GCCC.BoardGame.Tests
@@ -320,6 +321,49 @@ namespace GCCC.BoardGame.Tests
             Assert.That(session.Snapshot.CurrentPlayer, Is.EqualTo(PlayerId.Player2));
         }
 
+        [TestCase(0.1d, 2)]
+        [TestCase(0.5d, 1)]
+        public void InjectedRandomControlsSuccessfulFusion(double roll, int expectedBonus)
+        {
+            GameSession custom = new GameSession(
+                GameDefinition.CreateStandard(),
+                randomSource: new FixedRandomSource(1, roll));
+            PieceState first = GetPiece(
+                custom.Snapshot, new GridPosition(0, 1));
+            PieceState second = GetPiece(
+                custom.Snapshot, new GridPosition(1, 1));
+
+            CommandResult result = custom.Execute(new FusePiecesCommand(
+                PlayerId.Player1, first.Id, second.Id));
+
+            Assert.That(result.Events.OfType<PiecesFused>().Single().Bonus,
+                Is.EqualTo(expectedBonus));
+            AssertPiece(
+                custom.Snapshot,
+                first.Position,
+                PlayerId.Player1,
+                2 + expectedBonus);
+        }
+
+        [Test]
+        public void InjectedRandomControlsFailedFusion()
+        {
+            GameSession custom = new GameSession(
+                GameDefinition.CreateStandard(),
+                randomSource: new FixedRandomSource(1, 0.9d));
+            PieceState first = GetPiece(
+                custom.Snapshot, new GridPosition(0, 1));
+            PieceState second = GetPiece(
+                custom.Snapshot, new GridPosition(1, 1));
+
+            CommandResult result = custom.Execute(new FusePiecesCommand(
+                PlayerId.Player1, first.Id, second.Id));
+
+            Assert.That(result.Events.OfType<FusionAttemptFailed>().Count(),
+                Is.EqualTo(1));
+            Assert.That(custom.Snapshot.Pieces.Count, Is.EqualTo(12));
+        }
+
         [Test]
         public void CellEffectsRunInDefinitionOrder()
         {
@@ -348,6 +392,249 @@ namespace GCCC.BoardGame.Tests
                 .Select(gameEvent => gameEvent.EffectId),
                 Is.EqualTo(new[] { "first", "second" }));
             AssertPiece(custom.Snapshot, new GridPosition(2, 3), PlayerId.Player1, 3);
+        }
+
+        [Test]
+        public void RandomizePowerUsesInjectedSourceAndConsumesTurn()
+        {
+            GameSession custom = new GameSession(
+                GameDefinition.CreateStandard(),
+                randomSource: new FixedRandomSource(3, 0.5d));
+            PieceState piece = GetPiece(
+                custom.Snapshot, new GridPosition(0, 1));
+
+            CommandResult result = custom.Execute(new RandomizePowerCommand(
+                PlayerId.Player1, piece.Id));
+
+            Assert.That(result.Success, Is.True);
+            AssertPiece(custom.Snapshot, new GridPosition(0, 1), PlayerId.Player1, 3);
+            Assert.That(result.Events.OfType<RandomizePowerEvent>().Single().NewPower,
+                Is.EqualTo(3));
+            Assert.That(custom.Snapshot.CurrentPlayer, Is.EqualTo(PlayerId.Player2));
+        }
+
+        [Test]
+        public void WhileOccupiedPowerExpiresAndRechargesOnlyAfterReentry()
+        {
+            const string effectId = "temporary-power";
+            GameDefinition definition = CreateDefinitionWithEffects(
+                PlayerId.Player1,
+                new Dictionary<GridPosition, string[]>
+                {
+                    [new GridPosition(2, 3)] = new[] { effectId }
+                },
+                new[]
+                {
+                    new CellEffectDefinition(
+                        effectId, CellEffectLifetime.WhileOccupied)
+                },
+                InitialPiece(1, 2, 2, PlayerId.Player1),
+                InitialPiece(2, 5, 8, PlayerId.Player2));
+            GameSession custom = new GameSession(
+                definition,
+                cellEffectHandlers: new ICellEffectHandler[]
+                {
+                    new CombatPowerBoostCellEffectHandler(effectId, 2)
+                },
+                randomSource: new FixedRandomSource(1, 0.5d));
+
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 3)));
+            AssertEffectivePower(custom.Snapshot, new GridPosition(2, 3), 3);
+
+            custom.Execute(new RandomizePowerCommand(
+                PlayerId.Player2, new PieceId(2)));
+            CommandResult exit = custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 4)));
+            Assert.That(exit.Events.OfType<CellEffectExpired>()
+                .Select(gameEvent => gameEvent.EffectId),
+                Does.Contain(effectId));
+            AssertEffectivePower(custom.Snapshot, new GridPosition(2, 4), 1);
+
+            custom.Execute(new RandomizePowerCommand(
+                PlayerId.Player2, new PieceId(2)));
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 3)));
+            AssertEffectivePower(custom.Snapshot, new GridPosition(2, 3), 3);
+        }
+
+        [Test]
+        public void TemporaryPowerAbsorbsDamageWithoutRechargingWhileOccupied()
+        {
+            const string effectId = "temporary-shield";
+            GameDefinition definition = CreateDefinitionWithEffects(
+                PlayerId.Player1,
+                new Dictionary<GridPosition, string[]>
+                {
+                    [new GridPosition(2, 3)] = new[] { effectId }
+                },
+                new[]
+                {
+                    new CellEffectDefinition(
+                        effectId, CellEffectLifetime.WhileOccupied)
+                },
+                InitialPiece(1, 2, 2, PlayerId.Player1),
+                InitialPiece(2, 3, 3, PlayerId.Player2, 2));
+            GameSession custom = new GameSession(
+                definition,
+                cellEffectHandlers: new ICellEffectHandler[]
+                {
+                    new CombatPowerBoostCellEffectHandler(effectId, 2)
+                });
+
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 3)));
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player2, new PieceId(2), new GridPosition(2, 3)));
+
+            PieceState defender = GetPiece(
+                custom.Snapshot, new GridPosition(2, 3));
+            Assert.That(defender.Owner, Is.EqualTo(PlayerId.Player1));
+            Assert.That(defender.CombatPower, Is.EqualTo(1));
+            Assert.That(defender.TemporaryCombatPower, Is.Zero);
+            Assert.That(defender.HasActiveEffect(effectId), Is.True);
+            Assert.That(defender.EffectiveCombatPower, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void PermanentPowerAppliesOnceAndBlocksRandomizeCommand()
+        {
+            const string effectId = "permanent-power";
+            GameDefinition definition = CreateDefinitionWithEffects(
+                PlayerId.Player1,
+                new Dictionary<GridPosition, string[]>
+                {
+                    [new GridPosition(2, 3)] = new[] { effectId }
+                },
+                new[]
+                {
+                    new CellEffectDefinition(
+                        effectId, CellEffectLifetime.PermanentOncePerPiece)
+                },
+                InitialPiece(1, 2, 2, PlayerId.Player1),
+                InitialPiece(2, 5, 8, PlayerId.Player2));
+            GameSession custom = new GameSession(
+                definition,
+                cellEffectHandlers: new ICellEffectHandler[]
+                {
+                    new CombatPowerBoostCellEffectHandler(effectId, 2)
+                });
+
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 3)));
+            custom.Execute(new RandomizePowerCommand(
+                PlayerId.Player2, new PieceId(2)));
+            Assert.That(custom.GetLegalCommands(PlayerId.Player1)
+                .OfType<RandomizePowerCommand>()
+                .Any(command => command.PieceId == new PieceId(1)), Is.False);
+            Assert.That(custom.Execute(new RandomizePowerCommand(
+                    PlayerId.Player1, new PieceId(1))).FailureReason,
+                Is.EqualTo(CommandFailureReason.IllegalMove));
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 4)));
+            custom.Execute(new RandomizePowerCommand(
+                PlayerId.Player2, new PieceId(2)));
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 3)));
+
+            AssertPiece(custom.Snapshot, new GridPosition(2, 3), PlayerId.Player1, 3);
+        }
+
+        [Test]
+        public void ReservePieceGrantIsRecordedOnceAndResetClearsReserve()
+        {
+            const string effectId = "reserve-piece";
+            GameDefinition definition = CreateDefinitionWithEffects(
+                PlayerId.Player1,
+                new Dictionary<GridPosition, string[]>
+                {
+                    [new GridPosition(2, 3)] = new[] { effectId }
+                },
+                new[]
+                {
+                    new CellEffectDefinition(
+                        effectId, CellEffectLifetime.PermanentOncePerPiece)
+                },
+                InitialPiece(1, 2, 2, PlayerId.Player1),
+                InitialPiece(2, 5, 8, PlayerId.Player2));
+            GameSession custom = new GameSession(
+                definition,
+                cellEffectHandlers: new ICellEffectHandler[]
+                {
+                    new ReservePieceGrantCellEffectHandler(
+                        effectId, 2, PowerMovementProfile.StandardId)
+                });
+
+            CommandResult firstEntry = custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 3)));
+            Assert.That(firstEntry.Events.OfType<ReservePieceAdded>().Count(),
+                Is.EqualTo(1));
+            Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
+                .ReservePieces.Count, Is.EqualTo(1));
+
+            custom.Execute(new RandomizePowerCommand(
+                PlayerId.Player2, new PieceId(2)));
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 4)));
+            custom.Execute(new RandomizePowerCommand(
+                PlayerId.Player2, new PieceId(2)));
+            CommandResult secondEntry = custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 3)));
+            Assert.That(secondEntry.Events.OfType<ReservePieceAdded>(), Is.Empty);
+            Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
+                .ReservePieces.Count, Is.EqualTo(1));
+
+            custom.Reset();
+            Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
+                .ReservePieces, Is.Empty);
+        }
+
+        [Test]
+        public void FusionStateUnionsPermanentHistoryAndKeepsOnlyFirstTemporaryPower()
+        {
+            PieceState first = new PieceState(
+                new PieceId(1),
+                PlayerId.Player1,
+                new GridPosition(2, 2),
+                2,
+                PowerMovementProfile.StandardId,
+                new[] { "first-permanent" },
+                new[] { new ActiveCellEffectState("first-temporary", 1) });
+            PieceState second = new PieceState(
+                new PieceId(2),
+                PlayerId.Player1,
+                new GridPosition(3, 2),
+                3,
+                PowerMovementProfile.StandardId,
+                new[] { "second-permanent" },
+                new[] { new ActiveCellEffectState("second-temporary", 4) });
+
+            PieceState merged = first.MergeWith(second, 1);
+
+            Assert.That(merged.CombatPower, Is.EqualTo(6));
+            Assert.That(merged.TemporaryCombatPower, Is.EqualTo(1));
+            Assert.That(merged.AppliedPermanentEffectIds,
+                Is.EquivalentTo(new[] { "first-permanent", "second-permanent" }));
+            Assert.That(merged.HasActiveEffect("second-temporary"), Is.False);
+        }
+
+        [Test]
+        public void CellRejectsMixedEffectLifetimes()
+        {
+            Assert.Throws<ArgumentException>(() => CreateDefinitionWithEffects(
+                PlayerId.Player1,
+                new Dictionary<GridPosition, string[]>
+                {
+                    [new GridPosition(2, 3)] = new[] { "temporary", "permanent" }
+                },
+                new[]
+                {
+                    new CellEffectDefinition(
+                        "temporary", CellEffectLifetime.WhileOccupied),
+                    new CellEffectDefinition(
+                        "permanent", CellEffectLifetime.PermanentOncePerPiece)
+                },
+                InitialPiece(1, 2, 2, PlayerId.Player1)));
         }
 
         [Test]
@@ -420,13 +707,52 @@ namespace GCCC.BoardGame.Tests
                 }
             }
 
+            CellEffectDefinition[] effectDefinitions = (cellEffects ??
+                    new Dictionary<GridPosition, string[]>())
+                .Values
+                .SelectMany(effectIds => effectIds ?? Array.Empty<string>())
+                .Distinct(StringComparer.Ordinal)
+                .Select(effectId => new CellEffectDefinition(
+                    effectId, CellEffectLifetime.PermanentOncePerPiece))
+                .ToArray();
             return new GameDefinition(
                 6,
                 10,
                 cells,
                 pieces,
                 firstPlayer,
-                movementProfiles);
+                movementProfiles,
+                effectDefinitions);
+        }
+
+        private static GameDefinition CreateDefinitionWithEffects(
+            PlayerId firstPlayer,
+            IDictionary<GridPosition, string[]> cellEffects,
+            IEnumerable<CellEffectDefinition> effectDefinitions,
+            params InitialPieceDefinition[] pieces)
+        {
+            List<CellDefinition> cells = new List<CellDefinition>(60);
+            for (int row = 0; row < 10; row++)
+            {
+                for (int column = 0; column < 6; column++)
+                {
+                    GridPosition position = new GridPosition(column, row);
+                    PlayerId? territoryOwner = row == 0
+                        ? PlayerId.Player1
+                        : row == 9 ? PlayerId.Player2 : (PlayerId?)null;
+                    cellEffects.TryGetValue(position, out string[] effects);
+                    cells.Add(new CellDefinition(position, territoryOwner, effects));
+                }
+            }
+
+            return new GameDefinition(
+                6,
+                10,
+                cells,
+                pieces,
+                firstPlayer,
+                new[] { PowerMovementProfile.CreateStandard() },
+                effectDefinitions);
         }
 
         private static InitialPieceDefinition InitialPiece(
@@ -462,6 +788,15 @@ namespace GCCC.BoardGame.Tests
             Assert.That(piece.CombatPower, Is.EqualTo(combatPower));
         }
 
+        private static void AssertEffectivePower(
+            GameSnapshot snapshot,
+            GridPosition position,
+            int effectiveCombatPower)
+        {
+            Assert.That(GetPiece(snapshot, position).EffectiveCombatPower,
+                Is.EqualTo(effectiveCombatPower));
+        }
+
         private sealed class RecordingPowerEffect : ICellEffectHandler
         {
             private readonly IList<string> order;
@@ -474,11 +809,36 @@ namespace GCCC.BoardGame.Tests
 
             public string EffectId { get; }
 
+            public bool BlocksPowerRandomization => true;
+
             public CellEffectResult Apply(CellEffectContext context)
             {
                 order.Add(EffectId);
                 return new CellEffectResult(
                     context.Piece.WithCombatPower(context.Piece.CombatPower + 1));
+            }
+        }
+
+        private sealed class FixedRandomSource : IRandomSource
+        {
+            private readonly int nextInt;
+            private readonly double nextDouble;
+
+            public FixedRandomSource(int nextInt, double nextDouble)
+            {
+                this.nextInt = nextInt;
+                this.nextDouble = nextDouble;
+            }
+
+            public int NextInt(int minInclusive, int maxExclusive)
+            {
+                Assert.That(nextInt, Is.InRange(minInclusive, maxExclusive - 1));
+                return nextInt;
+            }
+
+            public double NextDouble()
+            {
+                return nextDouble;
             }
         }
     }

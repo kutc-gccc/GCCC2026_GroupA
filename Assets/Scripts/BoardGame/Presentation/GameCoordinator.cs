@@ -129,6 +129,7 @@ namespace GCCC.BoardGame.Presentation
                 null, new List<GridPosition>(), new List<GridPosition>(), session.Snapshot);
             hudView.Render(session.Snapshot);
             hudView.ShowMessage(string.Empty);
+            hudView.SetRandomizeButtonInteractable(false);
             BeginCurrentTurn();
         }
 
@@ -147,8 +148,15 @@ namespace GCCC.BoardGame.Presentation
 
             if (agents[snapshot.CurrentPlayer] is HumanPlayerAgent humanAgent)
             {
-                humanAgent.TrySubmit(
-                    new RandomizePowerCommand(snapshot.CurrentPlayer, selectedPieceId.Value));
+                RandomizePowerCommand command =
+                    session.GetLegalCommands(snapshot.CurrentPlayer)
+                        .OfType<RandomizePowerCommand>()
+                        .FirstOrDefault(candidate =>
+                            candidate.PieceId == selectedPieceId.Value);
+                if (command != null)
+                {
+                    humanAgent.TrySubmit(command);
+                }
             }
         }
 
@@ -196,6 +204,7 @@ namespace GCCC.BoardGame.Presentation
             boardView.ShowSelection(
                 null, new List<GridPosition>(), new List<GridPosition>(), snapshot);
             hudView.Render(snapshot);
+            hudView.SetRandomizeButtonInteractable(false);
             ShowFusionResultMessage(result.Events);
             if (!snapshot.IsGameOver)
             {
@@ -235,15 +244,8 @@ namespace GCCC.BoardGame.Presentation
 
             IReadOnlyList<GameCommand> legalCommands =
                 session.GetLegalCommands(snapshot.CurrentPlayer);
-            GameSnapshot snapshotWithLegalCommands = new GameSnapshot(
-                snapshot.Columns,
-                snapshot.Rows,
-                snapshot.Pieces,
-                snapshot.Cells,
-                snapshot.CurrentPlayer,
-                snapshot.Winner,
-                snapshot.IsDraw,
-                legalCommands);
+            GameSnapshot snapshotWithLegalCommands =
+                snapshot.WithLegalCommands(legalCommands);
 
             agents[snapshot.CurrentPlayer].BeginTurn(
                 snapshotWithLegalCommands, legalCommands, ExecuteSubmittedCommand);
@@ -257,6 +259,7 @@ namespace GCCC.BoardGame.Presentation
             {
                 isFusionModeActive = false;
                 hudView.SetFuseButtonInteractable(false);
+                hudView.SetRandomizeButtonInteractable(false);
                 boardView.ShowSelection(
                     null, new List<GridPosition>(), new List<GridPosition>(), snapshot);
                 return;
@@ -280,6 +283,11 @@ namespace GCCC.BoardGame.Presentation
                 .ToList();
 
             hudView.SetFuseButtonInteractable(fusionTargets.Count > 0);
+            bool canRandomize = legalCommands
+                .OfType<RandomizePowerCommand>()
+                .Any(command => command.PieceId == selectedPiece.Id);
+            hudView.SetRandomizeButtonInteractable(
+                canRandomize && !isFusionModeActive);
             if (isFusionModeActive)
             {
                 boardView.ShowSelection(

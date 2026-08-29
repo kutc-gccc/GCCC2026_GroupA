@@ -7,8 +7,8 @@ namespace GCCC.BoardGame.Core.Rules.Combat
         public CombatResolution Resolve(PieceState attacker, PieceState defender)
         {
             return new CombatResolution(
-                attacker.CombatPower - defender.CombatPower,
-                defender.CombatPower - attacker.CombatPower);
+                defender.EffectiveCombatPower,
+                attacker.EffectiveCombatPower);
         }
     }
 }

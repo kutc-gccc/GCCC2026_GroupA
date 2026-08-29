@@ -36,7 +36,7 @@ namespace GCCC.BoardGame.Presentation.Views
             pieceRenderer.color = state.Owner == PlayerId.Player1 ? Player1Color : Player2Color;
             transform.localPosition = BoardGeometry.CellToLocalPosition(
                 state.Position, columns, rows);
-            combatPowerLabel.text = state.CombatPower.ToString();
+            combatPowerLabel.text = state.EffectiveCombatPower.ToString();
         }
 
         private void CreateCombatPowerLabel()

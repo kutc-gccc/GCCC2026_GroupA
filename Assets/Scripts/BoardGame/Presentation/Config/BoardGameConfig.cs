@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GCCC.BoardGame.Core.Model;
+using GCCC.BoardGame.Core.Rules.CellEffects;
 using UnityEngine;
 
 namespace GCCC.BoardGame.Presentation.Config
@@ -22,12 +23,15 @@ namespace GCCC.BoardGame.Presentation.Config
         [SerializeField] private List<MovementProfileEntry> movementProfiles =
             CreateDefaultMovementProfiles();
         [SerializeField] private List<CellEffectEntry> cellEffects = new List<CellEffectEntry>();
+        [SerializeField] private List<CellEffectConfig> cellEffectDefinitions =
+            new List<CellEffectConfig>();
 
         public GameDefinition CreateDefinition()
         {
             ValidateRows();
 
-            Dictionary<GridPosition, string[]> effectsByPosition = cellEffects
+            Dictionary<GridPosition, string[]> effectsByPosition =
+                (cellEffects ?? new List<CellEffectEntry>())
                 .ToDictionary(entry => entry.Position, entry => entry.EffectIds);
             PowerMovementProfile[] coreMovementProfiles = movementProfiles
                 .Select(entry => entry.CreateProfile())
@@ -68,7 +72,16 @@ namespace GCCC.BoardGame.Presentation.Config
                 cells,
                 pieces,
                 firstPlayer,
-                coreMovementProfiles);
+                coreMovementProfiles,
+                (cellEffectDefinitions ?? new List<CellEffectConfig>())
+                .Select(effect => effect.CreateDefinition()));
+        }
+
+        public IReadOnlyList<ICellEffectHandler> CreateCellEffectHandlers()
+        {
+            return (cellEffectDefinitions ?? new List<CellEffectConfig>())
+                .Select(effect => effect.CreateHandler())
+                .ToArray();
         }
 
         private void AddStartingRow(

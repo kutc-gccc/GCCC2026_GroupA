@@ -2,14 +2,14 @@ namespace GCCC.BoardGame.Core.Rules.Combat
 {
     public readonly struct CombatResolution
     {
-        public CombatResolution(int attackerRemainingPower, int defenderRemainingPower)
+        public CombatResolution(int damageToAttacker, int damageToDefender)
         {
-            AttackerRemainingPower = attackerRemainingPower;
-            DefenderRemainingPower = defenderRemainingPower;
+            DamageToAttacker = damageToAttacker;
+            DamageToDefender = damageToDefender;
         }
 
-        public int AttackerRemainingPower { get; }
+        public int DamageToAttacker { get; }
 
-        public int DefenderRemainingPower { get; }
+        public int DamageToDefender { get; }
     }
 }

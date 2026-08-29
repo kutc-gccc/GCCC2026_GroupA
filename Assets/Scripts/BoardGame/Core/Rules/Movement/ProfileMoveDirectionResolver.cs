@@ -46,7 +46,7 @@ namespace GCCC.BoardGame.Core.Rules.Movement
                     $"Movement profile '{piece.MovementProfileId}' is not registered.");
             }
 
-            return profile.GetDirections(piece.CombatPower);
+            return profile.GetDirections(piece.EffectiveCombatPower);
         }
     }
 }

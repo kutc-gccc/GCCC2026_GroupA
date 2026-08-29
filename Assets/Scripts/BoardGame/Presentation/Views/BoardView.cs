@@ -17,6 +17,10 @@ namespace GCCC.BoardGame.Presentation.Views
         private static readonly Color CombatMoveColor = new Color32(255, 152, 0, 175);
         private static readonly Color TerritoryBorderColor = new Color32(255, 255, 255, 235);
         private static readonly Color FusionCandidateColor = new Color32(33, 150, 243, 175);
+        private static readonly Color WhileOccupiedEffectColor =
+            new Color32(0, 188, 212, 125);
+        private static readonly Color PermanentEffectColor =
+            new Color32(156, 39, 176, 125);
 
         private readonly List<SpriteRenderer> moveIndicators = new List<SpriteRenderer>();
         private readonly List<SpriteRenderer> fusionIndicators = new List<SpriteRenderer>();
@@ -31,6 +35,7 @@ namespace GCCC.BoardGame.Presentation.Views
 
         public int MoveIndicatorCount => moveIndicators.Count;
         public int FusionIndicatorCount => fusionIndicators.Count;
+        public int EffectOverlayCount { get; private set; }
 
         public void Initialize(Camera camera, Sprite cellSprite, GameSnapshot snapshot)
         {
@@ -38,57 +43,57 @@ namespace GCCC.BoardGame.Presentation.Views
             squareSprite = cellSprite;
             columns = snapshot.Columns;
             rows = snapshot.Rows;
-            BuildBoard();
+            BuildBoard(snapshot);
         }
 
         public void ShowSelection(
-    GridPosition? selectedCell,
-    IReadOnlyList<GridPosition> legalDestinations,
-    IReadOnlyList<GridPosition> fusionTargets,
-    GameSnapshot snapshot)
-{
-    ClearMoveIndicators();
-    ClearFusionIndicators();
+            GridPosition? selectedCell,
+            IReadOnlyList<GridPosition> legalDestinations,
+            IReadOnlyList<GridPosition> fusionTargets,
+            GameSnapshot snapshot)
+        {
+            ClearMoveIndicators();
+            ClearFusionIndicators();
 
-    if (!selectedCell.HasValue)
-    {
-        selectionIndicator.enabled = false;
-        return;
-    }
+            if (!selectedCell.HasValue)
+            {
+                selectionIndicator.enabled = false;
+                return;
+            }
 
-    selectionIndicator.transform.localPosition =
-        BoardGeometry.CellToLocalPosition(selectedCell.Value, columns, rows);
-    selectionIndicator.enabled = true;
+            selectionIndicator.transform.localPosition =
+                BoardGeometry.CellToLocalPosition(selectedCell.Value, columns, rows);
+            selectionIndicator.enabled = true;
 
-    foreach (GridPosition destination in legalDestinations)
-    {
-        bool isCombat = snapshot.TryGetPiece(destination, out _);
-        SpriteRenderer indicator = CreateSpriteRenderer(
-            $"{(isCombat ? "Combat" : "Move")} Candidate ({destination.Column}, {destination.Row})",
-            indicatorsRoot,
-            squareSprite,
-            isCombat ? CombatMoveColor : LegalMoveColor,
-            Vector3.one * 0.82f,
-            2);
-        indicator.transform.localPosition =
-            BoardGeometry.CellToLocalPosition(destination, columns, rows);
-        moveIndicators.Add(indicator);
-    }
+            foreach (GridPosition destination in legalDestinations)
+            {
+                bool isCombat = snapshot.TryGetPiece(destination, out _);
+                SpriteRenderer indicator = CreateSpriteRenderer(
+                    $"{(isCombat ? "Combat" : "Move")} Candidate ({destination.Column}, {destination.Row})",
+                    indicatorsRoot,
+                    squareSprite,
+                    isCombat ? CombatMoveColor : LegalMoveColor,
+                    Vector3.one * 0.82f,
+                    4);
+                indicator.transform.localPosition =
+                    BoardGeometry.CellToLocalPosition(destination, columns, rows);
+                moveIndicators.Add(indicator);
+            }
 
-    foreach (GridPosition target in fusionTargets)
-    {
-        SpriteRenderer indicator = CreateSpriteRenderer(
-            $"Fusion Candidate ({target.Column}, {target.Row})",
-            indicatorsRoot,
-            squareSprite,
-            FusionCandidateColor,
-            Vector3.one * 0.82f,
-            2);
-        indicator.transform.localPosition =
-            BoardGeometry.CellToLocalPosition(target, columns, rows);
-        fusionIndicators.Add(indicator);
-    }
-}
+            foreach (GridPosition target in fusionTargets)
+            {
+                SpriteRenderer indicator = CreateSpriteRenderer(
+                    $"Fusion Candidate ({target.Column}, {target.Row})",
+                    indicatorsRoot,
+                    squareSprite,
+                    FusionCandidateColor,
+                    Vector3.one * 0.82f,
+                    4);
+                indicator.transform.localPosition =
+                    BoardGeometry.CellToLocalPosition(target, columns, rows);
+                fusionIndicators.Add(indicator);
+            }
+        }
         public bool TryScreenToCell(Vector2 screenPosition, out GridPosition cell)
         {
             Vector3 worldPosition = boardCamera.ScreenToWorldPoint(screenPosition);
@@ -101,7 +106,7 @@ namespace GCCC.BoardGame.Presentation.Views
             return column >= 0 && column < columns && row >= 0 && row < rows;
         }
 
-        private void BuildBoard()
+        private void BuildBoard(GameSnapshot snapshot)
         {
             SpriteRenderer background = CreateSpriteRenderer(
                 "Board Background", transform, squareSprite, BoardColor,
@@ -111,6 +116,7 @@ namespace GCCC.BoardGame.Presentation.Views
             Transform cellsRoot = new GameObject("Cells").transform;
             cellsRoot.SetParent(transform, false);
             GeneratedCellCount = 0;
+            EffectOverlayCount = 0;
             for (int row = 0; row < rows; row++)
             {
                 for (int column = 0; column < columns; column++)
@@ -121,6 +127,30 @@ namespace GCCC.BoardGame.Presentation.Views
                         Vector3.one * CellScale, 1);
                     renderer.transform.localPosition =
                         BoardGeometry.CellToLocalPosition(cell, columns, rows);
+                    if (snapshot.TryGetCell(cell, out CellDefinition definition) &&
+                        definition.EffectIds.Count > 0 &&
+                        snapshot.TryGetCellEffectDefinition(
+                            definition.EffectIds[0],
+                            out CellEffectDefinition effectDefinition))
+                    {
+                        Color effectColor =
+                            effectDefinition.Lifetime ==
+                            CellEffectLifetime.WhileOccupied
+                                ? WhileOccupiedEffectColor
+                                : PermanentEffectColor;
+                        SpriteRenderer effectOverlay = CreateSpriteRenderer(
+                            $"Effect ({column}, {row})",
+                            cellsRoot,
+                            squareSprite,
+                            effectColor,
+                            Vector3.one * 0.72f,
+                            2);
+                        effectOverlay.transform.localPosition =
+                            BoardGeometry.CellToLocalPosition(
+                                cell, columns, rows);
+                        EffectOverlayCount++;
+                    }
+
                     GeneratedCellCount++;
                 }
             }
@@ -132,7 +162,7 @@ namespace GCCC.BoardGame.Presentation.Views
             indicatorsRoot.SetParent(transform, false);
             selectionIndicator = CreateSpriteRenderer(
                 "Selection", transform, squareSprite, SelectionColor,
-                Vector3.one * 0.84f, 2);
+                Vector3.one * 0.84f, 4);
             selectionIndicator.enabled = false;
         }
 
@@ -166,7 +196,7 @@ namespace GCCC.BoardGame.Presentation.Views
             Vector3 scale)
         {
             SpriteRenderer border = CreateSpriteRenderer(
-                segmentName, parent, squareSprite, TerritoryBorderColor, scale, 2);
+                segmentName, parent, squareSprite, TerritoryBorderColor, scale, 4);
             border.transform.localPosition = position;
         }
 

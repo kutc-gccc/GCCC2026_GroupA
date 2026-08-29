@@ -55,7 +55,7 @@ Sceneのルートには **Main Camera と Bootstrap しかありません**。�
 `Presentation/Bootstrap/BoardGameBootstrap.cs` の `Awake()` が順に行うことは次のとおりです。
 
 1. `BoardGameConfig.CreateDefinition()` で設定アセットから `GameDefinition` を作る（未設定なら `GameDefinition.CreateStandard()`）
-2. `new GameSession(definition)` でゲーム本体を作る
+2. Configからセル効果Handlerを作り、`new GameSession(definition, cellEffectHandlers: ...)`でゲーム本体を作る
 3. `new RuntimeSpriteFactory()` で画像を実行時に生成する
 4. `ConfigureCamera()` で盤面が収まる正投影サイズを計算してカメラに設定する
 5. `BoardView` / `PieceViewManager` / `GameHudView` を生成して `Initialize()` する
@@ -173,21 +173,14 @@ MoveDirections（実効的な移動方向）
 
 コードを追うと分かる、現在の標準設定の挙動です。仕様の欠陥ではなく、**拡張の土台が先に用意されている**状態だと理解してください。
 
-**移動プロファイルの帯域2〜8は、現時点では発動しません。** 理由は次のとおりです。
+初期戦闘力は1ですが、パワーランダム化と合体で戦闘力2以上へ変化するため、標準移動プロファイルの各帯域は通常プレイで発動します。特殊マスのHandlerと表示も実装済みですが、標準Configの`cellEffects`は空なので、特殊マスを使うには効果Config AssetとセルへのID設定が必要です。
 
-1. `StandardBoardGameConfig.asset` の `initialCombatPower` が `1`
-2. `SimultaneousCombatResolver` は双方に `攻撃力 - 防御力` を適用するため、`1 vs 1` は両方0になって相打ちになる
-3. 戦闘力を変えられるのはセル効果と合体だが、セル効果はHandlerが未登録、合体は `DisabledFusionResolver` で無効
-4. したがって戦闘力は常に1のままで、`PowerMovementProfile.GetDirections(1)` は常に全8方向を返す
-
-つまり今のゲームは「全8方向へ動ける駒どうしが相打ちしながら、8マス先の相手陣地を目指す競走」になります。合体か特殊マスが実装されると、戦闘力に差が生まれて移動プロファイルが初めて意味を持ちます。
-
-同じく骨組みだけある機能は次のとおりです。
+現在の拡張状況は次のとおりです。
 
 | 機能 | 用意されているもの | 足りないもの |
 |---|---|---|
-| 合体 | Command、Handler、Event、`IFusionResolver` | 有効なResolverと2駒選択UI |
-| 特殊マス | `CellDefinition.EffectIds`、`ICellEffectHandler` | Handlerの実装と設定への登録 |
+| 合体 | `AdjacentFusionResolver`、確率判定、2駒選択UI | 追加ルールが必要な場合だけResolverを差し替える |
+| 特殊マス | 2種のLifetime、戦闘力増加、リザーブ獲得、盤面・HUD表示 | 標準盤面への具体的な配置 |
 | CPU | `IPlayerAgent`、Agentの注入口 | 実装そのもの |
 
 追加手順は[拡張ガイド](EXTENSION_GUIDE.md)にあります。

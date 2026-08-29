@@ -4,6 +4,8 @@ using GCCC.BoardGame.Presentation.Audio;
 using GCCC.BoardGame.Presentation.Config;
 using GCCC.BoardGame.Presentation.Input;
 using GCCC.BoardGame.Presentation.Views;
+using GCCC.BoardGame.Core.Rules.CellEffects;
+using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -30,18 +32,27 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
         public int GeneratedCellCount => BoardView != null ? BoardView.GeneratedCellCount : 0;
         public int PieceViewCount => PieceViews != null ? PieceViews.PieceViewCount : 0;
         public int MoveIndicatorCount => BoardView != null ? BoardView.MoveIndicatorCount : 0;
+        public int EffectOverlayCount =>
+            BoardView != null ? BoardView.EffectOverlayCount : 0;
         public string StatusText => hudView != null ? hudView.StatusText : string.Empty;
 
         public string ResultText => hudView != null ? hudView.ResultText : string.Empty;
 
         public bool IsResultVisible => hudView != null && hudView.IsResultVisible;
+        public string ReserveText => hudView != null ? hudView.ReserveText : string.Empty;
+        public bool IsEffectLegendVisible =>
+            hudView != null && hudView.IsEffectLegendVisible;
 
         private void Awake()
         {
             GameDefinition definition = config != null
                 ? config.CreateDefinition()
                 : GameDefinition.CreateStandard();
-            Session = new GameSession(definition);
+            Session = new GameSession(
+                definition,
+                cellEffectHandlers: config != null
+                    ? config.CreateCellEffectHandlers()
+                    : Array.Empty<ICellEffectHandler>());
             spriteFactory = new RuntimeSpriteFactory();
 
             Camera boardCamera = ConfigureCamera(definition.Columns, definition.Rows);

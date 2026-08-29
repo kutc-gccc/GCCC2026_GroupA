@@ -70,7 +70,7 @@ IReadOnlyList<GameCommand> GetLegalCommands(PlayerId player);
 void Reset();
 ```
 
-`GameSnapshot`のコンストラクタはCore内部専用です。Presentationや将来のCPUがゲーム状態を捏造できないようにするための制限です。
+`GameSnapshot`は不変の読み取りモデルです。通常は`GameSession.Snapshot`から取得し、合法Commandを付与するときは`WithLegalCommands`を使用します。公開コンストラクタはテストや独立したView描画に利用できますが、生成したSnapshotから`GameSession`内部状態を変更することはできません。
 
 ## 4. CommandとResult
 
@@ -79,7 +79,8 @@ void Reset();
 Commandは「状態をこの値に変える」というデータではなく、プレイヤーが`GameSession`へ送る操作要求です。
 
 - `MovePieceCommand`: 指定した自分の駒を目的地へ動かす要求。
-- `FusePiecesCommand`: 指定した2個の駒を合体する要求。標準ルールでは無効。
+- `FusePiecesCommand`: 指定した隣接自駒2個の合体を試みる要求。
+- `RandomizePowerCommand`: 指定した自駒の通常戦闘力を1〜3へ変更する要求。
 
 すべてのCommandは`Player`を持ち、`GameSession.Execute`で次の順に検証されます。
 
@@ -117,6 +118,8 @@ Eventは「何をしてほしいか」ではなく、Command実行によって�
 | `PieceDestroyed` | 駒が盤面から消滅した |
 | `PiecesFused` | 2個の駒が新しい駒へ合体した |
 | `CellEffectTriggered` | セル効果が順序どおりに発動した |
+| `CellEffectExpired` | 退出により滞在中効果が終了した |
+| `ReservePieceAdded` | プレイヤーのリザーブへ駒が追加された |
 | `TurnChanged` | 手番が交代、または自動パスされた |
 | `GameEnded` | 勝者または引き分けが確定した |
 
@@ -156,12 +159,12 @@ Ruleは状態を直接所有せず、`GameSession`から渡された入力を計
 |---|---|---|
 | `IMovementRule` | `GameSnapshot`, `PieceState` | その駒の合法な移動先一覧 |
 | `IMoveDirectionResolver` | `PieceState` | プロファイルと現在戦闘力に対応する実効`MoveDirections` |
-| `ICombatResolver` | 攻撃側と防御側の`PieceState` | 双方の残り戦闘力を持つ`CombatResolution` |
+| `ICombatResolver` | 攻撃側と防御側の`PieceState` | 双方が受けるダメージ量を持つ`CombatResolution` |
 | `IFusionResolver` | `GameSnapshot`または2個の`PieceState` | 合法ペアの`FusionPair`一覧と、合体後の駒を持つ`FusionResolution` |
-| `ICellEffectHandler` | Snapshot、駒、セルを持つ`CellEffectContext` | 効果適用後の駒とEventを持つ`CellEffectResult` |
+| `ICellEffectHandler` | Snapshot、駒、セル、効果定義を持つ`CellEffectContext` | 更新駒、Event、リザーブ追加要求を持つ`CellEffectResult` |
 | `TurnResolver` | 行動した`PlayerId`と、各プレイヤーに合法手があるかを返す関数 | 次の手番、自動パス、引き分けを持つ`TurnResolution` |
 
-標準実装は`DirectionalMovementRule`、`ProfileMoveDirectionResolver`、`SimultaneousCombatResolver`、`DisabledFusionResolver`です。`GameSession`は`GameDefinition.MovementProfiles`から標準Resolverを組み立てます。移動Rule全体を変更する場合は`GameSession`のコンストラクターへ`IMovementRule`を注入できます。
+標準実装は`DirectionalMovementRule`、`ProfileMoveDirectionResolver`、`SimultaneousCombatResolver`、`AdjacentFusionResolver`です。乱数は`IRandomSource`として注入でき、合体と戦闘力ランダム化を決定的にテストできます。`GameSession`は`GameDefinition.MovementProfiles`から標準移動Resolverを組み立てます。
 
 `IPlayerAgent`は、人間と将来のCPUに共通する「誰がCommandを選ぶか」の契約です。
 

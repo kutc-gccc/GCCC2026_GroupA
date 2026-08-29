@@ -9,6 +9,8 @@ namespace GCCC.BoardGame.Core.Model
     {
         private readonly IReadOnlyDictionary<MovementProfileId, PowerMovementProfile>
             movementProfilesById;
+        private readonly IReadOnlyDictionary<string, CellEffectDefinition>
+            cellEffectsById;
 
         public const int StandardColumns = 6;
         public const int StandardRows = 10;
@@ -20,7 +22,8 @@ namespace GCCC.BoardGame.Core.Model
             IEnumerable<CellDefinition> cells,
             IEnumerable<InitialPieceDefinition> initialPieces,
             PlayerId firstPlayer = PlayerId.Player1,
-            IEnumerable<PowerMovementProfile> movementProfiles = null)
+            IEnumerable<PowerMovementProfile> movementProfiles = null,
+            IEnumerable<CellEffectDefinition> cellEffectDefinitions = null)
         {
             if (columns <= 0)
             {
@@ -69,6 +72,35 @@ namespace GCCC.BoardGame.Core.Model
                     "Every initial piece must reference a registered movement profile.",
                     nameof(initialPieces));
             }
+
+            CellEffectDefinition[] copiedEffects = (cellEffectDefinitions ??
+                    Array.Empty<CellEffectDefinition>())
+                .ToArray();
+            if (copiedEffects.Any(effect => effect == null))
+            {
+                throw new ArgumentException(
+                    "Cell effect definitions must not contain null.",
+                    nameof(cellEffectDefinitions));
+            }
+
+            try
+            {
+                cellEffectsById = new ReadOnlyDictionary<string, CellEffectDefinition>(
+                    copiedEffects.ToDictionary(
+                        effect => effect.EffectId,
+                        StringComparer.Ordinal));
+            }
+            catch (ArgumentException exception)
+            {
+                throw new ArgumentException(
+                    "Cell effect IDs must be unique.",
+                    nameof(cellEffectDefinitions),
+                    exception);
+            }
+
+            CellEffectDefinitions =
+                new ReadOnlyCollection<CellEffectDefinition>(copiedEffects);
+            ValidateCellEffects();
         }
 
         public int Columns { get; }
@@ -83,11 +115,20 @@ namespace GCCC.BoardGame.Core.Model
 
         public IReadOnlyList<PowerMovementProfile> MovementProfiles { get; }
 
+        public IReadOnlyList<CellEffectDefinition> CellEffectDefinitions { get; }
+
         public bool TryGetMovementProfile(
             MovementProfileId id,
             out PowerMovementProfile profile)
         {
             return movementProfilesById.TryGetValue(id, out profile);
+        }
+
+        public bool TryGetCellEffectDefinition(
+            string effectId,
+            out CellEffectDefinition definition)
+        {
+            return cellEffectsById.TryGetValue(effectId, out definition);
         }
 
         public static GameDefinition CreateStandard(int initialCombatPower = StandardInitialCombatPower)
@@ -126,6 +167,31 @@ namespace GCCC.BoardGame.Core.Model
                 cells,
                 pieces,
                 movementProfiles: new[] { PowerMovementProfile.CreateStandard() });
+        }
+
+        private void ValidateCellEffects()
+        {
+            foreach (CellDefinition cell in Cells)
+            {
+                CellEffectLifetime? lifetime = null;
+                foreach (string effectId in cell.EffectIds)
+                {
+                    if (!cellEffectsById.TryGetValue(
+                        effectId, out CellEffectDefinition definition))
+                    {
+                        throw new ArgumentException(
+                            $"Cell effect '{effectId}' is not registered.");
+                    }
+
+                    if (lifetime.HasValue && lifetime.Value != definition.Lifetime)
+                    {
+                        throw new ArgumentException(
+                            "A cell cannot mix effect lifetimes.");
+                    }
+
+                    lifetime = definition.Lifetime;
+                }
+            }
         }
     }
 }

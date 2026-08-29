@@ -72,12 +72,13 @@ Set-Location GCCC2026_GroupA
 | `initialMovementProfileId` | standard | 全初期駒が参照する移動プロファイルID |
 | `movementProfiles` | standard 1件 | 戦闘力範囲と移動方向の対応表 |
 | `cellEffects` | 空 | 座標ごとの効果ID |
+| `cellEffectDefinitions` | 空 | 効果定義とHandlerを生成する`CellEffectConfig` Asset |
 
 行設定は盤面内でなければなりません。両陣地を同じ行にする、自分の陣地と初期配置を同じ行にする、両プレイヤーの初期配置を同じ行にすると、`CreateDefinition`が`InvalidOperationException`を送出します。
 
 各`movementProfiles`は戦闘力1から`int.MaxValue`までを隙間・重複なく覆う必要があります。`initialMovementProfileId`が未登録、IDが重複、帯域が不連続の場合はCore定義の生成時に例外になります。標準設定の正確な方向表は[ゲームルール §5](GAME_RULES.md#5-移動ルール)を参照してください。
 
-特殊効果IDを設定する場合は、同じIDの`ICellEffectHandler`を`GameSession`生成時に必ず登録してください。未登録のIDが発動すると`InvalidOperationException`になります。
+特殊効果を追加する場合は、`CombatPowerBoostEffectConfig`または`ReservePieceGrantEffectConfig` Assetを作り、`cellEffectDefinitions`へ登録してから対象座標の`cellEffects`へ同じIDを設定します。`BoardGameBootstrap`が定義とHandlerを同時に生成します。異なるLifetimeを同じセルに設定する、未登録IDを参照する、リザーブ獲得へ`WhileOccupied`を指定すると生成時に例外になります。
 
 ## 6. SceneとPrefabの編集
 

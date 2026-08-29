@@ -2,21 +2,21 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GCCC.BoardGame.Core.Model;
+using GCCC.BoardGame.Core.Rules.Random;
 
 namespace GCCC.BoardGame.Core.Rules.Fusion
 {
     internal sealed class AdjacentFusionResolver : IFusionResolver
     {
-        private readonly Random random;
+        private readonly IRandomSource random;
 
-        public AdjacentFusionResolver() : this(new Random())
+        public AdjacentFusionResolver() : this(new SystemRandomSource())
         {
         }
 
-        // テストなどで乱数を固定したい場合に使う
-        public AdjacentFusionResolver(Random random)
+        public AdjacentFusionResolver(IRandomSource random)
         {
-            this.random = random ?? new Random();
+            this.random = random ?? throw new ArgumentNullException(nameof(random));
         }
 
         public bool IsEnabled => true;
@@ -62,8 +62,7 @@ namespace GCCC.BoardGame.Core.Rules.Fusion
                 return true;
             }
 
-            int combinedCombatPower = first.CombatPower + second.CombatPower + bonus.Value;
-            PieceState mergedPiece = first.WithCombatPower(combinedCombatPower);
+            PieceState mergedPiece = first.MergeWith(second, bonus.Value);
 
             resolution = FusionResolution.Success(mergedPiece, bonus.Value);
             return true;
@@ -71,7 +70,7 @@ namespace GCCC.BoardGame.Core.Rules.Fusion
 
         private int? RollFusionBonus()
         {
-            double roll = random.NextDouble(); // [0.0, 1.0)
+            double roll = random.NextDouble();
 
             if (roll < 0.25d)
             {

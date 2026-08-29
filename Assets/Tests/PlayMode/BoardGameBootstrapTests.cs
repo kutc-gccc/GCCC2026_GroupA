@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using GCCC.BoardGame.Core.Model;
 using GCCC.BoardGame.Presentation;
 using GCCC.BoardGame.Presentation.Audio;
@@ -16,6 +17,8 @@ namespace GCCC.BoardGame.Tests
     {
         private GameObject bootstrapObject;
         private BoardGameBootstrap bootstrap;
+        private GameObject auxiliaryObject;
+        private RuntimeSpriteFactory auxiliarySprites;
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -33,6 +36,12 @@ namespace GCCC.BoardGame.Tests
                 Object.Destroy(bootstrapObject);
             }
 
+            if (auxiliaryObject != null)
+            {
+                Object.Destroy(auxiliaryObject);
+            }
+
+            auxiliarySprites?.Dispose();
             yield return null;
         }
 
@@ -82,19 +91,89 @@ namespace GCCC.BoardGame.Tests
         }
 
         [UnityTest]
+        public IEnumerator EffectCellsLegendAndReserveCountsRenderFromSnapshot()
+        {
+            const string effectId = "temporary-power";
+            List<CellDefinition> cells = new List<CellDefinition>();
+            for (int row = 0; row < 10; row++)
+            {
+                for (int column = 0; column < 6; column++)
+                {
+                    GridPosition position = new GridPosition(column, row);
+                    cells.Add(new CellDefinition(
+                        position,
+                        row == 0
+                            ? PlayerId.Player1
+                            : row == 9 ? PlayerId.Player2 : (PlayerId?)null,
+                        position == new GridPosition(2, 3)
+                            ? new[] { effectId }
+                            : null));
+                }
+            }
+
+            GameSnapshot snapshot = new GameSnapshot(
+                6,
+                10,
+                new PieceState[0],
+                cells,
+                PlayerId.Player1,
+                null,
+                false,
+                effectDefinitions: new[]
+                {
+                    new CellEffectDefinition(
+                        effectId, CellEffectLifetime.WhileOccupied)
+                },
+                players: new[]
+                {
+                    new PlayerState(
+                        PlayerId.Player1,
+                        new[]
+                        {
+                            new ReservePieceState(
+                                new PieceId(100),
+                                PlayerId.Player1,
+                                2,
+                                PowerMovementProfile.StandardId)
+                        }),
+                    new PlayerState(PlayerId.Player2)
+                });
+
+            auxiliaryObject = new GameObject("Cell Effect Presentation Test");
+            auxiliarySprites = new RuntimeSpriteFactory();
+            BoardView board = auxiliaryObject.AddComponent<BoardView>();
+            board.Initialize(Camera.main, auxiliarySprites.SquareSprite, snapshot);
+            GameHudView hud = auxiliaryObject.AddComponent<GameHudView>();
+            hud.Initialize();
+            hud.Render(snapshot);
+            yield return null;
+
+            Assert.That(board.EffectOverlayCount, Is.EqualTo(1));
+            Assert.That(hud.IsEffectLegendVisible, Is.True);
+            Assert.That(hud.ReserveText, Does.Contain("青: 1"));
+            Assert.That(hud.ReserveText, Does.Contain("赤: 0"));
+        }
+
+        [UnityTest]
         public IEnumerator OnlyCurrentPlayerCanSelectAndLegalMovesAreHighlighted()
         {
             bootstrap.HandleCellClick(new GridPosition(2, 8));
             Assert.That(bootstrap.SelectedCell, Is.Null);
             Assert.That(bootstrap.MoveIndicatorCount, Is.Zero);
+            Assert.That(GameObject.Find("Randomize Power Button")
+                .GetComponent<Button>().interactable, Is.False);
 
             bootstrap.HandleCellClick(new GridPosition(2, 1));
             Assert.That(bootstrap.SelectedCell, Is.EqualTo(new GridPosition(2, 1)));
             Assert.That(bootstrap.MoveIndicatorCount, Is.EqualTo(3));
+            Assert.That(GameObject.Find("Randomize Power Button")
+                .GetComponent<Button>().interactable, Is.True);
 
             bootstrap.HandleCellClick(new GridPosition(2, 1));
             Assert.That(bootstrap.SelectedCell, Is.Null);
             Assert.That(bootstrap.MoveIndicatorCount, Is.Zero);
+            Assert.That(GameObject.Find("Randomize Power Button")
+                .GetComponent<Button>().interactable, Is.False);
             yield return null;
         }
 
