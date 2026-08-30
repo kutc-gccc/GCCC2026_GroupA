@@ -186,7 +186,10 @@ namespace GCCC.BoardGame.Tests
             BoardView board = auxiliaryObject.AddComponent<BoardView>();
             board.Initialize(Camera.main, auxiliarySprites.SquareSprite, before);
             PieceViewManager pieces = auxiliaryObject.AddComponent<PieceViewManager>();
-            pieces.Initialize(auxiliarySprites.CircleSprite, before);
+            pieces.Initialize(
+                auxiliarySprites.CircleSprite,
+                auxiliarySprites.CircleSprite,
+                before);
             GameHudView hud = auxiliaryObject.AddComponent<GameHudView>();
             hud.Initialize();
             hud.Render(before);

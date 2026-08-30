@@ -14,44 +14,73 @@ namespace GCCC.BoardGame.Presentation.Views
         private const float TerritoryBorderThickness = 0.09f;
         private const float GridLineThickness = 0.04f;
 
-        private static readonly Color GridLineColor = Color.black;
-        private static readonly Color BoardColor = new Color32(42, 47, 57, 255);
-        private static readonly Color CellColor = new Color32(255, 255, 255, 35); // 半透明
-        private static readonly Color SelectionColor = new Color32(255, 193, 7, 175);
-        private static readonly Color LegalMoveColor = new Color32(76, 175, 80, 150);
-        private static readonly Color CombatMoveColor = new Color32(255, 152, 0, 175);
-<<<<<<< HEAD
-        private static readonly Color TerritoryBorderColor = new Color32(255, 0, 0, 235);
-=======
-        private static readonly Color TerritoryBorderColor = new Color32(255, 255, 255, 235);
-        private static readonly Color FusionCandidateColor = new Color32(33, 150, 243, 175);
+        private static readonly Color GridLineColor =
+            Color.black;
+
+        private static readonly Color BoardColor =
+            new Color32(42, 47, 57, 255);
+
+        // 木目を見せるため半透明
+        private static readonly Color CellColor =
+            new Color32(255, 255, 255, 35);
+
+        private static readonly Color SelectionColor =
+            new Color32(255, 193, 7, 175);
+
+        private static readonly Color LegalMoveColor =
+            new Color32(76, 175, 80, 150);
+
+        private static readonly Color CombatMoveColor =
+            new Color32(255, 152, 0, 175);
+
+        // 陣地枠
+        private static readonly Color TerritoryBorderColor =
+            new Color32(255, 255, 255, 235);
+
+        private static readonly Color FusionCandidateColor =
+            new Color32(33, 150, 243, 175);
+
         private static readonly Color WhileOccupiedEffectColor =
             new Color32(0, 188, 212, 125);
+
         private static readonly Color PermanentEffectColor =
             new Color32(156, 39, 176, 125);
->>>>>>> 0056d35ca779190a7d9c14645dbf2b3234c8cee8
 
-        private readonly List<SpriteRenderer> moveIndicators = new List<SpriteRenderer>();
-        private readonly List<SpriteRenderer> fusionIndicators = new List<SpriteRenderer>();
+        private readonly List<SpriteRenderer> moveIndicators =
+            new List<SpriteRenderer>();
+
+        private readonly List<SpriteRenderer> fusionIndicators =
+            new List<SpriteRenderer>();
+
         private Camera boardCamera;
         private Sprite squareSprite;
         private Transform indicatorsRoot;
         private SpriteRenderer selectionIndicator;
+
         private int columns;
         private int rows;
 
         public int GeneratedCellCount { get; private set; }
 
-        public int MoveIndicatorCount => moveIndicators.Count;
-        public int FusionIndicatorCount => fusionIndicators.Count;
+        public int MoveIndicatorCount =>
+            moveIndicators.Count;
+
+        public int FusionIndicatorCount =>
+            fusionIndicators.Count;
+
         public int EffectOverlayCount { get; private set; }
 
-        public void Initialize(Camera camera, Sprite cellSprite, GameSnapshot snapshot)
+        public void Initialize(
+            Camera camera,
+            Sprite cellSprite,
+            GameSnapshot snapshot)
         {
             boardCamera = camera;
             squareSprite = cellSprite;
+
             columns = snapshot.Columns;
             rows = snapshot.Rows;
+
             BuildBoard(snapshot);
         }
 
@@ -71,92 +100,181 @@ namespace GCCC.BoardGame.Presentation.Views
             else
             {
                 selectionIndicator.transform.localPosition =
-                    BoardGeometry.CellToLocalPosition(selectedCell.Value, columns, rows);
+                    BoardGeometry.CellToLocalPosition(
+                        selectedCell.Value,
+                        columns,
+                        rows);
+
                 selectionIndicator.enabled = true;
             }
 
             foreach (GridPosition destination in legalDestinations)
             {
-                bool isCombat = snapshot.TryGetPiece(destination, out _);
-                SpriteRenderer indicator = CreateSpriteRenderer(
-                    $"{(isCombat ? "Combat" : "Move")} Candidate ({destination.Column}, {destination.Row})",
-                    indicatorsRoot,
-                    squareSprite,
-                    isCombat ? CombatMoveColor : LegalMoveColor,
-                    Vector3.one * 0.82f,
-                    4);
+                bool isCombat =
+                    snapshot.TryGetPiece(
+                        destination,
+                        out _);
+
+                SpriteRenderer indicator =
+                    CreateSpriteRenderer(
+                        isCombat
+                            ? $"Combat Candidate ({destination.Column}, {destination.Row})"
+                            : $"Move Candidate ({destination.Column}, {destination.Row})",
+                        indicatorsRoot,
+                        squareSprite,
+                        isCombat
+                            ? CombatMoveColor
+                            : LegalMoveColor,
+                        Vector3.one * 0.82f,
+                        4);
+
                 indicator.transform.localPosition =
-                    BoardGeometry.CellToLocalPosition(destination, columns, rows);
+                    BoardGeometry.CellToLocalPosition(
+                        destination,
+                        columns,
+                        rows);
+
                 moveIndicators.Add(indicator);
             }
 
             foreach (GridPosition target in fusionTargets)
             {
-                SpriteRenderer indicator = CreateSpriteRenderer(
-                    $"Fusion Candidate ({target.Column}, {target.Row})",
-                    indicatorsRoot,
-                    squareSprite,
-                    FusionCandidateColor,
-                    Vector3.one * 0.82f,
-                    4);
+                SpriteRenderer indicator =
+                    CreateSpriteRenderer(
+                        $"Fusion Candidate ({target.Column}, {target.Row})",
+                        indicatorsRoot,
+                        squareSprite,
+                        FusionCandidateColor,
+                        Vector3.one * 0.82f,
+                        4);
+
                 indicator.transform.localPosition =
-                    BoardGeometry.CellToLocalPosition(target, columns, rows);
+                    BoardGeometry.CellToLocalPosition(
+                        target,
+                        columns,
+                        rows);
+
                 fusionIndicators.Add(indicator);
             }
         }
-        public bool TryScreenToCell(Vector2 screenPosition, out GridPosition cell)
+
+        public bool TryScreenToCell(
+            Vector2 screenPosition,
+            out GridPosition cell)
         {
-            Vector3 worldPosition = boardCamera.ScreenToWorldPoint(screenPosition);
-            Vector3 localPosition = transform.InverseTransformPoint(worldPosition);
-            int column = Mathf.FloorToInt(
-                localPosition.x / BoardGeometry.CellSpacing + columns * 0.5f);
-            int row = Mathf.FloorToInt(
-                localPosition.y / BoardGeometry.CellSpacing + rows * 0.5f);
-            cell = new GridPosition(column, row);
-            return column >= 0 && column < columns && row >= 0 && row < rows;
+            Vector3 worldPosition =
+                boardCamera.ScreenToWorldPoint(
+                    screenPosition);
+
+            Vector3 localPosition =
+                transform.InverseTransformPoint(
+                    worldPosition);
+
+            int column =
+                Mathf.FloorToInt(
+                    localPosition.x /
+                    BoardGeometry.CellSpacing +
+                    columns * 0.5f);
+
+            int row =
+                Mathf.FloorToInt(
+                    localPosition.y /
+                    BoardGeometry.CellSpacing +
+                    rows * 0.5f);
+
+            cell =
+                new GridPosition(
+                    column,
+                    row);
+
+            return column >= 0 &&
+                   column < columns &&
+                   row >= 0 &&
+                   row < rows;
         }
 
-        private void BuildBoard(GameSnapshot snapshot)
+        private void BuildBoard(
+            GameSnapshot snapshot)
         {
-            SpriteRenderer background = CreateSpriteRenderer(
-            "Board Background",
-            transform,
-            boardSprite != null ? boardSprite : squareSprite,
-            Color.white,
-            Vector3.one,
-            0);
+            SpriteRenderer background =
+                CreateSpriteRenderer(
+                    "Board Background",
+                    transform,
+                    boardSprite != null
+                        ? boardSprite
+                        : squareSprite,
+                    Color.white,
+                    Vector3.one,
+                    0);
 
-        background.transform.localPosition = Vector3.zero;
+            background.transform.localPosition =
+                Vector3.zero;
 
-        if (boardSprite != null)
-        {
-            float boardWidth = columns * BoardGeometry.CellSpacing + 0.16f;
-            float boardHeight = rows * BoardGeometry.CellSpacing + 0.16f;
+            if (boardSprite != null)
+            {
+                float boardWidth =
+                    columns *
+                    BoardGeometry.CellSpacing +
+                    0.16f;
 
-            float imageWidth = boardSprite.bounds.size.x;
-            float imageHeight = boardSprite.bounds.size.y;
+                float boardHeight =
+                    rows *
+                    BoardGeometry.CellSpacing +
+                    0.16f;
 
-            background.transform.localScale = new Vector3(
-                boardWidth / imageWidth,
-                boardHeight / imageHeight,
-                1f);
-        }
+                float imageWidth =
+                    boardSprite.bounds.size.x;
 
-            Transform cellsRoot = new GameObject("Cells").transform;
-            cellsRoot.SetParent(transform, false);
+                float imageHeight =
+                    boardSprite.bounds.size.y;
+
+                background.transform.localScale =
+                    new Vector3(
+                        boardWidth / imageWidth,
+                        boardHeight / imageHeight,
+                        1f);
+            }
+
+            Transform cellsRoot =
+                new GameObject("Cells").transform;
+
+            cellsRoot.SetParent(
+                transform,
+                false);
+
             GeneratedCellCount = 0;
             EffectOverlayCount = 0;
+
             for (int row = 0; row < rows; row++)
             {
-                for (int column = 0; column < columns; column++)
+                for (int column = 0;
+                     column < columns;
+                     column++)
                 {
-                    GridPosition cell = new GridPosition(column, row);
-                    SpriteRenderer renderer = CreateSpriteRenderer(
-                        $"Cell ({column}, {row})", cellsRoot, squareSprite, CellColor,
-                        Vector3.one * CellScale, 1);
+                    GridPosition cell =
+                        new GridPosition(
+                            column,
+                            row);
+
+                    SpriteRenderer renderer =
+                        CreateSpriteRenderer(
+                            $"Cell ({column}, {row})",
+                            cellsRoot,
+                            squareSprite,
+                            CellColor,
+                            Vector3.one * CellScale,
+                            1);
+
                     renderer.transform.localPosition =
-                        BoardGeometry.CellToLocalPosition(cell, columns, rows);
-                    if (snapshot.TryGetCell(cell, out CellDefinition definition) &&
+                        BoardGeometry.CellToLocalPosition(
+                            cell,
+                            columns,
+                            rows);
+
+                    // Cell Effect
+                    if (snapshot.TryGetCell(
+                            cell,
+                            out CellDefinition definition) &&
                         definition.EffectIds.Count > 0 &&
                         snapshot.TryGetCellEffectDefinition(
                             definition.EffectIds[0],
@@ -167,16 +285,22 @@ namespace GCCC.BoardGame.Presentation.Views
                             CellEffectLifetime.WhileOccupied
                                 ? WhileOccupiedEffectColor
                                 : PermanentEffectColor;
-                        SpriteRenderer effectOverlay = CreateSpriteRenderer(
-                            $"Effect ({column}, {row})",
-                            cellsRoot,
-                            squareSprite,
-                            effectColor,
-                            Vector3.one * 0.72f,
-                            2);
+
+                        SpriteRenderer effectOverlay =
+                            CreateSpriteRenderer(
+                                $"Effect ({column}, {row})",
+                                cellsRoot,
+                                squareSprite,
+                                effectColor,
+                                Vector3.one * 0.72f,
+                                2);
+
                         effectOverlay.transform.localPosition =
                             BoardGeometry.CellToLocalPosition(
-                                cell, columns, rows);
+                                cell,
+                                columns,
+                                rows);
+
                         EffectOverlayCount++;
                     }
 
@@ -186,89 +310,188 @@ namespace GCCC.BoardGame.Presentation.Views
 
             BuildGridLines();
 
-            BuildTerritoryBorder("Player 1 Territory Border", 0);
-            BuildTerritoryBorder("Player 2 Territory Border", rows - 1);
+            // Player1陣地
+            BuildTerritoryBorder(
+                "Player 1 Territory Border",
+                0);
 
-            indicatorsRoot = new GameObject("Move Indicators").transform;
-            indicatorsRoot.SetParent(transform, false);
-            selectionIndicator = CreateSpriteRenderer(
-                "Selection", transform, squareSprite, SelectionColor,
-                Vector3.one * 0.84f, 4);
+            // Player2陣地
+            BuildTerritoryBorder(
+                "Player 2 Territory Border",
+                rows - 1);
+
+            indicatorsRoot =
+                new GameObject(
+                    "Move Indicators").transform;
+
+            indicatorsRoot.SetParent(
+                transform,
+                false);
+
+            selectionIndicator =
+                CreateSpriteRenderer(
+                    "Selection",
+                    transform,
+                    squareSprite,
+                    SelectionColor,
+                    Vector3.one * 0.84f,
+                    4);
+
             selectionIndicator.enabled = false;
         }
 
         private void BuildGridLines()
         {
-            Transform gridRoot = new GameObject("Grid Lines").transform;
-            gridRoot.SetParent(transform, false);
+            Transform gridRoot =
+                new GameObject(
+                    "Grid Lines").transform;
 
-            float boardWidth = columns * BoardGeometry.CellSpacing;
-            float boardHeight = rows * BoardGeometry.CellSpacing;
+            gridRoot.SetParent(
+                transform,
+                false);
+
+            float boardWidth =
+                columns *
+                BoardGeometry.CellSpacing;
+
+            float boardHeight =
+                rows *
+                BoardGeometry.CellSpacing;
 
             // 縦線
-            for (int column = 0; column <= columns; column++)
+            for (int column = 0;
+                 column <= columns;
+                 column++)
             {
-                float x = -boardWidth * 0.5f +
-                          column * BoardGeometry.CellSpacing;
+                float x =
+                    -boardWidth * 0.5f +
+                    column *
+                    BoardGeometry.CellSpacing;
 
-                SpriteRenderer line = CreateSpriteRenderer(
-                    $"Vertical Grid Line {column}",
-                    gridRoot,
-                    squareSprite,
-                    GridLineColor,
-                    new Vector3(
-                        GridLineThickness,
-                        boardHeight,
-                        1f),
-                    2);
+                SpriteRenderer line =
+                    CreateSpriteRenderer(
+                        $"Vertical Grid Line {column}",
+                        gridRoot,
+                        squareSprite,
+                        GridLineColor,
+                        new Vector3(
+                            GridLineThickness,
+                            boardHeight,
+                            1f),
+                        2);
 
                 line.transform.localPosition =
-                    new Vector3(x, 0f, 0f);
+                    new Vector3(
+                        x,
+                        0f,
+                        0f);
             }
 
             // 横線
-            for (int row = 0; row <= rows; row++)
+            for (int row = 0;
+                 row <= rows;
+                 row++)
             {
-                float y = -boardHeight * 0.5f +
-                          row * BoardGeometry.CellSpacing;
+                float y =
+                    -boardHeight * 0.5f +
+                    row *
+                    BoardGeometry.CellSpacing;
 
-                SpriteRenderer line = CreateSpriteRenderer(
-                    $"Horizontal Grid Line {row}",
-                    gridRoot,
-                    squareSprite,
-                    GridLineColor,
-                    new Vector3(
-                        boardWidth,
-                        GridLineThickness,
-                        1f),
-                    2);
+                SpriteRenderer line =
+                    CreateSpriteRenderer(
+                        $"Horizontal Grid Line {row}",
+                        gridRoot,
+                        squareSprite,
+                        GridLineColor,
+                        new Vector3(
+                            boardWidth,
+                            GridLineThickness,
+                            1f),
+                        2);
 
                 line.transform.localPosition =
-                    new Vector3(0f, y, 0f);
+                    new Vector3(
+                        0f,
+                        y,
+                        0f);
             }
         }
 
-        private void BuildTerritoryBorder(string objectName, int row)
+        private void BuildTerritoryBorder(
+            string objectName,
+            int row)
         {
-            Transform borderRoot = new GameObject(objectName).transform;
-            borderRoot.SetParent(transform, false);
-            float rowCenterY = BoardGeometry.CellToLocalPosition(
-                new GridPosition(0, row), columns, rows).y;
-            float halfWidth = columns * BoardGeometry.CellSpacing * 0.5f;
-            float halfHeight = BoardGeometry.CellSpacing * 0.5f;
+            Transform borderRoot =
+                new GameObject(objectName).transform;
 
-            CreateBorderSegment("Top", borderRoot,
-                new Vector3(0f, rowCenterY + halfHeight, 0f),
-                new Vector3(columns + TerritoryBorderThickness, TerritoryBorderThickness, 1f));
-            CreateBorderSegment("Bottom", borderRoot,
-                new Vector3(0f, rowCenterY - halfHeight, 0f),
-                new Vector3(columns + TerritoryBorderThickness, TerritoryBorderThickness, 1f));
-            CreateBorderSegment("Left", borderRoot,
-                new Vector3(-halfWidth, rowCenterY, 0f),
-                new Vector3(TerritoryBorderThickness, 1f, 1f));
-            CreateBorderSegment("Right", borderRoot,
-                new Vector3(halfWidth, rowCenterY, 0f),
-                new Vector3(TerritoryBorderThickness, 1f, 1f));
+            borderRoot.SetParent(
+                transform,
+                false);
+
+            float rowCenterY =
+                BoardGeometry.CellToLocalPosition(
+                    new GridPosition(0, row),
+                    columns,
+                    rows).y;
+
+            float halfWidth =
+                columns *
+                BoardGeometry.CellSpacing *
+                0.5f;
+
+            float halfHeight =
+                BoardGeometry.CellSpacing *
+                0.5f;
+
+            CreateBorderSegment(
+                "Top",
+                borderRoot,
+                new Vector3(
+                    0f,
+                    rowCenterY + halfHeight,
+                    0f),
+                new Vector3(
+                    columns +
+                    TerritoryBorderThickness,
+                    TerritoryBorderThickness,
+                    1f));
+
+            CreateBorderSegment(
+                "Bottom",
+                borderRoot,
+                new Vector3(
+                    0f,
+                    rowCenterY - halfHeight,
+                    0f),
+                new Vector3(
+                    columns +
+                    TerritoryBorderThickness,
+                    TerritoryBorderThickness,
+                    1f));
+
+            CreateBorderSegment(
+                "Left",
+                borderRoot,
+                new Vector3(
+                    -halfWidth,
+                    rowCenterY,
+                    0f),
+                new Vector3(
+                    TerritoryBorderThickness,
+                    1f,
+                    1f));
+
+            CreateBorderSegment(
+                "Right",
+                borderRoot,
+                new Vector3(
+                    halfWidth,
+                    rowCenterY,
+                    0f),
+                new Vector3(
+                    TerritoryBorderThickness,
+                    1f,
+                    1f));
         }
 
         private void CreateBorderSegment(
@@ -277,31 +500,43 @@ namespace GCCC.BoardGame.Presentation.Views
             Vector3 position,
             Vector3 scale)
         {
-            SpriteRenderer border = CreateSpriteRenderer(
-                segmentName, parent, squareSprite, TerritoryBorderColor, scale, 4);
-            border.transform.localPosition = position;
+            SpriteRenderer border =
+                CreateSpriteRenderer(
+                    segmentName,
+                    parent,
+                    squareSprite,
+                    TerritoryBorderColor,
+                    scale,
+                    4);
+
+            border.transform.localPosition =
+                position;
         }
 
         private void ClearMoveIndicators()
         {
-            foreach (SpriteRenderer indicator in moveIndicators)
+            foreach (SpriteRenderer indicator
+                     in moveIndicators)
             {
-                DestroyGeneratedObject(indicator.gameObject);
+                DestroyGeneratedObject(
+                    indicator.gameObject);
             }
 
             moveIndicators.Clear();
         }
-    
+
         private void ClearFusionIndicators()
         {
-            foreach (SpriteRenderer indicator in fusionIndicators)
+            foreach (SpriteRenderer indicator
+                     in fusionIndicators)
             {
-                DestroyGeneratedObject(indicator.gameObject);
+                DestroyGeneratedObject(
+                    indicator.gameObject);
             }
 
             fusionIndicators.Clear();
         }
-        
+
         private static SpriteRenderer CreateSpriteRenderer(
             string objectName,
             Transform parent,
@@ -310,17 +545,30 @@ namespace GCCC.BoardGame.Presentation.Views
             Vector3 scale,
             int sortingOrder)
         {
-            GameObject spriteObject = new GameObject(objectName, typeof(SpriteRenderer));
-            spriteObject.transform.SetParent(parent, false);
-            spriteObject.transform.localScale = scale;
-            SpriteRenderer renderer = spriteObject.GetComponent<SpriteRenderer>();
+            GameObject spriteObject =
+                new GameObject(
+                    objectName,
+                    typeof(SpriteRenderer));
+
+            spriteObject.transform.SetParent(
+                parent,
+                false);
+
+            spriteObject.transform.localScale =
+                scale;
+
+            SpriteRenderer renderer =
+                spriteObject.GetComponent<SpriteRenderer>();
+
             renderer.sprite = sprite;
             renderer.color = color;
             renderer.sortingOrder = sortingOrder;
+
             return renderer;
         }
 
-        private static void DestroyGeneratedObject(Object generatedObject)
+        private static void DestroyGeneratedObject(
+            Object generatedObject)
         {
             if (generatedObject == null)
             {
@@ -329,11 +577,13 @@ namespace GCCC.BoardGame.Presentation.Views
 
             if (Application.isPlaying)
             {
-                Object.Destroy(generatedObject);
+                Object.Destroy(
+                    generatedObject);
             }
             else
             {
-                Object.DestroyImmediate(generatedObject);
+                Object.DestroyImmediate(
+                    generatedObject);
             }
         }
     }

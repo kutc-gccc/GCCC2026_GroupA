@@ -8,135 +8,138 @@ namespace GCCC.BoardGame.Presentation.Views
 {
     public sealed class PieceViewManager : MonoBehaviour
     {
-        private readonly Dictionary<PieceId, PieceView> views =
-            new Dictionary<PieceId, PieceView>();
+        [SerializeField] private PieceView pieceViewPrefab;
 
-        // Player1用・Player2用の2種類のSprite
-        private Sprite player1Sprite;
-        private Sprite player2Sprite;
+        private readonly Dictionary<PieceId, PieceView>
+            pieceViews =
+                new Dictionary<PieceId, PieceView>();
+
+        private Sprite player1PieceSprite;
+        private Sprite player2PieceSprite;
 
         private int columns;
         private int rows;
 
-        public int PieceViewCount => views.Count;
+        public int PieceViewCount =>
+            pieceViews.Count;
 
         public void Initialize(
-            Sprite player1PieceSprite,
-            Sprite player2PieceSprite,
+            Sprite player1Sprite,
+            Sprite player2Sprite,
             GameSnapshot snapshot)
         {
-            player1Sprite = player1PieceSprite;
-            player2Sprite = player2PieceSprite;
+            player1PieceSprite =
+                player1Sprite;
 
-            columns = snapshot.Columns;
-            rows = snapshot.Rows;
+            player2PieceSprite =
+                player2Sprite;
+
+            columns =
+                snapshot.Columns;
+
+            rows =
+                snapshot.Rows;
 
             Rebuild(snapshot);
+        }
+
+        public void Rebuild(
+            GameSnapshot snapshot)
+        {
+            ClearAll();
+
+            columns =
+                snapshot.Columns;
+
+            rows =
+                snapshot.Rows;
+
+            foreach (PieceState state
+                     in snapshot.Pieces)
+            {
+                CreatePieceView(state);
+            }
         }
 
         public void ApplyEvents(
             IReadOnlyList<GameEvent> events,
             GameSnapshot snapshot)
         {
-            foreach (GameEvent gameEvent in events)
-            {
-                switch (gameEvent)
-                {
-                    case PieceDestroyed destroyed:
-                        RemoveView(destroyed.PieceId);
-                        break;
+            // 現在はイベントごとのアニメーションよりも
+            // 最新のGameSnapshotを確実に表示することを優先する。
+            //
+            // そのため、移動・撃破・合体・戦闘力変更など、
+            // どのイベントが発生しても盤面を再構築する。
 
-                    case PieceMoved moved:
-                        RenderFromSnapshot(moved.PieceId, snapshot);
-                        break;
-
-                    case PiecePowerChanged powerChanged:
-                        RenderFromSnapshot(powerChanged.PieceId, snapshot);
-                        break;
-
-                    case PiecesFused fused:
-                        RemoveView(fused.FirstPieceId);
-                        RemoveView(fused.SecondPieceId);
-                        RenderFromSnapshot(fused.ResultingPieceId, snapshot);
-                        break;
-
-                    case CellEffectTriggered effectTriggered:
-                        RenderFromSnapshot(effectTriggered.PieceId, snapshot);
-                        break;
-                    case ReservePieceDeployed deployed:
-                        RenderFromSnapshot(deployed.PieceId, snapshot);
-                        break;
-                }
-            }
+            Rebuild(snapshot);
         }
 
-        public void Rebuild(GameSnapshot snapshot)
+        private void CreatePieceView(
+            PieceState state)
         {
-            foreach (PieceView view in views.Values)
-            {
-                DestroyGeneratedObject(view.gameObject);
-            }
-
-            views.Clear();
-
-            foreach (PieceState piece in snapshot.Pieces)
-            {
-                CreateView(piece);
-            }
-        }
-
-        private void RenderFromSnapshot(
-            PieceId id,
-            GameSnapshot snapshot)
-        {
-            if (!snapshot.TryGetPiece(id, out PieceState piece))
-            {
-                return;
-            }
-
-            if (views.TryGetValue(id, out PieceView existing))
-            {
-                existing.Render(piece);
-                return;
-            }
-
-            CreateView(piece);
-        }
-
-        private void CreateView(PieceState piece)
-        {
-            GameObject pieceObject =
-                new GameObject($"Piece View {piece.Id.Value}");
-
-            pieceObject.transform.SetParent(transform, false);
-
-            PieceView view =
-                pieceObject.AddComponent<PieceView>();
-
-            // プレイヤーによって使用する三角形を変更
             Sprite sprite =
-                piece.Owner == PlayerId.Player1
-                    ? player1Sprite
-                    : player2Sprite;
+                GetPieceSprite(state.Owner);
 
-            view.Initialize(
-                piece,
+            PieceView pieceView;
+
+            if (pieceViewPrefab != null)
+            {
+                pieceView =
+                    Instantiate(
+                        pieceViewPrefab,
+                        transform);
+            }
+            else
+            {
+                GameObject pieceObject =
+                    new GameObject(
+                        $"Piece ({state.Id})");
+
+                pieceObject.transform.SetParent(
+                    transform,
+                    false);
+
+                pieceView =
+                    pieceObject.AddComponent<PieceView>();
+            }
+
+            pieceView.gameObject.name =
+                $"Piece ({state.Owner}) [{state.Id}]";
+
+            pieceView.Initialize(
+                state,
                 sprite,
                 columns,
                 rows);
 
-            views.Add(piece.Id, view);
+            pieceViews[state.Id] =
+                pieceView;
         }
 
-        private void RemoveView(PieceId id)
+        private Sprite GetPieceSprite(
+            PlayerId owner)
         {
-            if (!views.TryGetValue(id, out PieceView view))
+            if (owner == PlayerId.Player1)
             {
-                return;
+                return player1PieceSprite;
             }
 
-            views.Remove(id);
-            DestroyGeneratedObject(view.gameObject);
+            return player2PieceSprite;
+        }
+
+        private void ClearAll()
+        {
+            foreach (PieceView pieceView
+                     in pieceViews.Values)
+            {
+                if (pieceView != null)
+                {
+                    DestroyGeneratedObject(
+                        pieceView.gameObject);
+                }
+            }
+
+            pieceViews.Clear();
         }
 
         private static void DestroyGeneratedObject(
@@ -149,12 +152,19 @@ namespace GCCC.BoardGame.Presentation.Views
 
             if (Application.isPlaying)
             {
-                Object.Destroy(generatedObject);
+                Object.Destroy(
+                    generatedObject);
             }
             else
             {
-                Object.DestroyImmediate(generatedObject);
+                Object.DestroyImmediate(
+                    generatedObject);
             }
+        }
+
+        private void OnDestroy()
+        {
+            ClearAll();
         }
     }
 }

@@ -3,64 +3,73 @@ using UnityEngine;
 
 namespace GCCC.BoardGame.Presentation.Views
 {
-    [RequireComponent(typeof(SpriteRenderer))]
     public sealed class PieceView : MonoBehaviour
     {
+        // 駒の大きさ
         private const float PieceScale = 0.45f;
 
-        private static readonly Color PieceColor = Color.white;
+        // 駒の色
+        private static readonly Color PieceColor =
+            Color.white;
 
         private SpriteRenderer pieceRenderer;
         private TextMesh combatPowerLabel;
 
-        private Sprite pieceSprite;
-
         private int columns;
         private int rows;
 
-        public PieceId PieceId { get; private set; }
+        private PieceState state;
+
+        public PieceId PieceId =>
+            state != null
+                ? state.Id
+                : default;
 
         public void Initialize(
-            PieceState state,
-            Sprite sprite,
+            PieceState pieceState,
+            Sprite pieceSprite,
             int boardColumns,
             int boardRows)
         {
+            state = pieceState;
+
             columns = boardColumns;
             rows = boardRows;
 
-            pieceSprite = sprite;
+            EnsureRenderer();
 
-            pieceRenderer =
-                GetComponent<SpriteRenderer>();
+            pieceRenderer.sprite =
+                pieceSprite;
 
-            pieceRenderer.sprite = pieceSprite;
-            pieceRenderer.sortingOrder = 3;
+            pieceRenderer.color =
+                PieceColor;
 
-            pieceRenderer.color = PieceColor;
-
-            transform.localScale =
-                Vector3.one * PieceScale;
-
-            CreateCombatPowerLabel();
-
-            Render(state);
+            Render();
         }
 
-        public void Render(PieceState state)
+        public void Render(
+            PieceState pieceState,
+            Sprite pieceSprite)
         {
-            PieceId = state.Id;
-<<<<<<< HEAD
+            state = pieceState;
 
-            gameObject.name =
-                $"{state.Owner} Piece " +
-                $"({state.Position.Column}, {state.Position.Row})";
+            EnsureRenderer();
 
-            // Initializeで渡されたSpriteを使用
-            pieceRenderer.sprite = pieceSprite;
+            pieceRenderer.sprite =
+                pieceSprite;
 
-            // 駒はPlayer1・Player2とも白
-            pieceRenderer.color = PieceColor;
+            pieceRenderer.color =
+                PieceColor;
+
+            Render();
+        }
+
+        private void Render()
+        {
+            if (state == null)
+            {
+                return;
+            }
 
             transform.localPosition =
                 BoardGeometry.CellToLocalPosition(
@@ -68,56 +77,105 @@ namespace GCCC.BoardGame.Presentation.Views
                     columns,
                     rows);
 
-            combatPowerLabel.text =
-                state.CombatPower.ToString();
-=======
-            gameObject.name = $"{state.Owner} Piece ({state.Position.Column}, {state.Position.Row})";
-            pieceRenderer.color = state.Owner == PlayerId.Player1 ? Player1Color : Player2Color;
-            transform.localPosition = BoardGeometry.CellToLocalPosition(
-                state.Position, columns, rows);
-            combatPowerLabel.text = state.EffectiveCombatPower.ToString();
->>>>>>> 0056d35ca779190a7d9c14645dbf2b3234c8cee8
+            transform.localScale =
+                Vector3.one * PieceScale;
+
+            UpdateCombatPowerLabel();
         }
 
-        private void CreateCombatPowerLabel()
+        private void EnsureRenderer()
         {
-            GameObject labelObject =
-                new GameObject(
-                    "Combat Power",
-                    typeof(TextMesh));
+            // ========================================
+            // 駒のSpriteRenderer
+            // ========================================
 
-            labelObject.transform.SetParent(
-                transform,
-                false);
+            if (pieceRenderer == null)
+            {
+                pieceRenderer =
+                    GetComponent<SpriteRenderer>();
 
-            labelObject.transform.localPosition =
-                new Vector3(
-                    0f,
-                    0f,
-                    -0.01f);
+                if (pieceRenderer == null)
+                {
+                    pieceRenderer =
+                        gameObject.AddComponent<SpriteRenderer>();
+                }
+            }
 
-            labelObject.transform.localScale =
-                Vector3.one / PieceScale;
+            pieceRenderer.sortingOrder = 10;
 
-            combatPowerLabel =
-                labelObject.GetComponent<TextMesh>();
+            // ========================================
+            // 戦闘力表示
+            // ========================================
 
-            combatPowerLabel.anchor =
-                TextAnchor.MiddleCenter;
+            if (combatPowerLabel == null)
+            {
+                GameObject labelObject =
+                    new GameObject(
+                        "Combat Power");
 
-            combatPowerLabel.alignment =
-                TextAlignment.Center;
+                labelObject.transform.SetParent(
+                    transform,
+                    false);
 
-            combatPowerLabel.fontSize = 64;
+                // 駒の中央
+                labelObject.transform.localPosition =
+                    new Vector3(
+                        0f,
+                        0f,
+                        -0.01f);
 
-            combatPowerLabel.characterSize = 0.1f;
+                labelObject.transform.localRotation =
+                    Quaternion.identity;
 
-            combatPowerLabel.color =
-            Color.white;
+                combatPowerLabel =
+                    labelObject.AddComponent<TextMesh>();
 
-            labelObject
-                .GetComponent<MeshRenderer>()
-                .sortingOrder = 4;
+                // 文字を中央揃え
+                combatPowerLabel.anchor =
+                    TextAnchor.MiddleCenter;
+
+                combatPowerLabel.alignment =
+                    TextAlignment.Center;
+
+                // 文字を大きくする
+                combatPowerLabel.fontSize = 64;
+
+                // 駒の大きさに合わせた文字サイズ
+                combatPowerLabel.characterSize = 0.20f;
+
+                // 濃い緑色の駒の上でも見やすいように白
+                combatPowerLabel.color =
+                    Color.white;
+
+                // フォントを太く見せる
+                combatPowerLabel.fontStyle =
+                    FontStyle.Bold;
+
+                MeshRenderer meshRenderer =
+                    labelObject.GetComponent<MeshRenderer>();
+
+                if (meshRenderer != null)
+                {
+                    // SpriteRendererより手前に表示
+                    meshRenderer.sortingOrder = 11;
+
+                    // Spriteと同じSorting Layerを使用
+                    meshRenderer.sortingLayerID =
+                        pieceRenderer.sortingLayerID;
+                }
+            }
+        }
+
+        private void UpdateCombatPowerLabel()
+        {
+            if (combatPowerLabel == null ||
+                state == null)
+            {
+                return;
+            }
+
+            combatPowerLabel.text =
+                state.CombatPower.ToString();
         }
     }
 }

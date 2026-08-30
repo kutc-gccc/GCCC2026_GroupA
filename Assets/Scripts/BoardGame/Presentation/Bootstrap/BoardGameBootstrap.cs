@@ -1,11 +1,11 @@
+using System;
 using GCCC.BoardGame.Core;
 using GCCC.BoardGame.Core.Model;
+using GCCC.BoardGame.Core.Rules.CellEffects;
 using GCCC.BoardGame.Presentation.Audio;
 using GCCC.BoardGame.Presentation.Config;
 using GCCC.BoardGame.Presentation.Input;
 using GCCC.BoardGame.Presentation.Views;
-using GCCC.BoardGame.Core.Rules.CellEffects;
-using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -20,7 +20,7 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
         [SerializeField] private GameHudView hudViewPrefab;
         [SerializeField] private BoardGameAudioManager audioManagerPrefab;
 
-        // プレイヤーごとの駒
+        // Player1 / Player2 の駒画像
         [SerializeField] private Sprite player1PieceSprite;
         [SerializeField] private Sprite player2PieceSprite;
 
@@ -35,9 +35,12 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
         public GameCoordinator Coordinator { get; private set; }
         public BoardView BoardView { get; private set; }
         public PieceViewManager PieceViews { get; private set; }
-        public GameSnapshot Snapshot => Session?.Snapshot;
-        public GridPosition? SelectedCell => Coordinator?.SelectedCell;
-<<<<<<< HEAD
+
+        public GameSnapshot Snapshot =>
+            Session != null ? Session.Snapshot : null;
+
+        public GridPosition? SelectedCell =>
+            Coordinator != null ? Coordinator.SelectedCell : null;
 
         public int GeneratedCellCount =>
             BoardView != null ? BoardView.GeneratedCellCount : 0;
@@ -48,108 +51,130 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
         public int MoveIndicatorCount =>
             BoardView != null ? BoardView.MoveIndicatorCount : 0;
 
-        public string StatusText =>
-            hudView != null ? hudView.StatusText : string.Empty;
-=======
-        public int GeneratedCellCount => BoardView != null ? BoardView.GeneratedCellCount : 0;
-        public int PieceViewCount => PieceViews != null ? PieceViews.PieceViewCount : 0;
-        public int MoveIndicatorCount => BoardView != null ? BoardView.MoveIndicatorCount : 0;
         public int EffectOverlayCount =>
             BoardView != null ? BoardView.EffectOverlayCount : 0;
-        public string StatusText => hudView != null ? hudView.StatusText : string.Empty;
->>>>>>> 0056d35ca779190a7d9c14645dbf2b3234c8cee8
 
-        public string ResultText => hudView != null ? hudView.ResultText : string.Empty;
+        public string StatusText =>
+            hudView != null ? hudView.StatusText : string.Empty;
 
-        public bool IsResultVisible => hudView != null && hudView.IsResultVisible;
-        public string ReserveText => hudView != null ? hudView.ReserveText : string.Empty;
+        public string ResultText =>
+            hudView != null ? hudView.ResultText : string.Empty;
+
+        public bool IsResultVisible =>
+            hudView != null && hudView.IsResultVisible;
+
+        public string ReserveText =>
+            hudView != null ? hudView.ReserveText : string.Empty;
+
         public bool IsEffectLegendVisible =>
             hudView != null && hudView.IsEffectLegendVisible;
 
         private void Awake()
         {
-            GameDefinition definition = config != null
-                ? config.CreateDefinition()
-                : GameDefinition.CreateStandard();
-<<<<<<< HEAD
+            GameDefinition definition =
+                config != null
+                    ? config.CreateDefinition()
+                    : GameDefinition.CreateStandard();
 
-            Session = new GameSession(definition);
-
-            spriteFactory = new RuntimeSpriteFactory();
-
-            Camera boardCamera =
-                ConfigureCamera(definition.Columns, definition.Rows);
-=======
+            // ゲームセッションを作成
             Session = new GameSession(
                 definition,
                 cellEffectHandlers: config != null
                     ? config.CreateCellEffectHandlers()
                     : Array.Empty<ICellEffectHandler>());
+
             spriteFactory = new RuntimeSpriteFactory();
 
-            Camera boardCamera = ConfigureCamera(definition.Columns, definition.Rows);
-            audioManager = audioManagerPrefab != null
-                ? CreatePresentationComponent(audioManagerPrefab, "Board Game Audio")
-                : GetComponent<BoardGameAudioManager>();
+            // カメラ
+            Camera boardCamera =
+                ConfigureCamera(
+                    definition.Columns,
+                    definition.Rows);
+
+            // オーディオ
+            audioManager =
+                audioManagerPrefab != null
+                    ? CreatePresentationComponent(
+                        audioManagerPrefab,
+                        "Board Game Audio")
+                    : GetComponent<BoardGameAudioManager>();
+
             if (audioManager == null)
             {
-                audioManager = CreatePresentationComponent<BoardGameAudioManager>(
-                    null, "Board Game Audio");
+                audioManager =
+                    CreatePresentationComponent<BoardGameAudioManager>(
+                        null,
+                        "Board Game Audio");
             }
->>>>>>> 0056d35ca779190a7d9c14645dbf2b3234c8cee8
 
+            // ========================================
             // 盤
-            BoardView = CreatePresentationComponent(
-                boardViewPrefab,
-                "Board View");
+            // ========================================
+
+            BoardView =
+                CreatePresentationComponent(
+                    boardViewPrefab,
+                    "Board View");
 
             BoardView.Initialize(
                 boardCamera,
                 spriteFactory.SquareSprite,
                 Session.Snapshot);
 
+            // ========================================
             // 駒
-            PieceViews = CreatePresentationComponent(
-                pieceViewsPrefab,
-                "Piece Views");
+            // ========================================
+
+            PieceViews =
+                CreatePresentationComponent(
+                    pieceViewsPrefab,
+                    "Piece Views");
 
             PieceViews.Initialize(
                 player1PieceSprite,
                 player2PieceSprite,
                 Session.Snapshot);
 
+            // ========================================
             // HUD
-            hudView = CreatePresentationComponent(
-                hudViewPrefab,
-                "Game HUD");
+            // ========================================
 
-<<<<<<< HEAD
-            hudView.Initialize();
+            hudView =
+                CreatePresentationComponent(
+                    hudViewPrefab,
+                    "Game HUD");
 
-            // ゲーム進行
-            Coordinator = new GameCoordinator(
-                Session,
-                BoardView,
-                PieceViews,
-                hudView);
-
-=======
-            hudView = CreatePresentationComponent(hudViewPrefab, "Game HUD");
             hudView.Initialize(audioManager);
 
-            Coordinator = new GameCoordinator(
-                Session, BoardView, PieceViews, hudView, audioManager: audioManager);
->>>>>>> 0056d35ca779190a7d9c14645dbf2b3234c8cee8
+            // ========================================
+            // ゲーム進行
+            // ========================================
+
+            Coordinator =
+                new GameCoordinator(
+                    Session,
+                    BoardView,
+                    PieceViews,
+                    hudView,
+                    audioManager: audioManager);
+
             hudView.ResetRequested += Coordinator.Reset;
             hudView.FuseRequested += Coordinator.ToggleFusionMode;
-            hudView.ReserveDeployRequested += Coordinator.ToggleReserveDeployMode;
-            hudView.StartScreenRequested += ReturnToTitleScreen;
+            hudView.ReserveDeployRequested +=
+                Coordinator.ToggleReserveDeployMode;
+            hudView.StartScreenRequested +=
+                ReturnToTitleScreen;
 
+            // ========================================
             // 入力
+            // ========================================
+
             GameObject inputObject =
                 new GameObject("Board Input");
 
-            inputObject.transform.SetParent(transform, false);
+            inputObject.transform.SetParent(
+                transform,
+                false);
 
             BoardInputController input =
                 inputObject.AddComponent<BoardInputController>();
@@ -159,7 +184,10 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
                 hudView,
                 Coordinator);
 
+            // ========================================
             // 大理石背景
+            // ========================================
+
             CreateMarbleBackground(
                 definition.Columns,
                 definition.Rows);
@@ -172,8 +200,14 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
         {
             if (prefab != null)
             {
-                T instance = Instantiate(prefab, transform);
-                instance.gameObject.name = instanceName;
+                T instance =
+                    Instantiate(
+                        prefab,
+                        transform);
+
+                instance.gameObject.name =
+                    instanceName;
+
                 return instance;
             }
 
@@ -189,26 +223,30 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
 
         public void HandleCellClick(GridPosition cell)
         {
-            Coordinator.HandleCellClick(cell);
+            if (Coordinator != null)
+            {
+                Coordinator.HandleCellClick(cell);
+            }
         }
 
         public void ResetGame()
         {
-            Coordinator.Reset();
+            if (Coordinator != null)
+            {
+                Coordinator.Reset();
+            }
         }
 
-<<<<<<< HEAD
+        private static void ReturnToTitleScreen()
+        {
+            SceneManager.LoadScene(
+                BoardGameSceneNames.Title,
+                LoadSceneMode.Single);
+        }
+
         private static Camera ConfigureCamera(
             int columns,
             int rows)
-=======
-        private static void ReturnToTitleScreen()
-        {
-            SceneManager.LoadScene(BoardGameSceneNames.Title, LoadSceneMode.Single);
-        }
-
-        private static Camera ConfigureCamera(int columns, int rows)
->>>>>>> 0056d35ca779190a7d9c14645dbf2b3234c8cee8
         {
             Camera boardCamera = Camera.main;
 
@@ -225,10 +263,15 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
                     cameraObject.GetComponent<Camera>();
             }
 
-            AudioListener[] listeners = FindObjectsByType<AudioListener>(FindObjectsSortMode.None);
+            // AudioListenerを整理
+            AudioListener[] listeners =
+                FindObjectsByType<AudioListener>(
+                    FindObjectsSortMode.None);
+
             foreach (AudioListener listener in listeners)
             {
-                listener.enabled = listener.GetComponent<Camera>() == boardCamera;
+                listener.enabled =
+                    listener.GetComponent<Camera>() == boardCamera;
             }
 
             if (boardCamera.GetComponent<AudioListener>() == null)
@@ -252,7 +295,9 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
 
             float horizontalSize =
                 (columns + 1f) * 0.5f /
-                Mathf.Max(boardCamera.aspect, 0.01f);
+                Mathf.Max(
+                    boardCamera.aspect,
+                    0.01f);
 
             boardCamera.orthographicSize =
                 Mathf.Max(
@@ -270,11 +315,13 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
             {
                 Debug.LogWarning(
                     "Marble Background Sprite が設定されていません。");
+
                 return;
             }
 
             GameObject obj =
-                new GameObject("Marble Background");
+                new GameObject(
+                    "Marble Background");
 
             obj.transform.SetParent(
                 transform,
@@ -283,15 +330,23 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
             SpriteRenderer sr =
                 obj.AddComponent<SpriteRenderer>();
 
-            sr.sprite = marbleBackgroundSprite;
-            sr.color = Color.white;
+            sr.sprite =
+                marbleBackgroundSprite;
+
+            sr.color =
+                Color.white;
 
             // 盤より後ろ
             sr.sortingOrder = -10;
 
             Camera camera = Camera.main;
 
-            // カメラが見ている範囲を取得
+            if (camera == null)
+            {
+                return;
+            }
+
+            // カメラが見ている範囲
             float visibleHeight =
                 camera.orthographicSize * 2f;
 
@@ -300,10 +355,14 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
 
             // 画面端より少し大きくする
             float targetWidth =
-                Mathf.Max(columns + 8f, visibleWidth + 4f);
+                Mathf.Max(
+                    columns + 8f,
+                    visibleWidth + 4f);
 
             float targetHeight =
-                Mathf.Max(rows + 8f, visibleHeight + 4f);
+                Mathf.Max(
+                    rows + 8f,
+                    visibleHeight + 4f);
 
             float spriteWidth =
                 marbleBackgroundSprite.bounds.size.x;
@@ -312,7 +371,10 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
                 marbleBackgroundSprite.bounds.size.y;
 
             sr.transform.localPosition =
-                new Vector3(0f, 0f, 1f);
+                new Vector3(
+                    0f,
+                    0f,
+                    1f);
 
             sr.transform.localScale =
                 new Vector3(
@@ -326,15 +388,17 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
             if (hudView != null &&
                 Coordinator != null)
             {
-<<<<<<< HEAD
                 hudView.ResetRequested -=
                     Coordinator.Reset;
-=======
-                hudView.ResetRequested -= Coordinator.Reset;
-                hudView.FuseRequested -= Coordinator.ToggleFusionMode;
-                hudView.ReserveDeployRequested -= Coordinator.ToggleReserveDeployMode;
-                hudView.StartScreenRequested -= ReturnToTitleScreen;
->>>>>>> 0056d35ca779190a7d9c14645dbf2b3234c8cee8
+
+                hudView.FuseRequested -=
+                    Coordinator.ToggleFusionMode;
+
+                hudView.ReserveDeployRequested -=
+                    Coordinator.ToggleReserveDeployMode;
+
+                hudView.StartScreenRequested -=
+                    ReturnToTitleScreen;
             }
 
             Coordinator?.Dispose();
