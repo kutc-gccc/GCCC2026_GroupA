@@ -80,13 +80,15 @@ namespace GCCC.BoardGame.Tests
         [UnityTest]
         public IEnumerator PieceViewsRenderOwnersAndCombatPower()
         {
-            GameObject player1 = GameObject.Find("Player1 Piece (0, 1)");
-            GameObject player2 = GameObject.Find("Player2 Piece (0, 8)");
-            SpriteRenderer player1Renderer = player1.GetComponent<SpriteRenderer>();
-            SpriteRenderer player2Renderer = player2.GetComponent<SpriteRenderer>();
+            PieceView player1 = FindPieceView(
+                bootstrap,
+                new GridPosition(0, 1),
+                PlayerId.Player1);
+            PieceView player2 = FindPieceView(
+                bootstrap,
+                new GridPosition(0, 8),
+                PlayerId.Player2);
 
-            Assert.That(player1Renderer.color.b, Is.GreaterThan(player1Renderer.color.r));
-            Assert.That(player2Renderer.color.r, Is.GreaterThan(player2Renderer.color.b));
             Assert.That(player1.transform.Find("Combat Power").GetComponent<TextMesh>().text,
                 Is.EqualTo("1"));
             Assert.That(player2.transform.Find("Combat Power").GetComponent<TextMesh>().text,
@@ -264,8 +266,14 @@ namespace GCCC.BoardGame.Tests
             Assert.That(bootstrap.StatusText, Does.Contain("プレイヤー2"));
             Assert.That(bootstrap.SelectedCell, Is.Null);
             Assert.That(bootstrap.MoveIndicatorCount, Is.Zero);
-            Assert.That(GameObject.Find("Player1 Piece (2, 2)"), Is.Not.Null);
             yield return null;
+
+            Assert.That(
+                FindPieceView(
+                    bootstrap,
+                    new GridPosition(2, 2),
+                    PlayerId.Player1),
+                Is.Not.Null);
         }
 
         [UnityTest]
@@ -493,6 +501,25 @@ namespace GCCC.BoardGame.Tests
             Assert.That(sceneBootstrap, Is.Not.Null);
             Assert.That(sceneBootstrap.GeneratedCellCount, Is.EqualTo(60));
             Assert.That(sceneBootstrap.Snapshot.Pieces.Count, Is.EqualTo(12));
+
+            PieceView player1 = FindPieceView(
+                sceneBootstrap,
+                new GridPosition(0, 1),
+                PlayerId.Player1);
+            PieceView player2 = FindPieceView(
+                sceneBootstrap,
+                new GridPosition(0, 8),
+                PlayerId.Player2);
+            SpriteRenderer player1Renderer =
+                player1.GetComponent<SpriteRenderer>();
+            SpriteRenderer player2Renderer =
+                player2.GetComponent<SpriteRenderer>();
+            Assert.That(player1Renderer.sprite, Is.Not.Null);
+            Assert.That(player2Renderer.sprite, Is.Not.Null);
+            Assert.That(
+                player1Renderer.sprite,
+                Is.Not.SameAs(player2Renderer.sprite));
+
             Assert.That(GameObject.Find("Board View"), Is.Not.Null);
             Assert.That(GameObject.Find("Game HUD"), Is.Not.Null);
             Assert.That(GameObject.Find("EventSystem"), Is.Not.Null);
@@ -507,6 +534,34 @@ namespace GCCC.BoardGame.Tests
             bootstrap.HandleCellClick(from);
             Assert.That(bootstrap.SelectedCell, Is.EqualTo(from));
             bootstrap.HandleCellClick(to);
+        }
+
+        private static PieceView FindPieceView(
+            BoardGameBootstrap targetBootstrap,
+            GridPosition position,
+            PlayerId owner)
+        {
+            Assert.That(
+                targetBootstrap.Snapshot.TryGetPiece(
+                    position,
+                    out PieceState piece),
+                Is.True);
+            Assert.That(piece.Owner, Is.EqualTo(owner));
+
+            PieceView[] views =
+                targetBootstrap.PieceViews.GetComponentsInChildren<PieceView>(
+                    true);
+            foreach (PieceView view in views)
+            {
+                if (view.PieceId.Equals(piece.Id))
+                {
+                    return view;
+                }
+            }
+
+            Assert.Fail(
+                $"PieceView for {piece.Id} at {position} was not found.");
+            return null;
         }
 
         private void AssertPiece(GridPosition position, PlayerId owner)
