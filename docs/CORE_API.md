@@ -41,6 +41,8 @@ MoveDirections directions = MoveDirections.North | MoveDirections.East;
 | `position` | `GridPosition` | 盤面上の現在位置 |
 | `combatPower` | `int` | 現在の戦闘力。1以上を指定する |
 | `movementProfileId` | `MovementProfileId` | 駒が使用する戦闘力別移動プロファイル |
+| `appliedPermanentEffectIds` | `IEnumerable<string>` | 適用済み永続効果ID。省略可 |
+| `activeCellEffects` | `IEnumerable<ActiveCellEffectState>` | 現在の滞在中効果と一時戦闘力。省略可 |
 
 たとえば、座標`(2, 1)`にいる「プレイヤー1が所有する、戦闘力2で標準プロファイルを使う駒」は次のように生成します。
 
@@ -54,7 +56,7 @@ var piece = new PieceState(
 );
 ```
 
-`PieceState`は不変です。変更は`WithPosition`、`WithCombatPower`、`WithMovementProfile`、`WithAttributes`で新しいインスタンスを作成します。
+`PieceState`は不変です。`CombatPower`は通常戦闘力、`TemporaryCombatPower`は滞在中効果の残量、`EffectiveCombatPower`は両者の合計です。表示・戦闘・移動方向は`EffectiveCombatPower`を使用します。変更は`WithPosition`、`WithCombatPower`、`WithMovementProfile`、効果用メソッドで新しいインスタンスを作成します。
 
 ```csharp
 PieceState movedPiece = piece.WithPosition(new GridPosition(2, 2));
@@ -81,7 +83,7 @@ var profile = new PowerMovementProfile(
 MoveDirections directions = profile.GetDirections(3); // North | South
 ```
 
-帯域に隙間・重複がある、戦闘力1から始まらない、最後が`int.MaxValue`まで届かない場合は`ArgumentException`になります。`ProfileMoveDirectionResolver`は`PieceState.MovementProfileId`でプロファイルを選び、現在の`CombatPower`に対応する方向を返します。標準プロファイルの正確な対応表は[ゲームルール §5](GAME_RULES.md#5-移動ルール)を参照してください。
+帯域に隙間・重複がある、戦闘力1から始まらない、最後が`int.MaxValue`まで届かない場合は`ArgumentException`になります。`ProfileMoveDirectionResolver`は`PieceState.MovementProfileId`でプロファイルを選び、現在の`EffectiveCombatPower`に対応する方向を返します。標準プロファイルの正確な対応表は[ゲームルール §5](GAME_RULES.md#5-移動ルール)を参照してください。
 
 ## 3. 盤面定義と実行時状態
 
@@ -89,8 +91,10 @@ MoveDirections directions = profile.GetDirections(3); // North | South
 |---|---|---|
 | `CellDefinition` | 1マスの固定設定 | 座標、陣地所有者、特殊効果ID |
 | `InitialPieceDefinition` | リセット時に生成する1個の駒の初期設定 | ID、所有者、初期位置、初期戦闘力、移動プロファイルID |
-| `GameDefinition` | ゲーム開始前の設計図 | 盤面サイズ、全セル、全初期駒、先手、移動プロファイル |
-| `GameSnapshot` | ある時点のゲーム状態を外部へ見せる読み取り専用コピー | 現在の全駒、セル、手番、勝者、引き分け |
+| `GameDefinition` | ゲーム開始前の設計図 | 盤面サイズ、全セル、全初期駒、先手、移動プロファイル、効果定義、駒上限、リザーブ配置範囲 |
+| `CellEffectDefinition` | 特殊効果の固定設定 | 効果ID、`WhileOccupied`／`PermanentOncePerPiece` |
+| `PlayerState` | プレイヤーの実行時状態 | 盤外に保管されている`ReservePieceState` |
+| `GameSnapshot` | ある時点のゲーム状態を外部へ見せる読み取り専用コピー | 現在の全駒、セル、効果定義、リザーブ、手番、勝敗、駒上限、リザーブ配置範囲 |
 
 ### `CellDefinition`
 
@@ -133,7 +137,7 @@ Unity上では`BoardGameConfig.CreateDefinition()`が設定アセットから同
 
 ### `GameSnapshot`
 
-`GameSnapshot`は`GameSession.Snapshot`から取得します。コンストラクタはCore内部専用なので、Presentationや将来のCPUが直接生成することはありません。
+`GameSnapshot`は通常`GameSession.Snapshot`から取得します。公開コンストラクタはテストや独立したView描画にも利用できますが、生成したSnapshotから`GameSession`内部状態を変更することはできません。
 
 ```csharp
 GameSnapshot snapshot = session.Snapshot;
@@ -141,20 +145,23 @@ GameSnapshot snapshot = session.Snapshot;
 bool isInside = snapshot.IsInside(new GridPosition(2, 1));
 bool found = snapshot.TryGetPiece(new PieceId(1), out PieceState currentPiece);
 int player1PieceCount = snapshot.GetPieceCount(PlayerId.Player1);
+int reserveCount = snapshot.GetPlayer(PlayerId.Player1).ReservePieces.Count;
 bool isGameOver = snapshot.IsGameOver;
 ```
 
-### 4クラスの関係
+### 定義と実行時状態の関係
 
 ```text
 GameDefinition（ゲーム全体の設計図）
 ├─ CellDefinition（各マスの固定設定）
 ├─ PowerMovementProfile（戦闘力別移動設定）
+├─ CellEffectDefinition（特殊効果IDとLifetime）
 └─ InitialPieceDefinition（各駒の初期設定とプロファイルID）
            ↓ GameSessionの開始・Reset
        PieceState（各駒の現在状態）
+       PlayerState（各プレイヤーのリザーブ状態）
            ↓ Snapshot取得
-       GameSnapshot（盤面全体の読み取り専用コピー）
+       GameSnapshot（盤面・効果・プレイヤー状態の読み取り専用コピー）
 ```
 
 ## 4. `GameSession`
@@ -166,8 +173,9 @@ GameDefinition（ゲーム全体の設計図）
 | `definition` | `GameDefinition` | 省略不可 |
 | `movementRule` | `IMovementRule` | `DirectionalMovementRule` |
 | `combatResolver` | `ICombatResolver` | `SimultaneousCombatResolver` |
-| `fusionResolver` | `IFusionResolver` | `DisabledFusionResolver` |
+| `fusionResolver` | `IFusionResolver` | `AdjacentFusionResolver` |
 | `cellEffectHandlers` | `IEnumerable<ICellEffectHandler>` | 効果なし |
+| `randomSource` | `IRandomSource` | `SystemRandomSource` |
 
 公開APIは次の4つです。
 
@@ -201,7 +209,9 @@ Ruleの差し替え例は[拡張ガイド](EXTENSION_GUIDE.md)を参照してく
 | Command | コンストラクタ引数 | 意味 |
 |---|---|---|
 | `MovePieceCommand` | `player`, `pieceId`, `destination` | 指定した自分の駒を目的地へ動かす要求 |
-| `FusePiecesCommand` | `player`, `firstPieceId`, `secondPieceId` | 指定した2個の駒を合体する要求。標準ルールでは無効 |
+| `FusePiecesCommand` | `player`, `firstPieceId`, `secondPieceId` | 隣接する自駒2個の確率合体を試みる要求 |
+| `RandomizePowerCommand` | `player`, `pieceId` | 効果のない自駒の通常戦闘力を1〜3へ変更する要求 |
+| `DeployReservePieceCommand` | `player`, `reservePieceId`, `destination` | リザーブ駒を自陣の前方2行にある空きマスへ配置する要求 |
 
 ```csharp
 var move = new MovePieceCommand(
@@ -213,6 +223,15 @@ var fusion = new FusePiecesCommand(
     PlayerId.Player1,
     new PieceId(1),
     new PieceId(3));
+
+var randomize = new RandomizePowerCommand(
+    PlayerId.Player1,
+    new PieceId(1));
+
+var deploy = new DeployReservePieceCommand(
+    PlayerId.Player1,
+    new PieceId(13),
+    new GridPosition(0, 1));
 ```
 
 Commandの検証順序は[アーキテクチャ §4](ARCHITECTURE.md#4-commandとresult)を参照してください。
@@ -244,8 +263,13 @@ else
 | `CombatResolved` | 攻撃・防御のID、戦闘前後の戦闘力 |
 | `PiecePowerChanged` | `PieceId`, `PreviousPower`, `CurrentPower` |
 | `PieceDestroyed` | `PieceId`, `Position` |
-| `PiecesFused` | 合体元2個と合体後の`PieceId` |
+| `PiecesFused` | 合体元2個と合体後の`PieceId`、`Bonus` |
+| `FusionAttemptFailed` | 合体を試みた2個の`PieceId` |
 | `CellEffectTriggered` | `EffectId`, `PieceId`, `Position` |
+| `CellEffectExpired` | `EffectId`, `PieceId`, `Position` |
+| `ReservePieceAdded` | 追加された`ReservePieceState` |
+| `ReservePieceDeployed` | `PieceId`, `Owner`, `Position` |
+| `RandomizePowerEvent` | `PieceId`, `PreviousPower`, `NewPower` |
 | `TurnChanged` | 交代前後の`PlayerId`, `TurnWasPassed` |
 | `GameEnded` | `Winner`, `IsDraw` |
 
@@ -255,28 +279,28 @@ else
 
 `ICombatResolver`、`IFusionResolver`、`ICellEffectHandler`を実装するときに受け取る型と返す型です。差し替え口そのものの一覧は[アーキテクチャ §7](ARCHITECTURE.md#7-ruleとplayeragentの差し替え口)、実装手順は[拡張ガイド](EXTENSION_GUIDE.md)を参照してください。
 
-| 型 | 用途 | コンストラクタ引数 |
+| 型 | 用途 | 生成方法・引数 |
 |---|---|---|
-| `CombatResolution` | `ICombatResolver.Resolve`の戻り値 | `attackerRemainingPower`, `defenderRemainingPower` |
+| `CombatResolution` | `ICombatResolver.Resolve`の戻り値 | `damageToAttacker`, `damageToDefender` |
 | `FusionPair` | `IFusionResolver.GetLegalFusions`が返す一覧の要素 | `firstPieceId`, `secondPieceId` |
-| `FusionResolution` | `IFusionResolver.TryResolve`の`out`値 | `resultingPiece` |
-| `CellEffectContext` | `ICellEffectHandler.Apply`の引数 | `snapshot`, `piece`, `cell` |
-| `CellEffectResult` | `ICellEffectHandler.Apply`の戻り値 | `piece`, `events`（省略可） |
+| `FusionResolution` | `IFusionResolver.TryResolve`の`out`値 | `Success(resultingPiece, bonus)`／`Attempted()` |
+| `CellEffectContext` | `ICellEffectHandler.Apply`の引数 | `snapshot`, `piece`, `cell`, `definition` |
+| `CellEffectResult` | `ICellEffectHandler.Apply`の戻り値 | `piece`, `events`, `reservePieceGrants`（後二者は省略可） |
 
 `CombatResolution`と`FusionPair`は値型（`readonly struct`）、残りは参照型です。
 
 ```csharp
 var resolution = new CombatResolution(
-    attacker.CombatPower - defender.CombatPower,
-    defender.CombatPower - attacker.CombatPower);
+    defender.EffectiveCombatPower,
+    attacker.EffectiveCombatPower);
 
 var pair = new FusionPair(new PieceId(1), new PieceId(3));
 
 var result = new CellEffectResult(context.Piece.WithCombatPower(3));
 ```
 
-`CombatResolution`の残り戦闘力に0以下を渡すのは正常な使い方です。`GameSession`が0以下の駒を盤面から削除し、`PieceDestroyed`を発生させます。0以下の値を`PieceState`へ渡すことはできません。
+`CombatResolution`のダメージ量は0以上でなければなりません。`GameSession`が一時戦闘力、通常戦闘力の順にダメージを適用し、通常戦闘力が0以下になった駒を削除します。
 
-`CellEffectResult.Piece`は、ID・所有者・位置が`CellEffectContext.Piece`と同一で、`MovementProfileId`が`GameDefinition`へ登録済みでなければなりません。変更できるのは戦闘力と登録済みプロファイルだけで、違反すると`GameSession`が`InvalidOperationException`を送出します。詳細は[拡張ガイド §5](EXTENSION_GUIDE.md#5-特殊マスを追加する)を参照してください。
+`CellEffectResult.Piece`は、ID・所有者・位置が`CellEffectContext.Piece`と同一で、`MovementProfileId`が`GameDefinition`へ登録済みでなければなりません。戦闘力、効果状態、登録済みプロファイルを変更でき、`ReservePieceGrant`でリザーブ追加を要求できます。
 
-`FusionResolution.ResultingPiece`が満たすべき条件と、違反した場合に送出される例外は[拡張ガイド §4](EXTENSION_GUIDE.md#4-合体を有効化する)にあります。
+`FusionResolution.ResultingPiece`が満たすべき条件と、違反した場合に送出される例外は[拡張ガイド §4](EXTENSION_GUIDE.md#4-合体ルールを変更する)にあります。

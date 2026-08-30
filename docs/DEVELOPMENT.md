@@ -9,7 +9,7 @@
 | Input | Input System `1.19.0` |
 | UI | uGUI `2.0.0` |
 | Test | Unity Test Framework `1.6.0` |
-| Build Scene | `Assets/Scenes/SampleScene.unity` |
+| Build Scenes | `TitleScene`（起動）、`SampleScene`（ゲーム本体） |
 
 Unity Hubで同じEditorバージョンをインストールしてください。異なるUnityバージョンで開くとScene、Prefab、ProjectSettingsが自動更新され、意図しない差分が発生する可能性があります。
 
@@ -23,18 +23,22 @@ Set-Location GCCC2026_GroupA
 1. Unity Hubの「Add project from disk」でプロジェクトルートを選びます。
 2. Unity `6000.3.11f1`で開き、Packageの解決とコンパイル完了を待ちます。
 3. ConsoleのErrorが0件であることを確認します。
-4. `Assets/Scenes/SampleScene.unity`を開いてPlayします。
+4. `Assets/Scenes/TitleScene.unity`を開いてPlayし、「ゲーム開始」を押します。
 
 初回起動時に生成される`Library`、`Temp`、`Logs`、`UserSettings`はGit管理しません。
 
 ## 3. 操作確認
 
-1. Game Viewを16:9にします。
-2. プレイヤー1の青い駒を選択します。
-3. 緑の空きマスへ移動できることを確認します。
-4. 手番がプレイヤー2へ変わることを確認します。
-5. オレンジの敵駒マスへ移動すると戦闘が発生することを確認します。
-6. リセットで12駒とプレイヤー1の手番へ戻ることを確認します。
+1. Game Viewを16:9にし、タイトルと「ゲーム開始」が表示されることを確認します。
+2. 「ゲーム開始」で`SampleScene`へ移動します。
+3. プレイヤー1の青い駒を選択し、緑の空きマスへ移動できることを確認します。
+4. 「パワーランダム化」で選択駒の通常戦闘力が1〜3に設定され、結果が同じ値でも手番を消費することを確認します。
+5. 隣接する自駒を選び、「合体」から青表示の候補を選ぶと成功・大成功・失敗の結果が表示され、手番を消費することを確認します。
+6. オレンジの敵駒マスへ移動すると戦闘が発生することを確認します。
+7. 移動・戦闘・破壊・合体で対応する効果音が再生され、BGM／SFXスライダーが音量へ反映されることを確認します。
+8. リセットで12駒、効果・リザーブなし、プレイヤー1の手番へ戻ることを確認します。
+9. 勝敗確定後にリザルトが表示され、背後の操作と音量スライダーが無効になることを確認します。
+10. 「スタート画面に戻る」でBGMが停止し、タイトルへ戻ることを確認します。
 
 ## 4. フォルダと担当境界
 
@@ -47,6 +51,8 @@ Set-Location GCCC2026_GroupA
 | 特殊マス | `Core/Rules/CellEffects`、Config | 盤面担当 |
 | 入力 | `Presentation/Input`、Coordinator | 入力担当 |
 | 表示 | `Presentation/Views`、Prefab | UI担当 |
+| 音声 | `Presentation/Audio`、`Resources/Audio` | 音声担当 |
+| Scene遷移 | `Presentation/Bootstrap`、`Scenes` | UI・統合担当 |
 | CPU | 将来の`AI`アセンブリ | AI担当 |
 | 統合 | Bootstrap、Scene、asmdef | 担当者間で調整 |
 
@@ -66,19 +72,23 @@ Set-Location GCCC2026_GroupA
 | `player1StartRow` | 1 | プレイヤー1の初期配置行 |
 | `player2StartRow` | 8 | プレイヤー2の初期配置行 |
 | `initialCombatPower` | 1 | 全初期駒の戦闘力 |
+| `maxPiecesPerPlayer` | 6 | 盤上とリザーブを合わせたプレイヤーごとの所有駒上限 |
+| `reserveDeploymentDepth` | 2 | 自陣行から前方へリザーブ配置を許可する行数 |
 | `initialMovementProfileId` | standard | 全初期駒が参照する移動プロファイルID |
 | `movementProfiles` | standard 1件 | 戦闘力範囲と移動方向の対応表 |
 | `cellEffects` | 空 | 座標ごとの効果ID |
+| `cellEffectDefinitions` | 空 | 効果定義とHandlerを生成する`CellEffectConfig` Asset |
 
 行設定は盤面内でなければなりません。両陣地を同じ行にする、自分の陣地と初期配置を同じ行にする、両プレイヤーの初期配置を同じ行にすると、`CreateDefinition`が`InvalidOperationException`を送出します。
 
 各`movementProfiles`は戦闘力1から`int.MaxValue`までを隙間・重複なく覆う必要があります。`initialMovementProfileId`が未登録、IDが重複、帯域が不連続の場合はCore定義の生成時に例外になります。標準設定の正確な方向表は[ゲームルール §5](GAME_RULES.md#5-移動ルール)を参照してください。
 
-特殊効果IDを設定する場合は、同じIDの`ICellEffectHandler`を`GameSession`生成時に必ず登録してください。未登録のIDが発動すると`InvalidOperationException`になります。
+特殊効果を追加する場合は、`CombatPowerBoostEffectConfig`または`ReservePieceGrantEffectConfig` Assetを作り、`cellEffectDefinitions`へ登録してから対象座標の`cellEffects`へ同じIDを設定します。`BoardGameBootstrap`が定義とHandlerを同時に生成します。異なるLifetimeを同じセルに設定する、未登録IDを参照する、リザーブ獲得へ`WhileOccupied`を指定すると生成時に例外になります。
 
 ## 6. SceneとPrefabの編集
 
-- SceneにはMain CameraとBootstrapだけを置く方針です。
+- `TitleScene`にはタイトルUIとScene遷移用Controllerを置きます。
+- `SampleScene`にはMain CameraとBootstrapを置き、Bootstrapと同じGameObjectへ`BoardGameAudioManager`を追加します。EventSystemとAudioSourceは実行時に生成されます。
 - 盤面表示は`BoardView.prefab`、駒管理は`PieceViews.prefab`、HUDは`GameHud.prefab`を編集します。
 - Prefabの公開設定を増やす場合は、Bootstrapの参照が維持されているかSampleSceneで確認します。
 - Runtime生成されるセル、駒、Canvasの子要素をPlay中に変更してもAssetには保存されません。

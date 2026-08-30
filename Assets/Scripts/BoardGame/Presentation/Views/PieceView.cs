@@ -50,6 +50,7 @@ namespace GCCC.BoardGame.Presentation.Views
         public void Render(PieceState state)
         {
             PieceId = state.Id;
+<<<<<<< HEAD
 
             gameObject.name =
                 $"{state.Owner} Piece " +
@@ -69,6 +70,13 @@ namespace GCCC.BoardGame.Presentation.Views
 
             combatPowerLabel.text =
                 state.CombatPower.ToString();
+=======
+            gameObject.name = $"{state.Owner} Piece ({state.Position.Column}, {state.Position.Row})";
+            pieceRenderer.color = state.Owner == PlayerId.Player1 ? Player1Color : Player2Color;
+            transform.localPosition = BoardGeometry.CellToLocalPosition(
+                state.Position, columns, rows);
+            combatPowerLabel.text = state.EffectiveCombatPower.ToString();
+>>>>>>> 0056d35ca779190a7d9c14645dbf2b3234c8cee8
         }
 
         private void CreateCombatPowerLabel()

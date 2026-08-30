@@ -97,7 +97,7 @@ RuleSetをUnity上で選択できるようにする場合は、ConfigからRule�
 
 ### Core実装
 
-`ICombatResolver`は攻撃側と防御側を受け取り、それぞれの残り戦闘力を返します。
+`ICombatResolver`は攻撃側と防御側を受け取り、それぞれが受ける0以上のダメージ量を返します。滞在中戦闘力を先に消費する処理は`GameSession`が担当します。
 
 ```csharp
 public interface ICombatResolver
@@ -137,11 +137,11 @@ var session = new GameSession(
 
 計算式と勝敗規則は`GAME_RULES.md`、新しい型やEvent値は`CORE_API.md`、差し替え構造が変わる場合は`ARCHITECTURE.md`を更新します。
 
-## 4. 合体を有効化する
+## 4. 合体ルールを変更する
 
 ### Core実装
 
-Coreには`FusePiecesCommand`、`FusePiecesCommandHandler`、`IFusionResolver`、`PiecesFused`があります。標準では`DisabledFusionResolver`が使用されます。
+Coreには`FusePiecesCommand`、`FusePiecesCommandHandler`、`IFusionResolver`、`PiecesFused`があります。標準では隣接自駒を25%大成功、50%成功、25%失敗で処理する`AdjacentFusionResolver`が使用されます。
 
 ```csharp
 public interface IFusionResolver
@@ -154,7 +154,7 @@ public interface IFusionResolver
 }
 ```
 
-1. `IFusionResolver.IsEnabled`を`true`にするResolverを追加します。
+1. 標準以外の判定が必要な場合は`IFusionResolver.IsEnabled`を`true`にするResolverを追加します。
 2. `GetLegalFusions`で手番プレイヤーの合法な駒ペアを`FusionPair`の一覧として返します。
 3. `TryResolve`で合体後の`PieceState`を含む`FusionResolution`を返します。
 4. 合体後の`PieceState`には、重複しないID、有効な位置、正の戦闘力、登録済み`MovementProfileId`を設定します。
@@ -182,7 +182,8 @@ public interface IFusionResolver
 - 合体後ID、位置、戦闘力、`MovementProfileId`。
 - 合体後の手番交代・自動パス。
 - 2駒選択、元Viewの削除、新Viewの生成。
-- `DisabledFusionResolver`を使用する標準設定で`FusionDisabled`を返すこと。
+- 固定`IRandomSource`による成功・大成功・失敗の再現。
+- 合体後の永続効果履歴の和集合と、第一駒だけの滞在中効果継承。
 
 ### 文書更新
 
@@ -198,19 +199,20 @@ public interface IFusionResolver
 public interface ICellEffectHandler
 {
     string EffectId { get; }
+    bool BlocksPowerRandomization { get; }
     CellEffectResult Apply(CellEffectContext context);
 }
 ```
 
 1. 効果ごとに`ICellEffectHandler`を実装します。
 2. `EffectId`を重複しない固定値にします。
-3. `Apply`から更新後の`PieceState`と追加Eventを返します。
+3. `Apply`から更新後の`PieceState`、追加Event、必要なら`ReservePieceGrant`を返します。
 
-現在の契約で変更できるのは、同じ駒の戦闘力と登録済み`MovementProfileId`です。ID、所有者、位置を変更する結果は`GameSession`に拒否されます。
+効果は`CellEffectDefinition`で`WhileOccupied`または`PermanentOncePerPiece`を宣言します。同じセルに異なるLifetimeは設定できません。ID、所有者、位置を変更する結果は`GameSession`に拒否されます。
 
 ### 本番への配線
 
-Handlerを作成しただけでは発動しません。`BoardGameBootstrap`でHandlerを生成し、`GameSession`の`cellEffectHandlers`へ登録します。
+Handlerを作成しただけでは発動しません。Unity側では`CellEffectConfig`派生AssetがCore定義とHandlerを生成し、`BoardGameBootstrap`が`GameSession`へ登録します。
 
 ```csharp
 var session = new GameSession(
@@ -218,20 +220,29 @@ var session = new GameSession(
     cellEffectHandlers: new ICellEffectHandler[] { new PowerUpEffect() });
 ```
 
-未登録の`EffectId`が設定されたセルへ駒が入ると`InvalidOperationException`になるため、Handler登録とAsset設定を同じ変更に含めます。
+効果定義またはHandlerが未登録の場合は`GameDefinition`／`GameSession`生成時に拒否されるため、Handler登録とAsset設定を同じ変更に含めます。
 
 ### 設定
 
-`StandardBoardGameConfig.asset`の対象座標へ、Handlerと同じ`EffectId`を実行順に設定します。見た目が必要な場合は`BoardView`へ表示を追加しますが、効果計算はCoreに残します。
+1. `CombatPowerBoostEffectConfig`、`ReservePieceGrantEffectConfig`、または新しい`CellEffectConfig`派生Assetを作成し、固有の`EffectId`とLifetime、効果値を設定します。
+2. 作成したAssetを`StandardBoardGameConfig.asset`の`cellEffectDefinitions`へ登録します。
+3. 対象座標の`cellEffects`へ同じ`EffectId`を実行順に設定します。
+4. 見た目が必要な場合は`BoardView`へ表示を追加しますが、効果計算はCoreに残します。
+
+標準Configは現在どちらの一覧も空で、特殊マスは未配置です。効果定義だけ、または座標のIDだけを設定した状態ではゲーム定義の生成時に拒否されます。
 
 ### テスト
 
-- Handlerの呼び出し順。
-- 戦闘力・`MovementProfileId`の更新。
+- Handlerの呼び出し順とLifetime混在の拒否。
+- 滞在中効果の退出解除、ダメージ消費、再進入。
+- 永続効果の一度だけの適用とランダム化拒否。
+- 戦闘力・`MovementProfileId`の更新、リザーブ追加。
 - 複数効果の累積。
 - 未登録IDと不正な結果の拒否。
 - `CellEffectTriggered`、`PiecePowerChanged`、追加Eventの値と順序。
 - Bootstrapで登録したHandlerがConfig上のセルで発動するPlayMode統合。
+- リザーブ獲得時に盤上＋リザーブが`MaxPiecesPerPlayer`を超えないこと。
+- `DeployReservePieceCommand`が`ReserveDeploymentDepth`内の空きマスだけを合法手として返すこと。
 
 ### 文書更新
 
@@ -295,9 +306,9 @@ CPU実装は将来の`GCCC.BoardGame.AI`アセンブリへ置き、Coreだけを
 
 ### Core実装
 
-新しい操作が既存のMoveまたはFuseで表現できない場合にだけCommandを追加します。
+新しい操作が既存の`MovePieceCommand`、`FusePiecesCommand`、`RandomizePowerCommand`で表現できない場合にだけCommandを追加します。
 
-Commandの追加はCoreアセンブリ内でのみ可能です。`IGameCommandHandler`は`internal`、`GameSession.ExecuteMove`と`ExecuteFusion`も`internal`で、Handlerの登録先は`GameSession`のコンストラクタ内にある固定配列です。外部アセンブリからHandlerを登録する口はありません。他の拡張と違って`GameSession`本体の変更を伴うため、[§1](#1-拡張時の共通原則)のとおり契約だけを先行PRとして確定してから進めます。
+Commandの追加はCoreアセンブリ内でのみ可能です。`IGameCommandHandler`と`GameSession`の各操作実行メソッドは`internal`で、Handlerの登録先は`GameSession`のコンストラクタ内にある固定配列です。外部アセンブリからHandlerを登録する口はありません。他の拡張と違って`GameSession`本体の変更を伴うため、[§1](#1-拡張時の共通原則)のとおり契約だけを先行PRとして確定してから進めます。
 
 1. Core Commandsへ`GameCommand`派生型を追加します。
 2. `IGameCommandHandler`実装を追加します。

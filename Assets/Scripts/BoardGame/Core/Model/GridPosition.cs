@@ -52,4 +52,13 @@ namespace GCCC.BoardGame.Core.Model
             return !left.Equals(right);
         }
     }
+    public static class GridPositionExtensions
+{
+    public static bool IsAdjacentTo(this GridPosition a, GridPosition b)
+    {
+        int dCol = Math.Abs(a.Column - b.Column);
+        int dRow = Math.Abs(a.Row - b.Row);
+        return dCol + dRow == 1;
+    }
+}
 }

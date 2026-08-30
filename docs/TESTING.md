@@ -19,8 +19,12 @@
 - 相手陣地到達での勝利と、勝敗確定後のCommand拒否
 - 相手の全滅が勝利にならないことと自動パス
 - 両者行動不能での引き分け
-- 合体が無効なときの失敗理由
-- セル効果の実行順と累積
+- 隣接する自駒が合体を試行でき、成功・失敗のどちらでも手番を消費すること
+- 注入乱数による戦闘力ランダム化と手番消費
+- 滞在中効果の退出解除、ダメージ優先消費、再進入時の回復
+- 永続効果の一度だけの適用とランダム化拒否
+- リザーブ追加、所有駒上限6、両プレイヤーの配置範囲、リセット、合体時の効果履歴継承
+- セル効果の実行順、累積、Lifetime混在拒否
 - 過去のSnapshotが後続のCommandで変化しないこと
 - リセットによる完全復元
 
@@ -33,6 +37,8 @@
 | `CreateSession(firstPlayer, params pieces)` | 標準プロファイルの6×10盤面でSessionを作る |
 | `CreateDefinition(firstPlayer, cellEffects, params pieces)` | セル効果を指定した`GameDefinition`を作る |
 | `CreateDefinitionWithProfiles(firstPlayer, profiles, cellEffects, params pieces)` | 独自の移動プロファイルを差し込む |
+| `CreateDefinitionWithEffects(firstPlayer, cellEffects, definitions, params pieces)` | Lifetimeを指定した特殊マス定義を作る |
+| `CreateDefinitionWithEffectsAndLimits(...)` | 駒上限とリザーブ配置範囲を指定した定義を作る |
 | `InitialPiece(id, column, row, owner, power, movementProfileId)` | 初期駒定義を1行で書く。戦闘力とプロファイルIDは省略可 |
 | `GetPiece(snapshot, position)` | 位置を指定して駒を取得する |
 | `AssertPiece(snapshot, position, owner, combatPower)` | 位置・所有者・戦闘力をまとめて検証する |
@@ -51,9 +57,15 @@
 - 手番プレイヤーだけが選択でき、合法手が強調されること
 - 1操作で1Commandだけ実行され、Viewと手番が更新されること
 - 相打ち時に両方の駒Viewが削除されること
-- 到達勝利でHUDが更新され、盤面入力が停止すること
+- 起動時の`TitleScene`表示と、ゲーム開始による新規ゲーム生成
+- 勝利・引き分けのリザルト表示と、表示中の盤面入力遮断
+- リザルトから`TitleScene`へ戻れること
 - リセットボタンによる状態とViewの復元
-- `SampleScene`がBootstrapだけをCompositionルートとして読み込めること
+- `SampleScene`がBootstrap、単一の`BoardGameAudioManager`、EventSystem、BGM／SFX用AudioSourceを生成すること
+- BGM／SFXスライダーがAudioManagerとAudioSourceの音量へ反映されること
+- 特殊マスのオーバーレイ、凡例、リザーブ数がSnapshotどおりに表示されること
+- リザーブ配置候補の表示、配置後の駒View生成、配置ボタンの状態
+- ランダム化ボタンが対象駒の選択中だけ有効になること
 
 ## 3. Unity Test Runnerで実行する
 
@@ -103,15 +115,20 @@ Test Runnerの結果保存を知らせるUnity内部ログが表示される場�
 ## 5. 手動スモークテスト
 
 - [ ] Game Viewを16:9にして盤面全体と両陣地ラベルが表示される
+- [ ] 起動時にタイトルと「ゲーム開始」が表示され、ゲーム本体へ遷移できる
 - [ ] 60マス、青6駒、赤6駒が表示される
 - [ ] 全駒の初期戦闘力が1と表示される
 - [ ] 手番中の自駒だけ選択できる
 - [ ] 同じ駒で選択解除、別の自駒で選択変更できる
 - [ ] 空き合法手が緑、敵駒の合法手がオレンジになる
+- [ ] 選択中の合法な自駒だけ「パワーランダム化」が有効になり、1〜3への変更後に手番が進む
+- [ ] 隣接する自駒で「合体」が有効になり、青い候補の選択後に結果表示と手番更新が行われる
 - [ ] 8方向へ1マスだけ動ける
 - [ ] 自陣、盤外、自駒上へ移動できない
 - [ ] 同戦闘力の衝突で両駒が消滅する
-- [ ] 相手陣地到達で勝利表示になり、その後の盤面操作が止まる
+- [ ] 相手陣地到達でリザルトが表示され、その後の盤面操作が止まる
+- [ ] 「スタート画面に戻る」でBGMが停止し、タイトルへ戻る
+- [ ] BGM／SFXスライダーが音量へ反映され、UI操作が盤面へ伝播しない
 - [ ] リセットで12駒、先手、選択、候補、勝敗が復元される
 - [ ] リセットボタン押下で背後の盤面が反応しない
 - [ ] 通常再生中のConsole Error・Warningが0件
@@ -128,8 +145,7 @@ Test Runnerの結果保存を知らせるUnity内部ログが表示される場�
 
 ## 7. 現在の未検証領域
 
-- 具体的な合体Resolverと合体UI
-- 実ゲームで使用する特殊マスHandler
+- 標準盤面への具体的な特殊マス配置とゲームバランス
 - CPU Agentと非同期思考
 - 実機のタッチデバイス入力
 - 複数解像度・縦長画面の網羅的な表示確認

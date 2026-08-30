@@ -9,6 +9,9 @@ namespace GCCC.BoardGame.Core.Commands
         NotPieceOwner,
         IllegalMove,
         FusionDisabled,
+        ReservePieceNotFound,
+        PieceLimitReached,
+        InvalidDeploymentPosition,
         InvalidCommand
     }
 }

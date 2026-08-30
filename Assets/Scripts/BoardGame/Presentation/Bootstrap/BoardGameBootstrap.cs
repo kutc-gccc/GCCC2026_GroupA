@@ -1,8 +1,11 @@
 using GCCC.BoardGame.Core;
 using GCCC.BoardGame.Core.Model;
+using GCCC.BoardGame.Presentation.Audio;
 using GCCC.BoardGame.Presentation.Config;
 using GCCC.BoardGame.Presentation.Input;
 using GCCC.BoardGame.Presentation.Views;
+using GCCC.BoardGame.Core.Rules.CellEffects;
+using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -15,6 +18,7 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
         [SerializeField] private BoardView boardViewPrefab;
         [SerializeField] private PieceViewManager pieceViewsPrefab;
         [SerializeField] private GameHudView hudViewPrefab;
+        [SerializeField] private BoardGameAudioManager audioManagerPrefab;
 
         // プレイヤーごとの駒
         [SerializeField] private Sprite player1PieceSprite;
@@ -25,18 +29,15 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
 
         private RuntimeSpriteFactory spriteFactory;
         private GameHudView hudView;
+        private BoardGameAudioManager audioManager;
 
         public GameSession Session { get; private set; }
-
         public GameCoordinator Coordinator { get; private set; }
-
         public BoardView BoardView { get; private set; }
-
         public PieceViewManager PieceViews { get; private set; }
-
         public GameSnapshot Snapshot => Session?.Snapshot;
-
         public GridPosition? SelectedCell => Coordinator?.SelectedCell;
+<<<<<<< HEAD
 
         public int GeneratedCellCount =>
             BoardView != null ? BoardView.GeneratedCellCount : 0;
@@ -49,12 +50,28 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
 
         public string StatusText =>
             hudView != null ? hudView.StatusText : string.Empty;
+=======
+        public int GeneratedCellCount => BoardView != null ? BoardView.GeneratedCellCount : 0;
+        public int PieceViewCount => PieceViews != null ? PieceViews.PieceViewCount : 0;
+        public int MoveIndicatorCount => BoardView != null ? BoardView.MoveIndicatorCount : 0;
+        public int EffectOverlayCount =>
+            BoardView != null ? BoardView.EffectOverlayCount : 0;
+        public string StatusText => hudView != null ? hudView.StatusText : string.Empty;
+>>>>>>> 0056d35ca779190a7d9c14645dbf2b3234c8cee8
+
+        public string ResultText => hudView != null ? hudView.ResultText : string.Empty;
+
+        public bool IsResultVisible => hudView != null && hudView.IsResultVisible;
+        public string ReserveText => hudView != null ? hudView.ReserveText : string.Empty;
+        public bool IsEffectLegendVisible =>
+            hudView != null && hudView.IsEffectLegendVisible;
 
         private void Awake()
         {
             GameDefinition definition = config != null
                 ? config.CreateDefinition()
                 : GameDefinition.CreateStandard();
+<<<<<<< HEAD
 
             Session = new GameSession(definition);
 
@@ -62,6 +79,24 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
 
             Camera boardCamera =
                 ConfigureCamera(definition.Columns, definition.Rows);
+=======
+            Session = new GameSession(
+                definition,
+                cellEffectHandlers: config != null
+                    ? config.CreateCellEffectHandlers()
+                    : Array.Empty<ICellEffectHandler>());
+            spriteFactory = new RuntimeSpriteFactory();
+
+            Camera boardCamera = ConfigureCamera(definition.Columns, definition.Rows);
+            audioManager = audioManagerPrefab != null
+                ? CreatePresentationComponent(audioManagerPrefab, "Board Game Audio")
+                : GetComponent<BoardGameAudioManager>();
+            if (audioManager == null)
+            {
+                audioManager = CreatePresentationComponent<BoardGameAudioManager>(
+                    null, "Board Game Audio");
+            }
+>>>>>>> 0056d35ca779190a7d9c14645dbf2b3234c8cee8
 
             // 盤
             BoardView = CreatePresentationComponent(
@@ -88,6 +123,7 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
                 hudViewPrefab,
                 "Game HUD");
 
+<<<<<<< HEAD
             hudView.Initialize();
 
             // ゲーム進行
@@ -97,7 +133,17 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
                 PieceViews,
                 hudView);
 
+=======
+            hudView = CreatePresentationComponent(hudViewPrefab, "Game HUD");
+            hudView.Initialize(audioManager);
+
+            Coordinator = new GameCoordinator(
+                Session, BoardView, PieceViews, hudView, audioManager: audioManager);
+>>>>>>> 0056d35ca779190a7d9c14645dbf2b3234c8cee8
             hudView.ResetRequested += Coordinator.Reset;
+            hudView.FuseRequested += Coordinator.ToggleFusionMode;
+            hudView.ReserveDeployRequested += Coordinator.ToggleReserveDeployMode;
+            hudView.StartScreenRequested += ReturnToTitleScreen;
 
             // 入力
             GameObject inputObject =
@@ -151,9 +197,18 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
             Coordinator.Reset();
         }
 
+<<<<<<< HEAD
         private static Camera ConfigureCamera(
             int columns,
             int rows)
+=======
+        private static void ReturnToTitleScreen()
+        {
+            SceneManager.LoadScene(BoardGameSceneNames.Title, LoadSceneMode.Single);
+        }
+
+        private static Camera ConfigureCamera(int columns, int rows)
+>>>>>>> 0056d35ca779190a7d9c14645dbf2b3234c8cee8
         {
             Camera boardCamera = Camera.main;
 
@@ -168,6 +223,17 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
 
                 boardCamera =
                     cameraObject.GetComponent<Camera>();
+            }
+
+            AudioListener[] listeners = FindObjectsByType<AudioListener>(FindObjectsSortMode.None);
+            foreach (AudioListener listener in listeners)
+            {
+                listener.enabled = listener.GetComponent<Camera>() == boardCamera;
+            }
+
+            if (boardCamera.GetComponent<AudioListener>() == null)
+            {
+                boardCamera.gameObject.AddComponent<AudioListener>();
             }
 
             boardCamera.transform.SetPositionAndRotation(
@@ -260,10 +326,18 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
             if (hudView != null &&
                 Coordinator != null)
             {
+<<<<<<< HEAD
                 hudView.ResetRequested -=
                     Coordinator.Reset;
+=======
+                hudView.ResetRequested -= Coordinator.Reset;
+                hudView.FuseRequested -= Coordinator.ToggleFusionMode;
+                hudView.ReserveDeployRequested -= Coordinator.ToggleReserveDeployMode;
+                hudView.StartScreenRequested -= ReturnToTitleScreen;
+>>>>>>> 0056d35ca779190a7d9c14645dbf2b3234c8cee8
             }
 
+            Coordinator?.Dispose();
             spriteFactory?.Dispose();
         }
     }

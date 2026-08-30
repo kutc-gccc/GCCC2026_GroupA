@@ -30,6 +30,7 @@ flowchart TB
 | Presentation Input | マウス・タッチを盤面座標へ変換 | ルール判定の再実装 |
 | `GameCoordinator` | 選択状態、Agent、Command、Viewの仲介 | Core状態の直接変更 |
 | Presentation Views | SnapshotとEventに従った表示 | 勝敗やダメージの独自計算 |
+| Presentation Audio | Eventに対応するBGM・SFX再生と音量管理 | 戦闘・合体結果の独自判定 |
 | Bootstrap | Config、Core、Prefab、Cameraの組み立て | ゲームルールの実装 |
 
 ## 3. Coreの状態モデル
@@ -45,11 +46,13 @@ flowchart TB
 | `MovementProfileId` | 駒が使用する戦闘力別移動プロファイルのID |
 | `PowerMovementBand` | 戦闘力の最小値・最大値と、その範囲で許可する方向 |
 | `PowerMovementProfile` | 戦闘力1以上を隙間なく覆う移動帯域の集合 |
-| `PieceState` | ID、所有者、位置、戦闘力、移動プロファイルIDを持つ不変オブジェクト |
+| `PieceState` | ID、所有者、位置、通常／一時戦闘力、移動プロファイルID、効果状態を持つ不変オブジェクト |
 | `CellDefinition` | 位置、陣地所有者、特殊効果IDの順序付き一覧 |
+| `CellEffectDefinition` | 効果IDと`WhileOccupied`／`PermanentOncePerPiece`の固定定義 |
 | `InitialPieceDefinition` | リセット時に生成する駒の定義 |
-| `GameDefinition` | 盤面サイズ、全セル、初期駒、先手、移動プロファイル |
-| `GameSnapshot` | 外部へ公開する読み取り専用の状態コピー |
+| `GameDefinition` | 盤面サイズ、全セル、初期駒、先手、移動プロファイル、効果定義 |
+| `PlayerState` | プレイヤーごとのリザーブ駒を持つ不変の実行時状態 |
+| `GameSnapshot` | 駒、セル、効果定義、Player状態、手番、勝敗を公開する読み取り専用コピー |
 
 `GridPosition`にUnityの`Vector2Int`を使わないのは、Coreをエンジン非依存に保つためです。同じ理由で、座標が盤内かどうかの判定も`GridPosition`ではなく`GameSnapshot`やRuleが持ちます。
 
@@ -70,7 +73,7 @@ IReadOnlyList<GameCommand> GetLegalCommands(PlayerId player);
 void Reset();
 ```
 
-`GameSnapshot`のコンストラクタはCore内部専用です。Presentationや将来のCPUがゲーム状態を捏造できないようにするための制限です。
+`GameSnapshot`は不変の読み取りモデルです。通常は`GameSession.Snapshot`から取得し、合法Commandを付与するときは`WithLegalCommands`を使用します。公開コンストラクタはテストや独立したView描画に利用できますが、生成したSnapshotから`GameSession`内部状態を変更することはできません。
 
 ## 4. CommandとResult
 
@@ -79,7 +82,9 @@ void Reset();
 Commandは「状態をこの値に変える」というデータではなく、プレイヤーが`GameSession`へ送る操作要求です。
 
 - `MovePieceCommand`: 指定した自分の駒を目的地へ動かす要求。
-- `FusePiecesCommand`: 指定した2個の駒を合体する要求。標準ルールでは無効。
+- `FusePiecesCommand`: 指定した隣接自駒2個の合体を試みる要求。
+- `RandomizePowerCommand`: 指定した自駒の通常戦闘力を1〜3へ変更する要求。
+- `DeployReservePieceCommand`: リザーブ駒を自陣側の合法な空きマスへ配置する要求。
 
 すべてのCommandは`Player`を持ち、`GameSession.Execute`で次の順に検証されます。
 
@@ -101,6 +106,9 @@ Commandは「状態をこの値に変える」というデータではなく、�
 | `NotPieceOwner` | 指定した駒が自分のものではない |
 | `IllegalMove` | ルール上許可されない移動または合体 |
 | `FusionDisabled` | 合体機能が無効 |
+| `ReservePieceNotFound` | 指定したリザーブ駒が存在しない |
+| `PieceLimitReached` | プレイヤーの盤上駒が上限に達している |
+| `InvalidDeploymentPosition` | リザーブ配置範囲外、盤外、または使用中のマス |
 | `InvalidCommand` | Commandがnull、または対応Handlerがない |
 
 失敗時に状態を変更しないことは、CPUやテストがCommandを安全に試せる前提になります。
@@ -116,7 +124,12 @@ Eventは「何をしてほしいか」ではなく、Command実行によって�
 | `PiecePowerChanged` | 生存駒の戦闘力が変わった |
 | `PieceDestroyed` | 駒が盤面から消滅した |
 | `PiecesFused` | 2個の駒が新しい駒へ合体した |
+| `FusionAttemptFailed` | 合法な合体を試みたが確率判定に失敗した |
+| `RandomizePowerEvent` | パワーランダム化による変更前後の値が確定した |
 | `CellEffectTriggered` | セル効果が順序どおりに発動した |
+| `CellEffectExpired` | 退出により滞在中効果が終了した |
+| `ReservePieceAdded` | プレイヤーのリザーブへ駒が追加された |
+| `ReservePieceDeployed` | リザーブ駒が盤上へ配置された |
 | `TurnChanged` | 手番が交代、または自動パスされた |
 | `GameEnded` | 勝者または引き分けが確定した |
 
@@ -133,6 +146,7 @@ sequenceDiagram
     participant Session as GameSession
     participant Rules as Rule/Resolver
     participant Views as Board/Piece/HUD Views
+    participant Audio as BoardGameAudioManager
 
     User->>Input: マスをクリックまたはタッチ
     Input->>Coordinator: HandleCellClick(GridPosition)
@@ -144,6 +158,7 @@ sequenceDiagram
     Rules-->>Session: 解決結果
     Session-->>Coordinator: CommandResult + Events
     Coordinator->>Views: Eventsと最新Snapshotを反映
+    Coordinator->>Audio: Eventsに対応するSFXを再生
 ```
 
 `HumanPlayerAgent.BeginTurn`は最新Snapshot、合法Command一覧、送信用callbackを受け取ります。将来のCPUも同じ`IPlayerAgent`契約を利用します。
@@ -156,12 +171,12 @@ Ruleは状態を直接所有せず、`GameSession`から渡された入力を計
 |---|---|---|
 | `IMovementRule` | `GameSnapshot`, `PieceState` | その駒の合法な移動先一覧 |
 | `IMoveDirectionResolver` | `PieceState` | プロファイルと現在戦闘力に対応する実効`MoveDirections` |
-| `ICombatResolver` | 攻撃側と防御側の`PieceState` | 双方の残り戦闘力を持つ`CombatResolution` |
+| `ICombatResolver` | 攻撃側と防御側の`PieceState` | 双方が受けるダメージ量を持つ`CombatResolution` |
 | `IFusionResolver` | `GameSnapshot`または2個の`PieceState` | 合法ペアの`FusionPair`一覧と、合体後の駒を持つ`FusionResolution` |
-| `ICellEffectHandler` | Snapshot、駒、セルを持つ`CellEffectContext` | 効果適用後の駒とEventを持つ`CellEffectResult` |
+| `ICellEffectHandler` | Snapshot、駒、セル、効果定義を持つ`CellEffectContext` | 更新駒、Event、リザーブ追加要求を持つ`CellEffectResult` |
 | `TurnResolver` | 行動した`PlayerId`と、各プレイヤーに合法手があるかを返す関数 | 次の手番、自動パス、引き分けを持つ`TurnResolution` |
 
-標準実装は`DirectionalMovementRule`、`ProfileMoveDirectionResolver`、`SimultaneousCombatResolver`、`DisabledFusionResolver`です。`GameSession`は`GameDefinition.MovementProfiles`から標準Resolverを組み立てます。移動Rule全体を変更する場合は`GameSession`のコンストラクターへ`IMovementRule`を注入できます。
+標準実装は`DirectionalMovementRule`、`ProfileMoveDirectionResolver`、`SimultaneousCombatResolver`、`AdjacentFusionResolver`です。乱数は`IRandomSource`として注入でき、合体と戦闘力ランダム化を決定的にテストできます。`GameSession`は`GameDefinition.MovementProfiles`から標準移動Resolverを組み立てます。
 
 `IPlayerAgent`は、人間と将来のCPUに共通する「誰がCommandを選ぶか」の契約です。
 
@@ -177,13 +192,16 @@ Ruleは状態を直接所有せず、`GameSession`から渡された入力を計
 
 ### SceneとBootstrap
 
-`SampleScene`のルートはMain Cameraと`Board Game Bootstrap`だけです。`BoardGameBootstrap`は次を組み立てます。
+起動Sceneは`TitleScene`です。`TitleScreenController`が「ゲーム開始」を受け取り、ゲーム本体の`SampleScene`を読み込みます。ゲーム終了時は`GameHudView`がリザルトを重ね、`BoardGameBootstrap`が「スタート画面に戻る」を受け取って`TitleScene`へ遷移します。Scene遷移はPresentationに閉じ、CoreはScene名や`SceneManager`を参照しません。
+
+`SampleScene`のルートはMain Cameraと`Board Game Bootstrap`です。Bootstrapと同じGameObjectに`BoardGameAudioManager`を配置し、EventSystem、BGM／SFX用AudioSource、盤面UIは実行時に生成します。`BoardGameBootstrap`は次を組み立てます。
 
 1. `BoardGameConfig`から`GameDefinition`を生成する。
 2. `GameSession`と`RuntimeSpriteFactory`を作る。
 3. Cameraを盤面全体が収まる正投影に設定する。
-4. Board、Piece、HUDのPrefabを生成する。
-5. `GameCoordinator`と`BoardInputController`を接続する。
+4. `BoardGameAudioManager`を取得または生成する。
+5. Board、Piece、HUDのPrefabを生成する。
+6. `GameCoordinator`、`BoardInputController`、音声イベントを接続する。
 
 Prefab参照が未設定の場合は、同じComponentを持つGameObjectを実行時に生成するフォールバックがあります。
 
@@ -196,7 +214,7 @@ Prefab参照が未設定の場合は、同じComponentを持つGameObjectを実�
 | `BoardView` | 60セル、陣地枠、ラベル、選択、移動候補、座標変換 | 駒の戦闘力や勝敗ルール |
 | `PieceViewManager` | `PieceView`の生成、Eventに従った更新・削除、リセット時の再構築 | 戦闘結果の再計算 |
 | `PieceView` | 1個の駒の所有者色、位置、戦闘力テキスト | Coreの`PieceState`の直接変更 |
-| `GameHudView` | 手番・勝敗テキスト、リセットボタン、UI入力判定 | 手番や勝者の決定 |
+| `GameHudView` | 手番、操作ボタン、音量スライダー、リザルト表示、UI入力遮断 | 手番や勝者の決定 |
 | `RuntimeSpriteFactory` | セルと円形駒のSpriteを実行時生成 | ゲーム状態 |
 
 `PieceState`と`PieceView`は1対1で対応しますが、役割は異なります。`PieceState`はCore上の正しいゲーム状態、`PieceView`はUnity上の見た目です。各駒GameObjectへ戦闘ルールを持たせず、`PieceViewManager`がSnapshotとEventを使って見た目だけを同期します。
@@ -205,7 +223,7 @@ Prefab参照が未設定の場合は、同じComponentを持つGameObjectを実�
 
 盤面の初期設定は`StandardBoardGameConfig.asset`が持ちます。設定項目と標準値は[開発ガイド §5](DEVELOPMENT.md#5-standardboardgameconfig)を参照してください。
 
-盤面、駒、HUDを個別Prefabに分けているのは、UI担当と盤面担当が同じScene YAMLを同時に編集する可能性を減らすためです。同じ理由で、Sceneのルートに置くのはMain CameraとBootstrapだけにしています。
+盤面、駒、HUDを個別Prefabに分けているのは、UI担当と盤面担当が同じScene YAMLを同時に編集する可能性を減らすためです。ゲーム本体はBootstrapをComposition Rootとし、Scene上ではAudioManagerをBootstrapと同じGameObjectへ保持します。EventSystemとAudioSourceは実行時に生成します。
 
 ## 10. 共有変更になりやすい箇所
 

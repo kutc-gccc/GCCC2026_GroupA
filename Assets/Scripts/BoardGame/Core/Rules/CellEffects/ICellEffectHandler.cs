@@ -4,6 +4,8 @@ namespace GCCC.BoardGame.Core.Rules.CellEffects
     {
         string EffectId { get; }
 
+        bool BlocksPowerRandomization { get; }
+
         CellEffectResult Apply(CellEffectContext context);
     }
 }
