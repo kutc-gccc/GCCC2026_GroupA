@@ -25,13 +25,17 @@ namespace GCCC.BoardGame.Core.Model
             bool isDraw,
             IReadOnlyList<GameCommand> legalCommands = null,
             IEnumerable<CellEffectDefinition> effectDefinitions = null,
-            IEnumerable<PlayerState> players = null)
+            IEnumerable<PlayerState> players = null,
+            int maxPiecesPerPlayer = GameDefinition.StandardMaxPiecesPerPlayer,
+            int reserveDeploymentDepth = GameDefinition.StandardReserveDeploymentDepth)
         {
             Columns = columns;
             Rows = rows;
             CurrentPlayer = currentPlayer;
             Winner = winner;
             IsDraw = isDraw;
+            MaxPiecesPerPlayer = maxPiecesPerPlayer;
+            ReserveDeploymentDepth = reserveDeploymentDepth;
             LegalCommands = new ReadOnlyCollection<GameCommand>(
                 (legalCommands ?? Array.Empty<GameCommand>()).ToArray());
 
@@ -92,6 +96,10 @@ namespace GCCC.BoardGame.Core.Model
 
         public PlayerId CurrentPlayer { get; }
 
+        public int MaxPiecesPerPlayer { get; }
+
+        public int ReserveDeploymentDepth { get; }
+
         public PlayerId? Winner { get; }
 
         public bool IsDraw { get; }
@@ -138,6 +146,11 @@ namespace GCCC.BoardGame.Core.Model
             return Pieces.Count(piece => piece.Owner == player);
         }
 
+        public int GetOwnedPieceCount(PlayerId player)
+        {
+            return GetPieceCount(player) + GetPlayer(player).ReservePieces.Count;
+        }
+
         public GameSnapshot WithLegalCommands(IReadOnlyList<GameCommand> legalCommands)
         {
             return new GameSnapshot(
@@ -150,7 +163,9 @@ namespace GCCC.BoardGame.Core.Model
                 IsDraw,
                 legalCommands,
                 CellEffectDefinitions,
-                Players);
+                Players,
+                MaxPiecesPerPlayer,
+                ReserveDeploymentDepth);
         }
 
         private static PieceState CopyPiece(PieceState piece)

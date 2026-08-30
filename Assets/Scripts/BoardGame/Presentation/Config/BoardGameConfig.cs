@@ -18,6 +18,10 @@ namespace GCCC.BoardGame.Presentation.Config
         [SerializeField] private int player1StartRow = 1;
         [SerializeField] private int player2StartRow = 8;
         [SerializeField, Min(1)] private int initialCombatPower = 1;
+        [SerializeField, Min(1)] private int maxPiecesPerPlayer =
+            GameDefinition.StandardMaxPiecesPerPlayer;
+        [SerializeField, Min(0)] private int reserveDeploymentDepth =
+            GameDefinition.StandardReserveDeploymentDepth;
         [SerializeField] private string initialMovementProfileId =
             PowerMovementProfile.StandardIdValue;
         [SerializeField] private List<MovementProfileEntry> movementProfiles =
@@ -74,7 +78,9 @@ namespace GCCC.BoardGame.Presentation.Config
                 firstPlayer,
                 coreMovementProfiles,
                 (cellEffectDefinitions ?? new List<CellEffectConfig>())
-                .Select(effect => effect.CreateDefinition()));
+                .Select(effect => effect.CreateDefinition()),
+                maxPiecesPerPlayer,
+                reserveDeploymentDepth);
         }
 
         public IReadOnlyList<ICellEffectHandler> CreateCellEffectHandlers()

@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using GCCC.BoardGame.Core.Events;
 using GCCC.BoardGame.Core.Model;
 using GCCC.BoardGame.Presentation;
 using GCCC.BoardGame.Presentation.Audio;
@@ -59,6 +60,9 @@ namespace GCCC.BoardGame.Tests
             Assert.That(GameObject.Find("Game HUD"), Is.Not.Null);
             Assert.That(GameObject.Find("Board Input"), Is.Not.Null);
             Assert.That(GameObject.Find("Reset Button"), Is.Not.Null);
+            Assert.That(GameObject.Find("Reserve Deploy Button"), Is.Not.Null);
+            Assert.That(GameObject.Find("Reserve Deploy Button")
+                .GetComponent<Button>().interactable, Is.False);
             Assert.That(GameObject.Find("Audio Volume Controls"), Is.Not.Null);
             Assert.That(GameObject.Find("BGM Slider"), Is.Not.Null);
             Assert.That(GameObject.Find("SFX Slider"), Is.Not.Null);
@@ -152,6 +156,74 @@ namespace GCCC.BoardGame.Tests
             Assert.That(hud.IsEffectLegendVisible, Is.True);
             Assert.That(hud.ReserveText, Does.Contain("青: 1"));
             Assert.That(hud.ReserveText, Does.Contain("赤: 0"));
+        }
+
+        [UnityTest]
+        public IEnumerator ReserveDeploymentCandidatesAndPieceViewAreRendered()
+        {
+            GameSnapshot standard = bootstrap.Snapshot;
+            ReservePieceState reserve = new ReservePieceState(
+                new PieceId(100),
+                PlayerId.Player1,
+                2,
+                PowerMovementProfile.StandardId);
+            GameSnapshot before = new GameSnapshot(
+                standard.Columns,
+                standard.Rows,
+                new PieceState[0],
+                standard.Cells,
+                PlayerId.Player1,
+                null,
+                false,
+                players: new[]
+                {
+                    new PlayerState(PlayerId.Player1, new[] { reserve }),
+                    new PlayerState(PlayerId.Player2)
+                });
+
+            auxiliaryObject = new GameObject("Reserve Deployment Presentation Test");
+            auxiliarySprites = new RuntimeSpriteFactory();
+            BoardView board = auxiliaryObject.AddComponent<BoardView>();
+            board.Initialize(Camera.main, auxiliarySprites.SquareSprite, before);
+            PieceViewManager pieces = auxiliaryObject.AddComponent<PieceViewManager>();
+            pieces.Initialize(auxiliarySprites.CircleSprite, before);
+            GameHudView hud = auxiliaryObject.AddComponent<GameHudView>();
+            hud.Initialize();
+            hud.Render(before);
+            hud.SetReserveDeployButtonInteractable(true);
+
+            GridPosition destination = new GridPosition(0, 1);
+            board.ShowSelection(
+                null,
+                new[] { destination },
+                new GridPosition[0],
+                before);
+            PieceState deployed = new PieceState(
+                reserve.Id,
+                reserve.Owner,
+                destination,
+                reserve.CombatPower,
+                reserve.MovementProfileId);
+            GameSnapshot after = new GameSnapshot(
+                standard.Columns,
+                standard.Rows,
+                new[] { deployed },
+                standard.Cells,
+                PlayerId.Player2,
+                null,
+                false);
+            pieces.ApplyEvents(
+                new GameEvent[]
+                {
+                    new ReservePieceDeployed(
+                        deployed.Id, deployed.Owner, deployed.Position)
+                },
+                after);
+            yield return null;
+
+            Assert.That(board.MoveIndicatorCount, Is.EqualTo(1));
+            Assert.That(pieces.PieceViewCount, Is.EqualTo(1));
+            Assert.That(hud.ReserveDeployButton.interactable, Is.True);
         }
 
         [UnityTest]

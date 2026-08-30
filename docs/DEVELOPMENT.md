@@ -72,6 +72,8 @@ Set-Location GCCC2026_GroupA
 | `player1StartRow` | 1 | プレイヤー1の初期配置行 |
 | `player2StartRow` | 8 | プレイヤー2の初期配置行 |
 | `initialCombatPower` | 1 | 全初期駒の戦闘力 |
+| `maxPiecesPerPlayer` | 6 | 盤上とリザーブを合わせたプレイヤーごとの所有駒上限 |
+| `reserveDeploymentDepth` | 2 | 自陣行から前方へリザーブ配置を許可する行数 |
 | `initialMovementProfileId` | standard | 全初期駒が参照する移動プロファイルID |
 | `movementProfiles` | standard 1件 | 戦闘力範囲と移動方向の対応表 |
 | `cellEffects` | 空 | 座標ごとの効果ID |

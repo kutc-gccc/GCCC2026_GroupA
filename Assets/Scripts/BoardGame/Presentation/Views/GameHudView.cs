@@ -16,6 +16,7 @@ namespace GCCC.BoardGame.Presentation.Views
         private RectTransform resetButtonRect;
         private RectTransform randomizeButtonRect;
         private RectTransform fuseButtonRect;
+        private RectTransform reserveDeployButtonRect;
         private RectTransform audioControlsRect;
         private Text statusLabel;
         private Text messageLabel;
@@ -28,20 +29,24 @@ namespace GCCC.BoardGame.Presentation.Views
         private Slider sfxSlider;
         private Button resetButton;
         private Button fuseButton;
+        private Button reserveDeployButton;
         private Button resultButton;
         private bool randomizeButtonInteractable;
         private bool fuseButtonInteractable;
+        private bool reserveDeployButtonInteractable;
         private BoardGameAudioManager audioManager;
 
         public event Action ResetRequested;
         public event Action OnRandomizePowerButtonClicked;
         public event Action FuseRequested;
+        public event Action ReserveDeployRequested;
         public event Action StartScreenRequested;
 
         public string StatusText => statusLabel != null ? statusLabel.text : string.Empty;
         public string ResultText => resultLabel != null ? resultLabel.text : string.Empty;
         public bool IsResultVisible => resultOverlay != null && resultOverlay.activeSelf;
         public Button RandomizePowerButton => randomizePowerButton;
+        public Button ReserveDeployButton => reserveDeployButton;
         public string ReserveText => reserveLabel != null ? reserveLabel.text : string.Empty;
         public bool IsEffectLegendVisible =>
             effectLegend != null && effectLegend.activeSelf;
@@ -117,6 +122,7 @@ namespace GCCC.BoardGame.Presentation.Views
             return IsPointerOverRect(resetButtonRect, screenPosition) ||
                    IsPointerOverRect(randomizeButtonRect, screenPosition) ||
                    IsPointerOverRect(fuseButtonRect, screenPosition) ||
+                   IsPointerOverRect(reserveDeployButtonRect, screenPosition) ||
                    IsPointerOverRect(audioControlsRect, screenPosition);
         }
 
@@ -126,6 +132,15 @@ namespace GCCC.BoardGame.Presentation.Views
             if (fuseButton != null)
             {
                 fuseButton.interactable = interactable && !IsResultVisible;
+            }
+        }
+
+        public void SetReserveDeployButtonInteractable(bool interactable)
+        {
+            reserveDeployButtonInteractable = interactable;
+            if (reserveDeployButton != null)
+            {
+                reserveDeployButton.interactable = interactable && !IsResultVisible;
             }
         }
 
@@ -271,6 +286,36 @@ namespace GCCC.BoardGame.Presentation.Views
             fuseLabel.text = "合体";
             fuseLabel.color = new Color32(35, 41, 52, 255);
 
+            GameObject reserveDeployObject = new GameObject(
+                "Reserve Deploy Button", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(Image), typeof(Button));
+            reserveDeployObject.transform.SetParent(canvasObject.transform, false);
+            reserveDeployButtonRect =
+                reserveDeployObject.GetComponent<RectTransform>();
+            reserveDeployButtonRect.anchorMin = Vector2.one;
+            reserveDeployButtonRect.anchorMax = Vector2.one;
+            reserveDeployButtonRect.pivot = Vector2.one;
+            reserveDeployButtonRect.sizeDelta = new Vector2(200f, 64f);
+            reserveDeployButtonRect.anchoredPosition = new Vector2(-660f, -24f);
+
+            Image reserveDeployImage = reserveDeployObject.GetComponent<Image>();
+            reserveDeployImage.color = new Color32(235, 238, 244, 255);
+            reserveDeployButton = reserveDeployObject.GetComponent<Button>();
+            reserveDeployButton.targetGraphic = reserveDeployImage;
+            reserveDeployButton.onClick.AddListener(OnReserveDeployClicked);
+            reserveDeployButton.interactable = false;
+
+            Text reserveDeployLabel = CreateUiText(
+                "Label", reserveDeployObject.transform, font, 22,
+                TextAnchor.MiddleCenter,
+                Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
+            reserveDeployLabel.rectTransform.anchorMin = Vector2.zero;
+            reserveDeployLabel.rectTransform.anchorMax = Vector2.one;
+            reserveDeployLabel.rectTransform.offsetMin = Vector2.zero;
+            reserveDeployLabel.rectTransform.offsetMax = Vector2.zero;
+            reserveDeployLabel.text = "リザーブ配置";
+            reserveDeployLabel.color = new Color32(35, 41, 52, 255);
+
             BuildResultOverlay(canvasObject.transform, font);
 
             if (EventSystem.current == null)
@@ -310,6 +355,16 @@ namespace GCCC.BoardGame.Presentation.Views
             }
 
             FuseRequested?.Invoke();
+        }
+
+        private void OnReserveDeployClicked()
+        {
+            if (IsResultVisible)
+            {
+                return;
+            }
+
+            ReserveDeployRequested?.Invoke();
         }
 
         private void OnStartScreenClicked()
@@ -364,6 +419,12 @@ namespace GCCC.BoardGame.Presentation.Views
             if (fuseButton != null)
             {
                 fuseButton.interactable = interactable && fuseButtonInteractable;
+            }
+
+            if (reserveDeployButton != null)
+            {
+                reserveDeployButton.interactable =
+                    interactable && reserveDeployButtonInteractable;
             }
 
             if (bgmSlider != null)
@@ -630,6 +691,11 @@ namespace GCCC.BoardGame.Presentation.Views
             if (fuseButton != null)
             {
                 fuseButton.onClick.RemoveListener(OnFuseClicked);
+            }
+
+            if (reserveDeployButton != null)
+            {
+                reserveDeployButton.onClick.RemoveListener(OnReserveDeployClicked);
             }
 
             if (resultButton != null)

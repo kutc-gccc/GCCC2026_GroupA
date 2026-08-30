@@ -58,12 +58,13 @@ namespace GCCC.BoardGame.Presentation.Views
             if (!selectedCell.HasValue)
             {
                 selectionIndicator.enabled = false;
-                return;
             }
-
-            selectionIndicator.transform.localPosition =
-                BoardGeometry.CellToLocalPosition(selectedCell.Value, columns, rows);
-            selectionIndicator.enabled = true;
+            else
+            {
+                selectionIndicator.transform.localPosition =
+                    BoardGeometry.CellToLocalPosition(selectedCell.Value, columns, rows);
+                selectionIndicator.enabled = true;
+            }
 
             foreach (GridPosition destination in legalDestinations)
             {

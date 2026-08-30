@@ -78,6 +78,7 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
                 Session, BoardView, PieceViews, hudView, audioManager: audioManager);
             hudView.ResetRequested += Coordinator.Reset;
             hudView.FuseRequested += Coordinator.ToggleFusionMode;
+            hudView.ReserveDeployRequested += Coordinator.ToggleReserveDeployMode;
             hudView.StartScreenRequested += ReturnToTitleScreen;
 
             GameObject inputObject = new GameObject("Board Input");
@@ -156,6 +157,7 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
             {
                 hudView.ResetRequested -= Coordinator.Reset;
                 hudView.FuseRequested -= Coordinator.ToggleFusionMode;
+                hudView.ReserveDeployRequested -= Coordinator.ToggleReserveDeployMode;
                 hudView.StartScreenRequested -= ReturnToTitleScreen;
             }
 

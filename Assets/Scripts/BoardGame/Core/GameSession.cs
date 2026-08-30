@@ -61,7 +61,8 @@ namespace GCCC.BoardGame.Core
             {
                 new MovePieceCommandHandler(),
                 new FusePiecesCommandHandler(),
-                new RandomizePowerCommandHandler()
+                new RandomizePowerCommandHandler(),
+                new DeployReservePieceCommandHandler()
             }.ToDictionary(handler => handler.CommandType);
 
             ValidateAndLoadCells();
@@ -78,7 +79,9 @@ namespace GCCC.BoardGame.Core
             winner,
             isDraw,
             effectDefinitions: definition.CellEffectDefinitions,
-            players: CreatePlayerStates());
+            players: CreatePlayerStates(),
+            maxPiecesPerPlayer: definition.MaxPiecesPerPlayer,
+            reserveDeploymentDepth: definition.ReserveDeploymentDepth);
 
         public CommandResult Execute(GameCommand command)
         {
@@ -264,6 +267,55 @@ namespace GCCC.BoardGame.Core
             return CommandResult.Succeeded(events);
         }
 
+        internal CommandResult ExecuteDeployReservePiece(
+            DeployReservePieceCommand command)
+        {
+            ReservePieceState reservePiece = reservesByPlayer[command.Player]
+                .FirstOrDefault(piece => piece.Id == command.ReservePieceId);
+            if (reservePiece == null)
+            {
+                bool belongsToOpponent = reservesByPlayer
+                    .Where(pair => pair.Key != command.Player)
+                    .SelectMany(pair => pair.Value)
+                    .Any(piece => piece.Id == command.ReservePieceId);
+                return CommandResult.Failed(belongsToOpponent
+                    ? CommandFailureReason.NotPieceOwner
+                    : CommandFailureReason.ReservePieceNotFound);
+            }
+
+            if (GetBoardPieceCount(command.Player) >= definition.MaxPiecesPerPlayer)
+            {
+                return CommandResult.Failed(CommandFailureReason.PieceLimitReached);
+            }
+
+            if (!GetLegalReserveDeploymentPositions(command.Player)
+                .Contains(command.Destination))
+            {
+                return CommandResult.Failed(
+                    CommandFailureReason.InvalidDeploymentPosition);
+            }
+
+            reservesByPlayer[command.Player].Remove(reservePiece);
+            PieceState deployedPiece = new PieceState(
+                reservePiece.Id,
+                reservePiece.Owner,
+                command.Destination,
+                reservePiece.CombatPower,
+                reservePiece.MovementProfileId);
+            AddPiece(deployedPiece);
+
+            List<GameEvent> events = new List<GameEvent>
+            {
+                new ReservePieceDeployed(
+                    deployedPiece.Id,
+                    deployedPiece.Owner,
+                    deployedPiece.Position)
+            };
+            ApplyCellEffects(deployedPiece, events);
+            ResolveNextTurn(command.Player, events);
+            return CommandResult.Succeeded(events);
+        }
+
         private IReadOnlyList<GameCommand> BuildLegalCommands(PlayerId player)
         {
             GameSnapshot snapshot = Snapshot;
@@ -293,6 +345,20 @@ namespace GCCC.BoardGame.Core
                 {
                     commands.Add(new FusePiecesCommand(
                         player, pair.FirstPieceId, pair.SecondPieceId));
+                }
+            }
+
+            if (GetBoardPieceCount(player) < definition.MaxPiecesPerPlayer)
+            {
+                GridPosition[] deploymentPositions =
+                    GetLegalReserveDeploymentPositions(player).ToArray();
+                foreach (ReservePieceState reservePiece in reservesByPlayer[player])
+                {
+                    foreach (GridPosition destination in deploymentPositions)
+                    {
+                        commands.Add(new DeployReservePieceCommand(
+                            player, reservePiece.Id, destination));
+                    }
                 }
             }
 
@@ -511,6 +577,11 @@ namespace GCCC.BoardGame.Core
                     "Reserve pieces must use a registered movement profile.");
             }
 
+            if (GetOwnedPieceCount(grant.Owner) >= definition.MaxPiecesPerPlayer)
+            {
+                return;
+            }
+
             ReservePieceState reservePiece = new ReservePieceState(
                 new PieceId(nextPieceId++),
                 grant.Owner,
@@ -518,6 +589,59 @@ namespace GCCC.BoardGame.Core
                 grant.MovementProfileId);
             reservesByPlayer[grant.Owner].Add(reservePiece);
             events.Add(new ReservePieceAdded(reservePiece));
+        }
+
+        private IEnumerable<GridPosition> GetLegalReserveDeploymentPositions(
+            PlayerId player)
+        {
+            int[] ownTerritoryRows = cellsByPosition.Values
+                .Where(cell => cell.TerritoryOwner == player)
+                .Select(cell => cell.Position.Row)
+                .Distinct()
+                .ToArray();
+            int[] opponentTerritoryRows = cellsByPosition.Values
+                .Where(cell => cell.TerritoryOwner.HasValue &&
+                               cell.TerritoryOwner.Value != player)
+                .Select(cell => cell.Position.Row)
+                .Distinct()
+                .ToArray();
+            if (ownTerritoryRows.Length != 1 || opponentTerritoryRows.Length != 1)
+            {
+                yield break;
+            }
+
+            int direction = Math.Sign(opponentTerritoryRows[0] - ownTerritoryRows[0]);
+            if (direction == 0)
+            {
+                yield break;
+            }
+
+            for (int distance = 1;
+                 distance <= definition.ReserveDeploymentDepth;
+                 distance++)
+            {
+                int row = ownTerritoryRows[0] + direction * distance;
+                for (int column = 0; column < definition.Columns; column++)
+                {
+                    GridPosition position = new GridPosition(column, row);
+                    if (IsInside(position) &&
+                        !pieceIdsByPosition.ContainsKey(position) &&
+                        !IsOpponentTerritory(player, position))
+                    {
+                        yield return position;
+                    }
+                }
+            }
+        }
+
+        private int GetBoardPieceCount(PlayerId player)
+        {
+            return piecesById.Values.Count(piece => piece.Owner == player);
+        }
+
+        private int GetOwnedPieceCount(PlayerId player)
+        {
+            return GetBoardPieceCount(player) + reservesByPlayer[player].Count;
         }
 
         private void ResolveNextTurn(

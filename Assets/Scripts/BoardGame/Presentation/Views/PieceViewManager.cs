@@ -47,6 +47,9 @@ namespace GCCC.BoardGame.Presentation.Views
                     case CellEffectTriggered effectTriggered:
                         RenderFromSnapshot(effectTriggered.PieceId, snapshot);
                         break;
+                    case ReservePieceDeployed deployed:
+                        RenderFromSnapshot(deployed.PieceId, snapshot);
+                        break;
                 }
             }
         }

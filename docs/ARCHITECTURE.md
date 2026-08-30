@@ -84,6 +84,7 @@ Commandは「状態をこの値に変える」というデータではなく、�
 - `MovePieceCommand`: 指定した自分の駒を目的地へ動かす要求。
 - `FusePiecesCommand`: 指定した隣接自駒2個の合体を試みる要求。
 - `RandomizePowerCommand`: 指定した自駒の通常戦闘力を1〜3へ変更する要求。
+- `DeployReservePieceCommand`: リザーブ駒を自陣側の合法な空きマスへ配置する要求。
 
 すべてのCommandは`Player`を持ち、`GameSession.Execute`で次の順に検証されます。
 
@@ -105,6 +106,9 @@ Commandは「状態をこの値に変える」というデータではなく、�
 | `NotPieceOwner` | 指定した駒が自分のものではない |
 | `IllegalMove` | ルール上許可されない移動または合体 |
 | `FusionDisabled` | 合体機能が無効 |
+| `ReservePieceNotFound` | 指定したリザーブ駒が存在しない |
+| `PieceLimitReached` | プレイヤーの盤上駒が上限に達している |
+| `InvalidDeploymentPosition` | リザーブ配置範囲外、盤外、または使用中のマス |
 | `InvalidCommand` | Commandがnull、または対応Handlerがない |
 
 失敗時に状態を変更しないことは、CPUやテストがCommandを安全に試せる前提になります。
@@ -125,6 +129,7 @@ Eventは「何をしてほしいか」ではなく、Command実行によって�
 | `CellEffectTriggered` | セル効果が順序どおりに発動した |
 | `CellEffectExpired` | 退出により滞在中効果が終了した |
 | `ReservePieceAdded` | プレイヤーのリザーブへ駒が追加された |
+| `ReservePieceDeployed` | リザーブ駒が盤上へ配置された |
 | `TurnChanged` | 手番が交代、または自動パスされた |
 | `GameEnded` | 勝者または引き分けが確定した |
 

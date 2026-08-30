@@ -241,6 +241,8 @@ var session = new GameSession(
 - 未登録IDと不正な結果の拒否。
 - `CellEffectTriggered`、`PiecePowerChanged`、追加Eventの値と順序。
 - Bootstrapで登録したHandlerがConfig上のセルで発動するPlayMode統合。
+- リザーブ獲得時に盤上＋リザーブが`MaxPiecesPerPlayer`を超えないこと。
+- `DeployReservePieceCommand`が`ReserveDeploymentDepth`内の空きマスだけを合法手として返すこと。
 
 ### 文書更新
 

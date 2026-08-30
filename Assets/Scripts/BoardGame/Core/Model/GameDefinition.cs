@@ -15,6 +15,8 @@ namespace GCCC.BoardGame.Core.Model
         public const int StandardColumns = 6;
         public const int StandardRows = 10;
         public const int StandardInitialCombatPower = 1;
+        public const int StandardMaxPiecesPerPlayer = 6;
+        public const int StandardReserveDeploymentDepth = 2;
 
         public GameDefinition(
             int columns,
@@ -23,7 +25,9 @@ namespace GCCC.BoardGame.Core.Model
             IEnumerable<InitialPieceDefinition> initialPieces,
             PlayerId firstPlayer = PlayerId.Player1,
             IEnumerable<PowerMovementProfile> movementProfiles = null,
-            IEnumerable<CellEffectDefinition> cellEffectDefinitions = null)
+            IEnumerable<CellEffectDefinition> cellEffectDefinitions = null,
+            int maxPiecesPerPlayer = StandardMaxPiecesPerPlayer,
+            int reserveDeploymentDepth = StandardReserveDeploymentDepth)
         {
             if (columns <= 0)
             {
@@ -35,11 +39,32 @@ namespace GCCC.BoardGame.Core.Model
                 throw new ArgumentOutOfRangeException(nameof(rows));
             }
 
+            if (maxPiecesPerPlayer <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxPiecesPerPlayer));
+            }
+
+            if (reserveDeploymentDepth < 0 || reserveDeploymentDepth >= rows)
+            {
+                throw new ArgumentOutOfRangeException(nameof(reserveDeploymentDepth));
+            }
+
             Columns = columns;
             Rows = rows;
             Cells = new ReadOnlyCollection<CellDefinition>(cells.ToArray());
             InitialPieces = new ReadOnlyCollection<InitialPieceDefinition>(initialPieces.ToArray());
             FirstPlayer = firstPlayer;
+            MaxPiecesPerPlayer = maxPiecesPerPlayer;
+            ReserveDeploymentDepth = reserveDeploymentDepth;
+
+            if (InitialPieces
+                .GroupBy(piece => piece.Owner)
+                .Any(group => group.Count() > MaxPiecesPerPlayer))
+            {
+                throw new ArgumentException(
+                    "Initial pieces exceed the per-player piece limit.",
+                    nameof(initialPieces));
+            }
 
             PowerMovementProfile[] copiedProfiles = (movementProfiles ??
                     new[] { PowerMovementProfile.CreateStandard() })
@@ -112,6 +137,10 @@ namespace GCCC.BoardGame.Core.Model
         public IReadOnlyList<InitialPieceDefinition> InitialPieces { get; }
 
         public PlayerId FirstPlayer { get; }
+
+        public int MaxPiecesPerPlayer { get; }
+
+        public int ReserveDeploymentDepth { get; }
 
         public IReadOnlyList<PowerMovementProfile> MovementProfiles { get; }
 
