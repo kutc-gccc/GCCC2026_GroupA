@@ -1,2 +1,12 @@
 fileFormatVersion: 2
 guid: c9e72de4d03c7504eb1a4aaeefdc8ccc
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - woodBoardSprite: {fileID: -2067898546876541913, guid: 1019660dfd0e1d8488a31e3e6c9a9672, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

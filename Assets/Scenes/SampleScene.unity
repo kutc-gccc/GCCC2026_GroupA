@@ -289,6 +289,9 @@ MonoBehaviour:
   boardViewPrefab: {fileID: 4404203097780173733, guid: f42e7715b13b31042923e8f07cbbea4f, type: 3}
   pieceViewsPrefab: {fileID: 938857701199877985, guid: 0285070ecfb2edc4caff461e3b8a07f9, type: 3}
   hudViewPrefab: {fileID: 4631774944796141690, guid: cabd2fa888e6b3f499f51f5576245ad3, type: 3}
+  player1PieceSprite: {fileID: -1136618689477792522, guid: 8bd0aca886b3e4f4d8ef6c20eeec2f30, type: 3}
+  player2PieceSprite: {fileID: -8976941793716985735, guid: bf4c5a76ad3d94946a21189de53710f8, type: 3}
+  marbleBackgroundSprite: {fileID: 4545539728082940926, guid: a20580b856cf7484b98b8f4e51198a58, type: 3}
 --- !u!4 &1277418739
 Transform:
   m_ObjectHideFlags: 0

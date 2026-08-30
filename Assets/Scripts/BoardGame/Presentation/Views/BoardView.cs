@@ -7,15 +7,20 @@ namespace GCCC.BoardGame.Presentation.Views
 {
     public sealed class BoardView : MonoBehaviour
     {
+        [SerializeField] private Sprite woodBoardSprite;
+        [SerializeField] private Sprite boardSprite;
+
         private const float CellScale = 0.9f;
         private const float TerritoryBorderThickness = 0.09f;
+        private const float GridLineThickness = 0.04f;
 
+        private static readonly Color GridLineColor = Color.black;
         private static readonly Color BoardColor = new Color32(42, 47, 57, 255);
-        private static readonly Color CellColor = new Color32(224, 228, 235, 255);
+        private static readonly Color CellColor = new Color32(255, 255, 255, 35); // 半透明
         private static readonly Color SelectionColor = new Color32(255, 193, 7, 175);
         private static readonly Color LegalMoveColor = new Color32(76, 175, 80, 150);
         private static readonly Color CombatMoveColor = new Color32(255, 152, 0, 175);
-        private static readonly Color TerritoryBorderColor = new Color32(255, 255, 255, 235);
+        private static readonly Color TerritoryBorderColor = new Color32(255, 0, 0, 235);
 
         private readonly List<SpriteRenderer> moveIndicators = new List<SpriteRenderer>();
         private Camera boardCamera;
@@ -85,9 +90,28 @@ namespace GCCC.BoardGame.Presentation.Views
         private void BuildBoard()
         {
             SpriteRenderer background = CreateSpriteRenderer(
-                "Board Background", transform, squareSprite, BoardColor,
-                new Vector3(columns + 0.16f, rows + 0.16f, 1f), 0);
-            background.transform.localPosition = Vector3.zero;
+            "Board Background",
+            transform,
+            boardSprite != null ? boardSprite : squareSprite,
+            Color.white,
+            Vector3.one,
+            0);
+
+        background.transform.localPosition = Vector3.zero;
+
+        if (boardSprite != null)
+        {
+            float boardWidth = columns * BoardGeometry.CellSpacing + 0.16f;
+            float boardHeight = rows * BoardGeometry.CellSpacing + 0.16f;
+
+            float imageWidth = boardSprite.bounds.size.x;
+            float imageHeight = boardSprite.bounds.size.y;
+
+            background.transform.localScale = new Vector3(
+                boardWidth / imageWidth,
+                boardHeight / imageHeight,
+                1f);
+        }
 
             Transform cellsRoot = new GameObject("Cells").transform;
             cellsRoot.SetParent(transform, false);
@@ -106,6 +130,8 @@ namespace GCCC.BoardGame.Presentation.Views
                 }
             }
 
+            BuildGridLines();
+
             BuildTerritoryBorder("Player 1 Territory Border", 0);
             BuildTerritoryBorder("Player 2 Territory Border", rows - 1);
 
@@ -115,6 +141,57 @@ namespace GCCC.BoardGame.Presentation.Views
                 "Selection", transform, squareSprite, SelectionColor,
                 Vector3.one * 0.84f, 2);
             selectionIndicator.enabled = false;
+        }
+
+        private void BuildGridLines()
+        {
+            Transform gridRoot = new GameObject("Grid Lines").transform;
+            gridRoot.SetParent(transform, false);
+
+            float boardWidth = columns * BoardGeometry.CellSpacing;
+            float boardHeight = rows * BoardGeometry.CellSpacing;
+
+            // 縦線
+            for (int column = 0; column <= columns; column++)
+            {
+                float x = -boardWidth * 0.5f +
+                          column * BoardGeometry.CellSpacing;
+
+                SpriteRenderer line = CreateSpriteRenderer(
+                    $"Vertical Grid Line {column}",
+                    gridRoot,
+                    squareSprite,
+                    GridLineColor,
+                    new Vector3(
+                        GridLineThickness,
+                        boardHeight,
+                        1f),
+                    2);
+
+                line.transform.localPosition =
+                    new Vector3(x, 0f, 0f);
+            }
+
+            // 横線
+            for (int row = 0; row <= rows; row++)
+            {
+                float y = -boardHeight * 0.5f +
+                          row * BoardGeometry.CellSpacing;
+
+                SpriteRenderer line = CreateSpriteRenderer(
+                    $"Horizontal Grid Line {row}",
+                    gridRoot,
+                    squareSprite,
+                    GridLineColor,
+                    new Vector3(
+                        boardWidth,
+                        GridLineThickness,
+                        1f),
+                    2);
+
+                line.transform.localPosition =
+                    new Vector3(0f, y, 0f);
+            }
         }
 
         private void BuildTerritoryBorder(string objectName, int row)

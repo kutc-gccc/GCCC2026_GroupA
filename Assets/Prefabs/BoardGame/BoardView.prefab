@@ -42,5 +42,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c9e72de4d03c7504eb1a4aaeefdc8ccc, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: GCCC.BoardGame.Presentation::GCCC.BoardGame.Presentation.Views.BoardView
+  woodBoardSprite: {fileID: -2803530347902776062, guid: 44c267ce3a7d222419d0ef98bff62b45, type: 3}
+  boardSprite: {fileID: -2803530347902776062, guid: 44c267ce3a7d222419d0ef98bff62b45, type: 3}
