@@ -11,7 +11,7 @@
 - 差し替え可能なRuleやResolverを実ゲームで使うには、Coreへの実装だけでなく、Composition Rootである`BoardGameBootstrap`から生成・注入します。
 - 新しい共通契約は、利用側の機能PRより先に共有PRとして確定します。
 
-`BoardGameBootstrap.Awake`は現在すべての実装差し替えが集中する唯一の注入口で、Resolverを選ぶSerializeFieldもFactoryもありません。移動・戦闘・合体・特殊マス・CPUのどの担当者も同じメソッドを編集するため、担当PRではCore側の実装とテストを先に確定し、`Awake`への配線は最後の1コミットにまとめてください。恒久的な解決は[§9](#9-将来の構造改善候補)のSession Factoryです。
+`BoardGameBootstrap.Awake`は現在すべての実装差し替えが集中する唯一の注入口で、Resolverを選ぶSerializeFieldもFactoryもありません。移動・戦闘・合体・特殊マス・CPUのどの担当者も同じメソッドを編集するため、担当PRではCore側の実装とテストを先に確定し、`Awake`への配線は最後の1コミットにまとめてください。恒久的な解決は[§12](#12-将来の構造改善候補)のSession Factoryです。
 
 ### 変更影響マトリクス
 
@@ -22,11 +22,14 @@
 | 標準移動プロファイル | `PowerMovementProfile.CreateStandard` | Config未設定時のFallbackを確認 | `BoardGameConfig.CreateDefaultMovementProfiles`、`StandardBoardGameConfig.asset` | EditModeの方向・境界・整合性 | `GAME_RULES.md`、必要に応じてREADME |
 | 独自移動Rule | `IMovementRule`、必要に応じて`IMoveDirectionResolver` | `BoardGameBootstrap`でRuleを生成して`GameSession`へ注入 | RuleSetを選択可能にする場合はConfigを追加 | EditMode、候補表示のPlayMode | `GAME_RULES.md`、`ARCHITECTURE.md` |
 | 戦闘 | `ICombatResolver`、`CombatResolution`、関連Event | `BoardGameBootstrap`から`GameSession`へ注入 | Rule選択が必要な場合だけ追加 | EditMode、駒表示のPlayMode | `GAME_RULES.md`、`CORE_API.md` |
-| 合体 | `IFusionResolver`、`FusionResolution`、Command・Event | Resolver注入と`GameCoordinator`の操作モード | 有効化やRule選択を設定する場合に追加 | EditMode、2駒選択とView更新のPlayMode | `GAME_RULES.md`、READMEの実装状況 |
-| 特殊マス | `ICellEffectHandler`、`CellEffectResult`、Event | Handlerを生成して`GameSession`へ登録 | 対象セルの`EffectId`をAssetへ設定 | EditMode、表示がある場合はPlayMode | `GAME_RULES.md`、Config説明 |
+| 合体 | `IFusionResolver`、`FusionResolution`、Command・Event | `BoardGameBootstrap`から`fusionResolver`へ注入（UI・View・音声は配線済み） | Ruleや確率を設定化する場合だけ追加 | EditMode、2駒選択とView更新のPlayMode | `GAME_RULES.md`、READMEの実装状況 |
+| 特殊マス | `ICellEffectHandler`、`CellEffectResult`、Event | `CellEffectConfig`派生Assetが定義とHandlerを生成し、Bootstrapが`GameSession`へ登録 | 効果Asset作成 → `cellEffectDefinitions`登録 → 対象座標の`cellEffects`設定 | EditMode、表示がある場合はPlayMode | `GAME_RULES.md`、Config説明 |
+| パワーランダム化 | `RandomizePowerCommand`、`RandomizePowerEvent`、`IRandomSource` | `GameHudView`のボタンと`GameCoordinator` | 範囲を設定化する場合だけ追加 | 固定乱数での範囲・禁止条件・手番消費 | `GAME_RULES.md`、`CORE_API.md` |
 | CPU | `IPlayerAgent`実装 | Agentを生成して`GameCoordinator`へ注入 | 対戦形式を選択する場合に追加 | Agent単体、Human対CPU／CPU対CPUのPlayMode | READMEの実装状況、必要に応じて設計文書 |
 | 新Command・Event | 派生型、Handler、状態更新、Event | `GameSession`のdispatchとPresentationの送受信経路 | 操作を設定化する場合だけ追加 | 拒否時不変性、Event値・順序、View反映 | `CORE_API.md`、`ARCHITECTURE.md` |
 | UI・入力 | ルール変更がなければ変更しない | `GameCoordinator`、Input、View、Prefab | 表示値を設定化する場合だけ追加 | PlayMode、実機入力は手動確認 | `GAME_RULES.md`の表示・入力、`CODE_WALKTHROUGH.md` |
+| 音声 | 変更しない | `BoardGameAudioManager.PlayEvents`とClip参照 | Prefab／SceneへのAudioClip割り当て | PlayModeの再生経路と音量 | `ARCHITECTURE.md`のAudio責務 |
+| Scene遷移 | 変更しない | `BoardGameSceneNames`、`TitleScreenController`、`BoardGameBootstrap` | Build SettingsへのScene登録 | 起動Sceneとタイトル復帰のPlayMode | `ARCHITECTURE.md` §8、README |
 
 ### 共通の実装順序
 
@@ -165,15 +168,28 @@ public interface IFusionResolver
 
 手順4に違反した結果は`CommandResult`の失敗ではなく例外になります。未登録の`MovementProfileId`を返すと`GameSession.ExecuteFusion`が`InvalidOperationException`を送出し、既存の駒とIDまたは位置が重複する駒を返すと`GameSession`内部の`AddPiece`が`ArgumentException`を送出します。Resolver側で合法性を確定させてから返してください。
 
+標準の`AdjacentFusionResolver`は`internal`のため、Core外から参照・継承・ラップできません。EditModeテストからも直接生成できないので、標準判定の挙動を固定したい場合は`GameSession`の`randomSource`へテスト用`IRandomSource`を渡します。判定そのものを変える場合は`IFusionResolver`を新規実装してください。
+
 ### 本番への配線
 
-1. `BoardGameBootstrap`でResolverを生成し、`GameSession`の`fusionResolver`へ渡します。
-2. `GameCoordinator`に「移動」「合体」の操作モードと2駒選択を追加します。
-3. `PieceViewManager`で`PiecesFused`を処理し、元の2Viewを削除して合体後Viewを生成します。
+合体は既に本番へ配線済みです。UI、View、音声はそのまま使えるため、**Resolverを差し替えるだけなら触る場所は1箇所です**。
+
+1. `BoardGameBootstrap.Awake`の`new GameSession(...)`へ`fusionResolver:`引数を追加し、生成したResolverを渡します。
+
+次の経路は既に存在するので、作り直してはいけません。
+
+| 経路 | 実装場所 |
+|---|---|
+| 「合体」ボタンと2駒選択 | `GameHudView.FuseRequested` → `GameCoordinator.ToggleFusionMode` → `HandleFusionModeClick` |
+| 合体後のView差し替え | `PieceViewManager.ApplyEvents`の`case PiecesFused` |
+| 合体成功時のSFX | `BoardGameAudioManager.PlayEvents`の`PiecesFused` |
+| 成功・失敗のメッセージ | `GameCoordinator.ShowFusionResultMessage` |
+
+Resolverが新しいEventを発生させる場合だけ、[§8](#8-新しいcommandやeventを追加する)と[§10](#10-音声を変更する)に従ってViewと音声へ分岐を追加します。
 
 ### 設定
 
-合体の有効化やRuleを選択可能にする場合はConfigへ項目を追加します。合体後に使用する`MovementProfileId`は、同じ`GameDefinition`へ登録済みでなければなりません。
+固定Ruleであれば、標準の`AdjacentFusionResolver`が既定で使われるためConfig変更は不要です。Ruleや確率を選択可能にする場合だけSerializeFieldを追加し、BootstrapのFactoryでResolverへ変換します。合体後に使用する`MovementProfileId`は、同じ`GameDefinition`へ登録済みでなければなりません。
 
 ### テスト
 
@@ -206,7 +222,10 @@ public interface ICellEffectHandler
 
 1. 効果ごとに`ICellEffectHandler`を実装します。
 2. `EffectId`を重複しない固定値にします。
-3. `Apply`から更新後の`PieceState`、追加Event、必要なら`ReservePieceGrant`を返します。
+3. `BlocksPowerRandomization`で、この効果が適用中または適用済みの駒でパワーランダム化を禁止するかを宣言します。戦闘力を書き換える効果は`true`、盤面外へ駒を増やすような効果は`false`にします。標準では`CombatPowerBoostCellEffectHandler`が`true`、`ReservePieceGrantCellEffectHandler`が`false`です。
+4. `Apply`から更新後の`PieceState`、追加Event、必要なら`ReservePieceGrant`を返します。
+
+更新後の`PieceState`は元の駒から`With`系メソッドで作ります。使えるメソッドの一覧は[Core APIリファレンス §2](CORE_API.md#2-piecestate)、`ReservePieceGrant`の引数は[同 §8](CORE_API.md#8-rule差し替えで使う型)を参照してください。
 
 効果は`CellEffectDefinition`で`WhileOccupied`または`PermanentOncePerPiece`を宣言します。同じセルに異なるLifetimeは設定できません。ID、所有者、位置を変更する結果は`GameSession`に拒否されます。
 
@@ -365,7 +384,114 @@ Command・Eventの引数と値は`CORE_API.md`、実行順と責務は`ARCHITECT
 
 プレイヤーから見える表示・入力は`GAME_RULES.md`、処理フローは`CODE_WALKTHROUGH.md`、Prefab編集手順は`DEVELOPMENT.md`を更新します。
 
-## 9. 将来の構造改善候補
+## 9. パワーランダム化を変更する
+
+### Core実装
+
+パワーランダム化は`RandomizePowerCommand`、`RandomizePowerCommandHandler`、`RandomizePowerEvent`で構成されます。`GameSession`が`randomSource.NextInt(1, 4)`で新しい通常戦闘力（1〜3）を決め、手番を消費します。
+
+変更する内容ごとに触る場所が違います。
+
+| 変えたいこと | 変更場所 |
+|---|---|
+| 値の範囲 | `GameSession`のランダム化処理にある`NextInt`の引数 |
+| 禁止条件 | 各`ICellEffectHandler`の`BlocksPowerRandomization`（[§5](#5-特殊マスを追加する)） |
+| 乱数の出方 | `IRandomSource`実装を`GameSession`の`randomSource`へ注入 |
+| 手番を消費するか | `GameSession`のランダム化処理の`ResolveNextTurn`呼び出し |
+
+一時戦闘力ではなく通常戦闘力だけを書き換える点に注意してください。滞在中効果を持つ駒の実効戦闘力は`EffectiveCombatPower`で決まります。
+
+### 本番への配線
+
+配線済みです。ボタンは`GameHudView.OnRandomizePowerButtonClicked`から`GameCoordinator.HandleRandomizePowerButtonClicked`へ渡り、合法な`RandomizePowerCommand`があるときだけ`GameHudView.SetRandomizeButtonInteractable`で有効になります。乱数を差し替える場合だけ`BoardGameBootstrap.Awake`の`new GameSession(...)`へ`randomSource:`引数を追加します。
+
+### 設定
+
+固定仕様ならConfig変更は不要です。範囲や禁止条件を調整可能にする場合だけ`BoardGameConfig`へSerializeFieldを追加し、`StandardBoardGameConfig.asset`へ標準値を保存します。
+
+### テスト
+
+- 固定`IRandomSource`で下限・上限・同値になる場合を再現すること。
+- `BlocksPowerRandomization`を持つ効果の適用中・適用済みで拒否されること。
+- 成否にかかわらず手番が進むこと。
+- 変更後の実効戦闘力で移動方向が更新されること。
+- ボタンの有効・無効がPlayModeで合法手と一致すること。
+
+### 文書更新
+
+プレイヤーから見た挙動は`GAME_RULES.md`、Command・Eventの値は`CORE_API.md`、実装状況はREADMEを更新します。
+
+## 10. 音声を変更する
+
+### Core実装
+
+Coreは変更しません。音声はEventを受け取って鳴らすだけで、CoreはUnityのAudio APIを参照しません。
+
+### 本番への配線
+
+音は[`BoardGameAudioManager`](../Assets/Scripts/BoardGame/Presentation/Audio/BoardGameAudioManager.cs)に閉じています。新しいEventへ音を付ける手順は次のとおりです。
+
+1. `AudioClip`の`SerializeField`を追加します。
+2. `PlayEvents`の`switch`へEvent型の分岐を追加します。
+3. Prefabまたは`SampleScene`上のAudioManagerへClipを割り当てます。
+
+現在音が付いているのは`PieceMoved`、`CombatResolved`、`PieceDestroyed`、`PiecesFused`、`GameEnded`の5種で、他のEventは無音です。`PlayEvents`は`GameCoordinator`がCommand実行後にEvent列ごと渡すので、Event側の順序がそのまま再生順になります。
+
+音量は`SetBgmVolume`と`SetSfxVolume`をHUDのスライダーが呼びます。BGMは`BgmMaximumVolume`で上限が掛かるため、スライダーの1.0がAudioSourceの1.0ではありません。
+
+### 設定
+
+Clipの割り当てはPrefabとSceneで行い、コードにパスを埋め込みません。AudioSourceは実行時に生成されるため、Play中の変更はAssetへ保存されません。
+
+### テスト
+
+- Eventに対応するClipが再生経路へ渡ること。
+- Clip未設定のEventで例外にならないこと。
+- スライダーの値が`BgmVolume`／`SfxVolume`へ反映されること。
+- 「スタート画面に戻る」でBGMが停止すること。
+
+### 文書更新
+
+Audioレイヤーの責務は`ARCHITECTURE.md`、音量UIの操作は`GAME_RULES.md`の表示・入力、実装状況はREADMEを更新します。
+
+## 11. Scene遷移を変更する
+
+### Core実装
+
+Coreは変更しません。CoreはScene名も`SceneManager`も参照しません。
+
+### 本番への配線
+
+Scene名は`BoardGameSceneNames`の定数に集約されています。
+
+| 定数 | 値 |
+|---|---|
+| `BoardGameSceneNames.Title` | `TitleScene` |
+| `BoardGameSceneNames.Game` | `SampleScene` |
+
+遷移の向きごとに担当が分かれます。
+
+- タイトル → ゲーム: `TitleScreenController`が「ゲーム開始」を受け取って`BoardGameSceneNames.Game`を読み込みます。
+- ゲーム → タイトル: `GameHudView.StartScreenRequested`から`BoardGameBootstrap.ReturnToTitleScreen`が呼ばれます。
+
+Sceneを増やす場合は、定数の追加とBuild Settingsへの登録を同じ変更に含めます。Scene名の文字列をコードへ直接書いてはいけません。
+
+### 設定
+
+Build SettingsのScene一覧を更新します。Scene自体の編集方針は[開発ガイド §6](DEVELOPMENT.md#6-sceneとprefabの編集)を参照してください。
+
+### テスト
+
+- 起動時に`TitleScene`が表示されること。
+- 「ゲーム開始」で新しいゲームが構築されること。
+- リザルトから「スタート画面に戻る」でタイトルへ戻り、BGMが停止すること。
+- Build SettingsにScene登録漏れがないこと。
+
+### 文書更新
+
+Scene構成とBootstrapの責務は`ARCHITECTURE.md` §8、起動手順はREADMEと`DEVELOPMENT.md`を更新します。
+
+## 12. 将来の構造改善候補
 
 次は文書変更とは分離し、専用の実装PRで扱います。
 

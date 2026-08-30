@@ -56,7 +56,7 @@ var piece = new PieceState(
 );
 ```
 
-`PieceState`は不変です。`CombatPower`は通常戦闘力、`TemporaryCombatPower`は滞在中効果の残量、`EffectiveCombatPower`は両者の合計です。表示・戦闘・移動方向は`EffectiveCombatPower`を使用します。変更は`WithPosition`、`WithCombatPower`、`WithMovementProfile`、効果用メソッドで新しいインスタンスを作成します。
+`PieceState`は不変です。`CombatPower`は通常戦闘力、`TemporaryCombatPower`は滞在中効果の残量、`EffectiveCombatPower`は両者の合計です。表示・戦闘・移動方向は`EffectiveCombatPower`を使用します。
 
 ```csharp
 PieceState movedPiece = piece.WithPosition(new GridPosition(2, 2));
@@ -64,6 +64,24 @@ PieceState damagedPiece = movedPiece.WithCombatPower(1);
 ```
 
 この例でも元の`piece`と`movedPiece`は変更されません。`combatPower`に0以下を渡すと`ArgumentOutOfRangeException`になります。戦闘力が0以下になった駒は、戦闘力0の`PieceState`として残すのではなく、`GameSession`の管理対象から削除されます。
+
+### 変更メソッド
+
+状態を変えるときは、既存インスタンスから次のメソッドで新しいインスタンスを作ります。`ICellEffectHandler.Apply`は更新後の`PieceState`を返す契約なので、特殊マスを実装するときはここから選びます。
+
+| メソッド | 用途 |
+|---|---|
+| `WithPosition(position)` | 位置だけを変える |
+| `WithCombatPower(combatPower)` | 通常戦闘力だけを変える |
+| `WithMovementProfile(movementProfileId)` | 移動プロファイルだけを変える |
+| `WithAttributes(combatPower, movementProfileId)` | 戦闘力とプロファイルを同時に変える |
+| `WithPermanentEffectApplied(effectId)` | 永続効果の適用履歴へIDを追加する |
+| `WithActiveEffect(effectId, temporaryCombatPower = 0)` | 滞在中効果と一時戦闘力を付与する |
+| `WithoutActiveEffects()` | 滞在中効果をすべて解除する |
+| `ApplyDamage(damage)` | 一時戦闘力、通常戦闘力の順にダメージを適用する |
+| `MergeWith(second, bonus)` | 合体後の駒を作る。永続効果履歴は和集合、滞在中効果は第一駒のものを継承する |
+
+`ApplyDamage`は`GameSession`が戦闘処理で、`MergeWith`は合体Resolverが使う経路です。通常の`ICellEffectHandler`実装で使うのは`With`系だけです。
 
 ### 戦闘力別移動プロファイル
 
@@ -173,7 +191,7 @@ GameDefinition（ゲーム全体の設計図）
 | `definition` | `GameDefinition` | 省略不可 |
 | `movementRule` | `IMovementRule` | `DirectionalMovementRule` |
 | `combatResolver` | `ICombatResolver` | `SimultaneousCombatResolver` |
-| `fusionResolver` | `IFusionResolver` | `AdjacentFusionResolver` |
+| `fusionResolver` | `IFusionResolver` | `AdjacentFusionResolver`（`internal`のためCore外から生成・参照できない） |
 | `cellEffectHandlers` | `IEnumerable<ICellEffectHandler>` | 効果なし |
 | `randomSource` | `IRandomSource` | `SystemRandomSource` |
 
@@ -286,6 +304,7 @@ else
 | `FusionResolution` | `IFusionResolver.TryResolve`の`out`値 | `Success(resultingPiece, bonus)`／`Attempted()` |
 | `CellEffectContext` | `ICellEffectHandler.Apply`の引数 | `snapshot`, `piece`, `cell`, `definition` |
 | `CellEffectResult` | `ICellEffectHandler.Apply`の戻り値 | `piece`, `events`, `reservePieceGrants`（後二者は省略可） |
+| `ReservePieceGrant` | `CellEffectResult.ReservePieceGrants`の要素 | `owner`, `combatPower`, `movementProfileId` |
 
 `CombatResolution`と`FusionPair`は値型（`readonly struct`）、残りは参照型です。
 
@@ -297,10 +316,15 @@ var resolution = new CombatResolution(
 var pair = new FusionPair(new PieceId(1), new PieceId(3));
 
 var result = new CellEffectResult(context.Piece.WithCombatPower(3));
+
+var grant = new ReservePieceGrant(
+    context.Piece.Owner, 1, PowerMovementProfile.StandardId);
 ```
 
 `CombatResolution`のダメージ量は0以上でなければなりません。`GameSession`が一時戦闘力、通常戦闘力の順にダメージを適用し、通常戦闘力が0以下になった駒を削除します。
 
-`CellEffectResult.Piece`は、ID・所有者・位置が`CellEffectContext.Piece`と同一で、`MovementProfileId`が`GameDefinition`へ登録済みでなければなりません。戦闘力、効果状態、登録済みプロファイルを変更でき、`ReservePieceGrant`でリザーブ追加を要求できます。
+`CellEffectResult.Piece`は、ID・所有者・位置が`CellEffectContext.Piece`と同一で、`MovementProfileId`が`GameDefinition`へ登録済みでなければなりません。戦闘力、効果状態、登録済みプロファイルを変更でき、`ReservePieceGrant`でリザーブ追加を要求できます。使えるメソッドは[§2 変更メソッド](#変更メソッド)を参照してください。
+
+`ReservePieceGrant`は`combatPower`に0以下を渡すと`ArgumentOutOfRangeException`、無効な`MovementProfileId`を渡すと`ArgumentException`になります。実装例は`ReservePieceGrantCellEffectHandler`です。
 
 `FusionResolution.ResultingPiece`が満たすべき条件と、違反した場合に送出される例外は[拡張ガイド §4](EXTENSION_GUIDE.md#4-合体ルールを変更する)にあります。
