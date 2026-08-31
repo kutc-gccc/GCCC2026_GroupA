@@ -12,6 +12,10 @@ namespace GCCC.BoardGame.Presentation.Views
 {
     public sealed class GameHudView : MonoBehaviour
     {
+        // 大理石背景の上でテキストを読ませるための共通の下地色。
+        private static readonly Color PanelBackgroundColor =
+            new Color32(35, 41, 52, 225);
+
         [SerializeField] private Button randomizePowerButton;
 
         private RectTransform resetButtonRect;
@@ -202,10 +206,11 @@ namespace GCCC.BoardGame.Presentation.Views
             scaler.matchWidthOrHeight = 0.5f;
 
             Font font = CreateUiFont();
-            statusLabel = CreateUiText(
+            // 背景は大理石でほぼ白なので、重要なテキストは暗いパネルの上に置く。
+            statusLabel = CreateTextPanel(
                 "Turn Status", canvasObject.transform, font, 28, TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(24f, -24f), new Vector2(520f, 64f));
+                new Vector2(24f, -24f), new Vector2(420f, 64f));
 
             messageLabel = CreateUiText(
                 "Fusion Message", canvasObject.transform, font, 24,
@@ -232,16 +237,17 @@ namespace GCCC.BoardGame.Presentation.Views
                     canvasObject.transform, font, audioManager);
             }
 
-            Text player2Label = CreateUiText(
+            // 幅520では右上のボタン群（左端x=1060）と重なるため320に収める。
+            Text player2Label = CreateTextPanel(
                 "Player 2 Territory Label", canvasObject.transform, font, 22,
                 TextAnchor.MiddleCenter, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -12f), new Vector2(520f, 42f));
+                new Vector2(0f, -12f), new Vector2(320f, 42f));
             player2Label.text = "プレイヤー2の陣地";
 
-            Text player1Label = CreateUiText(
+            Text player1Label = CreateTextPanel(
                 "Player 1 Territory Label", canvasObject.transform, font, 22,
                 TextAnchor.MiddleCenter, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 12f), new Vector2(520f, 42f));
+                new Vector2(0f, 12f), new Vector2(320f, 42f));
             player1Label.text = "プレイヤー1の陣地";
 
             GameObject buttonObject = new GameObject(
@@ -565,34 +571,105 @@ namespace GCCC.BoardGame.Presentation.Views
             resultOverlay.SetActive(false);
         }
 
-        private static GameObject CreateEffectLegend(Transform parent, Font font)
+        /// <summary>
+        /// 暗い背景パネルの上にテキストを置いて返す。大理石背景に埋もれないようにするための共通形。
+        /// </summary>
+        private static Text CreateTextPanel(
+            string name,
+            Transform parent,
+            Font font,
+            int fontSize,
+            TextAnchor alignment,
+            Vector2 anchor,
+            Vector2 pivot,
+            Vector2 anchoredPosition,
+            Vector2 size)
         {
-            GameObject panelObject = new GameObject(
-                "Cell Effect Legend", typeof(RectTransform), typeof(CanvasRenderer),
-                typeof(Image));
-            panelObject.transform.SetParent(parent, false);
-            RectTransform panelRect = panelObject.GetComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0f, 0f);
-            panelRect.anchorMax = new Vector2(0f, 0f);
-            panelRect.pivot = new Vector2(0f, 0f);
-            panelRect.anchoredPosition = new Vector2(24f, 24f);
-            panelRect.sizeDelta = new Vector2(300f, 74f);
-
-            Image panelImage = panelObject.GetComponent<Image>();
-            panelImage.color = new Color32(35, 41, 52, 225);
-            panelImage.raycastTarget = false;
+            RectTransform panelRect = CreateBackgroundPanel(
+                name, parent, anchor, pivot, anchoredPosition, size);
 
             Text label = CreateUiText(
-                "Legend Text", panelObject.transform, font, 18,
-                TextAnchor.MiddleLeft, Vector2.zero, Vector2.zero,
-                Vector2.zero, Vector2.zero);
+                name + " Text", panelRect.transform, font, fontSize,
+                alignment, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
             label.rectTransform.anchorMin = Vector2.zero;
             label.rectTransform.anchorMax = Vector2.one;
             label.rectTransform.offsetMin = new Vector2(12f, 6f);
             label.rectTransform.offsetMax = new Vector2(-12f, -6f);
-            label.text = "シアン: 滞在中効果\n紫: 一度で永続する効果";
-            panelObject.SetActive(false);
-            return panelObject;
+            return label;
+        }
+
+        private static RectTransform CreateBackgroundPanel(
+            string name,
+            Transform parent,
+            Vector2 anchor,
+            Vector2 pivot,
+            Vector2 anchoredPosition,
+            Vector2 size)
+        {
+            GameObject panelObject = new GameObject(
+                name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            panelObject.transform.SetParent(parent, false);
+            RectTransform panelRect = panelObject.GetComponent<RectTransform>();
+            panelRect.anchorMin = anchor;
+            panelRect.anchorMax = anchor;
+            panelRect.pivot = pivot;
+            panelRect.anchoredPosition = anchoredPosition;
+            panelRect.sizeDelta = size;
+
+            Image panelImage = panelObject.GetComponent<Image>();
+            panelImage.color = PanelBackgroundColor;
+            // 盤面クリックを吸わないようにする。当たり判定は IsPointerOverControl が持つ。
+            panelImage.raycastTarget = false;
+            return panelRect;
+        }
+
+        private static GameObject CreateEffectLegend(Transform parent, Font font)
+        {
+            RectTransform panelRect = CreateBackgroundPanel(
+                "Cell Effect Legend", parent,
+                new Vector2(0f, 0f), new Vector2(0f, 0f),
+                new Vector2(24f, 24f), new Vector2(300f, 74f));
+
+            // 色名の文字ではなく実際の色を見せる。値は BoardView と共有する。
+            CreateLegendRow(
+                panelRect.transform, font, "滞在中効果",
+                BoardView.WhileOccupiedEffectColor, -8f);
+            CreateLegendRow(
+                panelRect.transform, font, "一度で永続する効果",
+                BoardView.PermanentEffectColor, -42f);
+
+            panelRect.gameObject.SetActive(false);
+            return panelRect.gameObject;
+        }
+
+        private static void CreateLegendRow(
+            Transform parent,
+            Font font,
+            string text,
+            Color swatchColor,
+            float offsetY)
+        {
+            GameObject swatchObject = new GameObject(
+                "Legend Swatch", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(Image));
+            swatchObject.transform.SetParent(parent, false);
+            RectTransform swatchRect = swatchObject.GetComponent<RectTransform>();
+            swatchRect.anchorMin = new Vector2(0f, 1f);
+            swatchRect.anchorMax = new Vector2(0f, 1f);
+            swatchRect.pivot = new Vector2(0f, 1f);
+            swatchRect.anchoredPosition = new Vector2(12f, offsetY);
+            swatchRect.sizeDelta = new Vector2(22f, 22f);
+
+            Image swatchImage = swatchObject.GetComponent<Image>();
+            // 盤面では半透明で重ねるが、凡例では色そのものを見せる。
+            swatchImage.color = new Color(
+                swatchColor.r, swatchColor.g, swatchColor.b, 1f);
+            swatchImage.raycastTarget = false;
+
+            CreateUiText(
+                "Legend Label", parent, font, 18, TextAnchor.MiddleLeft,
+                new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(44f, offsetY), new Vector2(244f, 22f)).text = text;
         }
 
         private static bool IsPointerOverRect(RectTransform rect, Vector2 screenPosition)
@@ -611,14 +688,16 @@ namespace GCCC.BoardGame.Presentation.Views
                 typeof(Image));
             panelObject.transform.SetParent(parent, false);
             RectTransform panelRect = panelObject.GetComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0f, 1f);
-            panelRect.anchorMax = new Vector2(0f, 1f);
-            panelRect.pivot = new Vector2(0f, 1f);
-            panelRect.anchoredPosition = new Vector2(24f, -168f);
+            // 手番表示がある左上を空け、凡例の上へ積む。
+            panelRect.anchorMin = new Vector2(0f, 0f);
+            panelRect.anchorMax = new Vector2(0f, 0f);
+            panelRect.pivot = new Vector2(0f, 0f);
+            // 内部のラベルとスライダーは高さ150を前提に配置しているため据え置く。
+            panelRect.anchoredPosition = new Vector2(24f, 110f);
             panelRect.sizeDelta = new Vector2(300f, 150f);
 
             Image panelImage = panelObject.GetComponent<Image>();
-            panelImage.color = new Color32(35, 41, 52, 225);
+            panelImage.color = PanelBackgroundColor;
 
             CreateUiText("BGM Label", panelObject.transform, font, 20,
                 TextAnchor.MiddleLeft, new Vector2(0f, 1f), new Vector2(0f, 1f),

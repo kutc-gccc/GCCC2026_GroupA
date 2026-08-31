@@ -40,10 +40,11 @@ namespace GCCC.BoardGame.Presentation.Views
         private static readonly Color FusionCandidateColor =
             new Color32(33, 150, 243, 175);
 
-        private static readonly Color WhileOccupiedEffectColor =
+        // 凡例（GameHudView）と色を共有するため internal で公開する。
+        internal static readonly Color WhileOccupiedEffectColor =
             new Color32(0, 188, 212, 125);
 
-        private static readonly Color PermanentEffectColor =
+        internal static readonly Color PermanentEffectColor =
             new Color32(156, 39, 176, 125);
 
         private readonly List<SpriteRenderer> moveIndicators =

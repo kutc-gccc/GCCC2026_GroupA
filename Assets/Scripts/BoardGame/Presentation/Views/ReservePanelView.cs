@@ -13,6 +13,9 @@ namespace GCCC.BoardGame.Presentation.Views
         private static readonly Color32 PanelColor =
             new Color32(35, 41, 52, 225);
 
+        private const float ExpandedPanelHeight = 170f;
+        private const float CollapsedPanelHeight = 48f;
+
         private readonly Dictionary<PieceId, ReservePieceCardView> cards =
             new Dictionary<PieceId, ReservePieceCardView>();
         private readonly HashSet<PieceId> deployablePieceIds =
@@ -24,8 +27,6 @@ namespace GCCC.BoardGame.Presentation.Views
         private Transform player2CardsRoot;
         private Text player1Header;
         private Text player2Header;
-        private Text player1EmptyLabel;
-        private Text player2EmptyLabel;
         private Font font;
         private Sprite player1Sprite;
         private Sprite player2Sprite;
@@ -60,8 +61,7 @@ namespace GCCC.BoardGame.Presentation.Views
                 new Vector2(-24f, -128f),
                 PlayerId.Player2,
                 out player2Header,
-                out player2CardsRoot,
-                out player2EmptyLabel);
+                out player2CardsRoot);
 
             player1PanelRect = CreatePlayerPanel(
                 "Player 1 Reserve Panel",
@@ -70,8 +70,7 @@ namespace GCCC.BoardGame.Presentation.Views
                 new Vector2(-24f, 128f),
                 PlayerId.Player1,
                 out player1Header,
-                out player1CardsRoot,
-                out player1EmptyLabel);
+                out player1CardsRoot);
         }
 
         public void Render(GameSnapshot snapshot)
@@ -86,8 +85,10 @@ namespace GCCC.BoardGame.Presentation.Views
 
             player1Header.text = $"プレイヤー1 リザーブ: {player1Reserves.Count}";
             player2Header.text = $"プレイヤー2 リザーブ: {player2Reserves.Count}";
-            player1EmptyLabel.gameObject.SetActive(player1Reserves.Count == 0);
-            player2EmptyLabel.gameObject.SetActive(player2Reserves.Count == 0);
+            ApplyPanelHeight(
+                player1PanelRect, player1CardsRoot, player1Reserves.Count);
+            ApplyPanelHeight(
+                player2PanelRect, player2CardsRoot, player2Reserves.Count);
 
             HashSet<PieceId> visibleIds = new HashSet<PieceId>(
                 player1Reserves.Select(piece => piece.Id)
@@ -190,8 +191,7 @@ namespace GCCC.BoardGame.Presentation.Views
             Vector2 anchoredPosition,
             PlayerId player,
             out Text header,
-            out Transform cardsRoot,
-            out Text emptyLabel)
+            out Transform cardsRoot)
         {
             GameObject panelObject = new GameObject(
                 objectName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -226,18 +226,22 @@ namespace GCCC.BoardGame.Presentation.Views
             cardsRect.sizeDelta = new Vector2(588f, 108f);
             cardsRoot = cardsObject.transform;
 
-            emptyLabel = CreateText(
-                "Empty", panelObject.transform, font, 20, TextAnchor.MiddleCenter);
-            RectTransform emptyRect = emptyLabel.rectTransform;
-            emptyRect.anchorMin = new Vector2(0.5f, 0.5f);
-            emptyRect.anchorMax = new Vector2(0.5f, 0.5f);
-            emptyRect.pivot = new Vector2(0.5f, 0.5f);
-            emptyRect.anchoredPosition = new Vector2(0f, -18f);
-            emptyRect.sizeDelta = new Vector2(560f, 52f);
-            emptyLabel.text = "リザーブなし";
-            emptyLabel.color = new Color32(190, 195, 204, 255);
-
             return panelRect;
+        }
+
+        /// <summary>
+        /// リザーブが0枚のときはカード領域を隠してパネルを見出しの高さまで畳む。
+        /// GameObjectは有効なままにする（PlayModeテストが GameObject.Find で探すため）。
+        /// </summary>
+        private static void ApplyPanelHeight(
+            RectTransform panelRect,
+            Transform cardsRoot,
+            int reserveCount)
+        {
+            bool hasReserves = reserveCount > 0;
+            cardsRoot.gameObject.SetActive(hasReserves);
+            panelRect.sizeDelta = new Vector2(
+                panelRect.sizeDelta.x, hasReserves ? ExpandedPanelHeight : CollapsedPanelHeight);
         }
 
         private void RefreshCardStates()
