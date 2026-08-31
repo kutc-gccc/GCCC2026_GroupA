@@ -53,36 +53,28 @@ namespace GCCC.BoardGame.Core.Model
 
         public static PowerMovementProfile CreateStandard()
         {
+            // 制限は累積する。戦闘力が上がるほど、下の段で失った方向をすべて
+            // 引き継いだうえでさらに1方向を失う。
+            MoveDirections power1 = MoveDirections.All;
+            MoveDirections power2 = power1 & ~MoveDirections.NorthEast;
+            MoveDirections power3 = power2 & ~MoveDirections.SouthEast;
+            MoveDirections power4 = power3 & ~MoveDirections.NorthWest;
+            MoveDirections power5 = power4 & ~MoveDirections.SouthWest;
+            MoveDirections power6 = power5 & ~MoveDirections.West;
+            MoveDirections power7 = power6 & ~MoveDirections.East;
+
             return new PowerMovementProfile(
                 StandardId,
                 new[]
                 {
-                    new PowerMovementBand(1, 1, MoveDirections.All),
-                    new PowerMovementBand(
-                        2,
-                        2,
-                        MoveDirections.All & ~MoveDirections.NorthEast),
-                    new PowerMovementBand(
-                        3,
-                        3,
-                        MoveDirections.All & ~MoveDirections.SouthEast),
-                    new PowerMovementBand(
-                        4,
-                        4,
-                        MoveDirections.All & ~MoveDirections.NorthWest),
-                    new PowerMovementBand(
-                        5,
-                        5,
-                        MoveDirections.All & ~MoveDirections.SouthWest),
-                    new PowerMovementBand(
-                        6,
-                        6,
-                        MoveDirections.All & ~MoveDirections.West),
-                    new PowerMovementBand(
-                        7,
-                        7,
-                        MoveDirections.All & ~MoveDirections.East),
-                    new PowerMovementBand(8, int.MaxValue, MoveDirections.All)
+                    new PowerMovementBand(1, 1, power1),
+                    new PowerMovementBand(2, 2, power2),
+                    new PowerMovementBand(3, 3, power3),
+                    new PowerMovementBand(4, 4, power4),
+                    new PowerMovementBand(5, 5, power5),
+                    new PowerMovementBand(6, 6, power6),
+                    new PowerMovementBand(7, 7, power7),
+                    new PowerMovementBand(8, int.MaxValue, power7)
                 });
         }
 

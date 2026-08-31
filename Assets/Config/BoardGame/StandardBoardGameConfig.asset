@@ -34,22 +34,22 @@ MonoBehaviour:
       directions: 253
     - minCombatPower: 3
       maxCombatPower: 3
-      directions: 247
+      directions: 245
     - minCombatPower: 4
       maxCombatPower: 4
-      directions: 127
+      directions: 117
     - minCombatPower: 5
       maxCombatPower: 5
-      directions: 223
+      directions: 85
     - minCombatPower: 6
       maxCombatPower: 6
-      directions: 191
+      directions: 21
     - minCombatPower: 7
       maxCombatPower: 7
-      directions: 251
+      directions: 17
     - minCombatPower: 8
       maxCombatPower: 2147483647
-      directions: 255
+      directions: 17
   cellEffects:
   - position: {x: 1, y: 4}
     effectIds:

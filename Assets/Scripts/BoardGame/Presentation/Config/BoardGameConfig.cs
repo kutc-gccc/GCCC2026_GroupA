@@ -110,38 +110,29 @@ namespace GCCC.BoardGame.Presentation.Config
 
         private static List<MovementProfileEntry> CreateDefaultMovementProfiles()
         {
+            // 制限は累積する。値は`PowerMovementProfile.CreateStandard()`と一致させる。
+            MoveDirections power1 = MoveDirections.All;
+            MoveDirections power2 = power1 & ~MoveDirections.NorthEast;
+            MoveDirections power3 = power2 & ~MoveDirections.SouthEast;
+            MoveDirections power4 = power3 & ~MoveDirections.NorthWest;
+            MoveDirections power5 = power4 & ~MoveDirections.SouthWest;
+            MoveDirections power6 = power5 & ~MoveDirections.West;
+            MoveDirections power7 = power6 & ~MoveDirections.East;
+
             return new List<MovementProfileEntry>
             {
                 new MovementProfileEntry(
                     PowerMovementProfile.StandardIdValue,
                     new List<PowerMovementBandEntry>
                     {
-                        new PowerMovementBandEntry(1, 1, MoveDirections.All),
-                        new PowerMovementBandEntry(
-                            2,
-                            2,
-                            MoveDirections.All & ~MoveDirections.NorthEast),
-                        new PowerMovementBandEntry(
-                            3,
-                            3,
-                            MoveDirections.All & ~MoveDirections.SouthEast),
-                        new PowerMovementBandEntry(
-                            4,
-                            4,
-                            MoveDirections.All & ~MoveDirections.NorthWest),
-                        new PowerMovementBandEntry(
-                            5,
-                            5,
-                            MoveDirections.All & ~MoveDirections.SouthWest),
-                        new PowerMovementBandEntry(
-                            6,
-                            6,
-                            MoveDirections.All & ~MoveDirections.West),
-                        new PowerMovementBandEntry(
-                            7,
-                            7,
-                            MoveDirections.All & ~MoveDirections.East),
-                        new PowerMovementBandEntry(8, int.MaxValue, MoveDirections.All)
+                        new PowerMovementBandEntry(1, 1, power1),
+                        new PowerMovementBandEntry(2, 2, power2),
+                        new PowerMovementBandEntry(3, 3, power3),
+                        new PowerMovementBandEntry(4, 4, power4),
+                        new PowerMovementBandEntry(5, 5, power5),
+                        new PowerMovementBandEntry(6, 6, power6),
+                        new PowerMovementBandEntry(7, 7, power7),
+                        new PowerMovementBandEntry(8, int.MaxValue, power7)
                     })
             };
         }
