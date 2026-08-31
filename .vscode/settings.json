@@ -67,5 +67,5 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "GCCC2026_GroupA.slnx"
+    "dotnet.defaultSolution": "gccc-s-a.slnx"
 }

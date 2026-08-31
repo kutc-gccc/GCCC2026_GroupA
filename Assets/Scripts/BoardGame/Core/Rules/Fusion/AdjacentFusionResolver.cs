@@ -23,7 +23,9 @@ namespace GCCC.BoardGame.Core.Rules.Fusion
 
         public IReadOnlyList<FusionPair> GetLegalFusions(GameSnapshot snapshot, PlayerId player)
         {
-            var ownPieces = snapshot.Pieces.Where(p => p.Owner == player).ToList();
+            var ownPieces = snapshot.Pieces
+                .Where(p => p.Owner == player && !p.HasFused)
+                .ToList();
             var pairs = new List<FusionPair>();
 
             for (int i = 0; i < ownPieces.Count; i++)
@@ -49,6 +51,12 @@ namespace GCCC.BoardGame.Core.Rules.Fusion
                 return false;
             }
 
+            if (first.HasFused || second.HasFused)
+            {
+                // 既に一度「成功」した駒は、二度と合体を試みることができない
+                return false;
+            }
+
             if (!first.Position.IsAdjacentTo(second.Position))
             {
                 return false;
@@ -62,7 +70,9 @@ namespace GCCC.BoardGame.Core.Rules.Fusion
                 return true;
             }
 
-            PieceState mergedPiece = first.MergeWith(second, bonus.Value);
+            PieceState mergedPiece = first
+                .MergeWith(second, bonus.Value)
+                .WithFusedFlag(true);
 
             resolution = FusionResolution.Success(mergedPiece, bonus.Value);
             return true;

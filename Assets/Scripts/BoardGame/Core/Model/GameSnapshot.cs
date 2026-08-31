@@ -177,7 +177,8 @@ namespace GCCC.BoardGame.Core.Model
                 piece.CombatPower,
                 piece.MovementProfileId,
                 piece.AppliedPermanentEffectIds,
-                piece.ActiveCellEffects);
+                piece.ActiveCellEffects,
+                piece.HasFused);
         }
     }
 }
