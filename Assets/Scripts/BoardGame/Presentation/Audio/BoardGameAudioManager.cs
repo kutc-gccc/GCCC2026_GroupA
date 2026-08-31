@@ -18,6 +18,7 @@ namespace GCCC.BoardGame.Presentation.Audio
         [SerializeField] private AudioClip battleClip;
         [SerializeField] private AudioClip pieceDestroyedClip;
         [SerializeField] private AudioClip fusionClip;
+        [SerializeField] private AudioClip fusionFailedClip; // ★追加: 合体失敗用の音源
         [SerializeField] private AudioClip gameEndedClip;
         [SerializeField, Range(0f, 1f)] private float sfxVolume = 1f;
 
@@ -130,6 +131,7 @@ namespace GCCC.BoardGame.Presentation.Audio
             if (moveClip == null) moveClip = Resources.Load<AudioClip>("Audio/komaidou");
             if (pieceDestroyedClip == null) pieceDestroyedClip = Resources.Load<AudioClip>("Audio/koma_hakai");
             if (fusionClip == null) fusionClip = Resources.Load<AudioClip>("Audio/gattai");
+            if (fusionFailedClip == null) fusionFailedClip = Resources.Load<AudioClip>("Audio/gattai_failed"); // ★追加: gattai_failed を自動読み込み
             if (battleClip == null) battleClip = Resources.Load<AudioClip>("Audio/koma_hakai");
         }
 
@@ -173,12 +175,18 @@ namespace GCCC.BoardGame.Presentation.Audio
                     CombatResolved => battleClip,
                     PieceDestroyed => pieceDestroyedClip,
                     PiecesFused => fusionClip,
+                    FusionAttemptFailed => fusionFailedClip, // ★追加: 合体失敗イベントの判定
                     GameEnded => gameEndedClip,
                     _ => null
                 };
 
                 PlaySfx(clip);
             }
+        }
+
+        public void PlayFusionFailed()
+        {
+            PlaySfx(fusionFailedClip);
         }
 
         private void PlaySfx(AudioClip clip)
