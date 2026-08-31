@@ -80,11 +80,17 @@ PlayMode実行中は一時Sceneが生成・破棄されます。Test Runnerが�
 
 ## 4. Windowsバッチモードで実行する
 
-同じプロジェクトを開いているUnity Editorを先に閉じます。プロジェクトルートのPowerShellで次を実行します。
+同じプロジェクトを開いているUnity Editorを先に閉じます。開いたままだとプロジェクトが排他ロックされ、バッチモードは起動できません。
+
+**結果の出力先はプロジェクトの`Temp`以外にします。** Unityは終了時に`Temp`を消去するため、`Temp`へ保存すると実行後にXMLとlogが残りません。ここではOSの一時フォルダを使います。
+
+プロジェクトルートのPowerShellで次を実行します。
 
 ```powershell
 $unityEditor = 'C:\Program Files\Unity\Hub\Editor\6000.3.11f1\Editor\Unity.exe'
 $projectRoot = (Get-Location).Path
+$output = Join-Path $env:TEMP 'GCCC-Tests'
+New-Item -ItemType Directory -Force $output | Out-Null
 
 & $unityEditor `
   -batchmode `
@@ -92,8 +98,8 @@ $projectRoot = (Get-Location).Path
   -projectPath $projectRoot `
   -runTests `
   -testPlatform editmode `
-  -testResults "$projectRoot\Temp\EditModeResults.xml" `
-  -logFile "$projectRoot\Temp\EditModeTests.log"
+  -testResults "$output\EditModeResults.xml" `
+  -logFile "$output\EditModeTests.log"
 
 & $unityEditor `
   -batchmode `
@@ -101,15 +107,18 @@ $projectRoot = (Get-Location).Path
   -projectPath $projectRoot `
   -runTests `
   -testPlatform playmode `
-  -testResults "$projectRoot\Temp\PlayModeResults.xml" `
-  -logFile "$projectRoot\Temp\PlayModeTests.log"
+  -testResults "$output\PlayModeResults.xml" `
+  -logFile "$output\PlayModeTests.log"
 ```
 
 成功件数はXMLの`total`、`passed`、`failed`で確認します。コンパイルエラーはlogを検索します。
 
 ```powershell
-Select-String -Path Temp\*ModeTests.log -Pattern 'error CS|Unhandled|Exception'
+Select-String -Path "$output\*ModeResults.xml" -Pattern '<test-run .*result='
+Select-String -Path "$output\*ModeTests.log" -Pattern 'error CS|Unhandled|Exception'
 ```
+
+`-runTests`の終了コードは、全件成功で`0`、1件でも失敗すると`2`になります。
 
 Test Runnerの結果保存を知らせるUnity内部ログが表示される場合があります。最終判定はTest Result XMLの`result="Passed"`、失敗件数0、通常再生時Console Error 0の組み合わせで行います。
 

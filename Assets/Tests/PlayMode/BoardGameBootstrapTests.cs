@@ -505,7 +505,7 @@ namespace GCCC.BoardGame.Tests
             Assert.That(bootstrap.Snapshot.Winner, Is.EqualTo(PlayerId.Player1));
             Assert.That(bootstrap.StatusText, Does.Contain("勝利"));
             Assert.That(bootstrap.IsResultVisible, Is.True);
-            Assert.That(bootstrap.ResultText, Is.EqualTo("プレイヤー1（青）の勝利"));
+            Assert.That(bootstrap.ResultText, Is.EqualTo("プレイヤー1の勝利"));
             bootstrap.HandleCellClick(new GridPosition(1, 7));
             Assert.That(bootstrap.SelectedCell, Is.Null);
 
@@ -564,7 +564,7 @@ namespace GCCC.BoardGame.Tests
             hud.Render(player2Win);
 
             Assert.That(hud.IsResultVisible, Is.True);
-            Assert.That(hud.ResultText, Is.EqualTo("プレイヤー2（赤）の勝利"));
+            Assert.That(hud.ResultText, Is.EqualTo("プレイヤー2の勝利"));
             Assert.That(hud.IsPointerOverControl(new Vector2(100f, 100f)), Is.True);
 
             GameSnapshot draw = new GameSnapshot(
