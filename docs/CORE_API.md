@@ -145,11 +145,24 @@ PieceState initialState = initialPiece.CreateState();
 
 ### `GameDefinition`
 
-`GameDefinition.CreateStandard()`を使うと、6×10盤面、12個の初期駒、プレイヤー1先手、標準移動プロファイルという定義をまとめて作れます。
+`GameDefinition.CreateStandard()`を使うと、6×10盤面、12個の初期駒、プレイヤー1先手、標準移動プロファイル、駒上限6、リザーブ配置範囲2行という定義をまとめて作れます。
 
 ```csharp
 GameDefinition definition = GameDefinition.CreateStandard();
 ```
+
+駒上限とリザーブ配置範囲はコンストラクタで変更できます。
+
+| 引数 | 既定値 | 意味 |
+|---|---|---|
+| `maxPiecesPerPlayer` | `StandardMaxPiecesPerPlayer` = 6 | 盤上とリザーブを合わせた、プレイヤーごとの所有駒上限 |
+| `reserveDeploymentDepth` | `StandardReserveDeploymentDepth` = 2 | 自陣行から相手陣地の向きへリザーブ配置を許可する行数 |
+
+値は生成時に検証されます。
+
+- `maxPiecesPerPlayer`が0以下 → `ArgumentOutOfRangeException`
+- `reserveDeploymentDepth`が負、または`rows`以上 → `ArgumentOutOfRangeException`
+- いずれかのプレイヤーの初期駒が`maxPiecesPerPlayer`を超える → `ArgumentException`
 
 Unity上では`BoardGameConfig.CreateDefinition()`が設定アセットから同等の定義を生成します。設定項目は[開発ガイド §5](DEVELOPMENT.md#5-standardboardgameconfig)を参照してください。
 
@@ -164,6 +177,9 @@ bool isInside = snapshot.IsInside(new GridPosition(2, 1));
 bool found = snapshot.TryGetPiece(new PieceId(1), out PieceState currentPiece);
 int player1PieceCount = snapshot.GetPieceCount(PlayerId.Player1);
 int reserveCount = snapshot.GetPlayer(PlayerId.Player1).ReservePieces.Count;
+int ownedCount = snapshot.GetOwnedPieceCount(PlayerId.Player1); // 盤上＋リザーブ
+int limit = snapshot.MaxPiecesPerPlayer;
+int deploymentDepth = snapshot.ReserveDeploymentDepth;
 bool isGameOver = snapshot.IsGameOver;
 ```
 

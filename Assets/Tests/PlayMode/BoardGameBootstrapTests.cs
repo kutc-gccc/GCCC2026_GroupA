@@ -501,7 +501,6 @@ namespace GCCC.BoardGame.Tests
             Assert.That(sceneBootstrap, Is.Not.Null);
             Assert.That(sceneBootstrap.GeneratedCellCount, Is.EqualTo(60));
             Assert.That(sceneBootstrap.Snapshot.Pieces.Count, Is.EqualTo(12));
-
             PieceView player1 = FindPieceView(
                 sceneBootstrap,
                 new GridPosition(0, 1),
@@ -520,6 +519,35 @@ namespace GCCC.BoardGame.Tests
                 player1Renderer.sprite,
                 Is.Not.SameAs(player2Renderer.sprite));
 
+            Assert.That(sceneBootstrap.EffectOverlayCount, Is.EqualTo(2));
+            Assert.That(sceneBootstrap.IsEffectLegendVisible, Is.True);
+            Assert.That(
+                sceneBootstrap.Snapshot.TryGetCell(
+                    new GridPosition(1, 4), out CellDefinition player1EffectCell),
+                Is.True);
+            Assert.That(player1EffectCell.EffectIds,
+                Is.EquivalentTo(new[] { "reserve-piece-grant" }));
+            Assert.That(
+                sceneBootstrap.Snapshot.TryGetCell(
+                    new GridPosition(4, 5), out CellDefinition player2EffectCell),
+                Is.True);
+            Assert.That(player2EffectCell.EffectIds,
+                Is.EquivalentTo(new[] { "reserve-piece-grant" }));
+            Assert.That(
+                sceneBootstrap.Snapshot.TryGetCellEffectDefinition(
+                    "reserve-piece-grant", out CellEffectDefinition effectDefinition),
+                Is.True);
+            Assert.That(effectDefinition.Lifetime,
+                Is.EqualTo(CellEffectLifetime.PermanentOncePerPiece));
+            int configuredEffectCellCount = 0;
+            foreach (CellDefinition cell in sceneBootstrap.Snapshot.Cells)
+            {
+                if (cell.EffectIds.Count > 0)
+                {
+                    configuredEffectCellCount++;
+                }
+            }
+            Assert.That(configuredEffectCellCount, Is.EqualTo(2));
             Assert.That(GameObject.Find("Board View"), Is.Not.Null);
             Assert.That(GameObject.Find("Game HUD"), Is.Not.Null);
             Assert.That(GameObject.Find("EventSystem"), Is.Not.Null);
