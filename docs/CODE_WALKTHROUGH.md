@@ -75,9 +75,15 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
      スクリーン座標 → ワールド → ローカル → (列, 行)
           ↓
 ④ GameCoordinator.HandleCellClick(cell)
+     モードを先に見る。合体・リザーブ配置は互いに排他
+     ├─ 合体モード中        → HandleFusionModeClick()        → FusePiecesCommand
+     ├─ 配置モード中        → HandleReserveDeploymentClick() → DeployReservePieceCommand
      ├─ 自分の駒だった      → 選択 / 選択解除して RenderSelection()
      │                          合法手を緑（空きマス）とオレンジ（敵駒）で表示
      └─ 合法な移動先だった  → HumanPlayerAgent.TrySubmit(move)
+
+   「パワーランダム化」ボタンは盤面クリックを経ずに
+   GameCoordinator.HandleRandomizePowerButtonClicked から RandomizePowerCommand を送る
           ↓
 ⑤ HumanPlayerAgent が BeginTurn で預かった callback を呼ぶ
      = GameCoordinator.ExecuteSubmittedCommand
@@ -85,7 +91,10 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
 ⑥ GameSession.Execute(command)
      null? / ゲーム終了? / 手番一致? / Handlerある? の4段階を検証
           ↓
-⑦ GameSession.ExecuteMove()
+⑦ Command の型に対応する実行メソッドへ分岐（以下は移動の場合）
+     ExecuteMove / ExecuteFusion / ExecuteRandomizePower / ExecuteDeployReservePiece
+
+   GameSession.ExecuteMove()
      駒の存在と所有権を確認し、DirectionalMovementRule で合法性を判定
      移動元の滞在中効果を失効してから処理する
      ├─ 空きマス → ResolveUnoccupiedMove()

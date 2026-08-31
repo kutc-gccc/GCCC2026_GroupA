@@ -50,9 +50,9 @@ flowchart TB
 | `CellDefinition` | 位置、陣地所有者、特殊効果IDの順序付き一覧 |
 | `CellEffectDefinition` | 効果IDと`WhileOccupied`／`PermanentOncePerPiece`の固定定義 |
 | `InitialPieceDefinition` | リセット時に生成する駒の定義 |
-| `GameDefinition` | 盤面サイズ、全セル、初期駒、先手、移動プロファイル、効果定義 |
+| `GameDefinition` | 盤面サイズ、全セル、初期駒、先手、移動プロファイル、効果定義、駒上限、リザーブ配置範囲 |
 | `PlayerState` | プレイヤーごとのリザーブ駒を持つ不変の実行時状態 |
-| `GameSnapshot` | 駒、セル、効果定義、Player状態、手番、勝敗を公開する読み取り専用コピー |
+| `GameSnapshot` | 駒、セル、効果定義、Player状態、手番、勝敗、駒上限、リザーブ配置範囲を公開する読み取り専用コピー |
 
 `GridPosition`にUnityの`Vector2Int`を使わないのは、Coreをエンジン非依存に保つためです。同じ理由で、座標が盤内かどうかの判定も`GridPosition`ではなく`GameSnapshot`やRuleが持ちます。
 
@@ -211,7 +211,7 @@ Prefab参照が未設定の場合は、同じComponentを持つGameObjectを実�
 
 | クラス | 表示上の責務 | 保持・判断しないもの |
 |---|---|---|
-| `BoardView` | 60セル、陣地枠、ラベル、選択、移動候補、座標変換 | 駒の戦闘力や勝敗ルール |
+| `BoardView` | 60セル、陣地枠、ラベル、選択、移動候補、リザーブ配置候補、座標変換 | 駒の戦闘力や勝敗ルール |
 | `PieceViewManager` | `PieceView`の生成、Eventに従った更新・削除、リセット時の再構築 | 戦闘結果の再計算 |
 | `PieceView` | 1個の駒の所有者色、位置、戦闘力テキスト | Coreの`PieceState`の直接変更 |
 | `GameHudView` | 手番、操作ボタン、音量スライダー、リザルト表示、UI入力遮断 | 手番や勝者の決定 |

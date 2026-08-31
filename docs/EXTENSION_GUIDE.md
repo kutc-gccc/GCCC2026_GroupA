@@ -11,7 +11,7 @@
 - 差し替え可能なRuleやResolverを実ゲームで使うには、Coreへの実装だけでなく、Composition Rootである`BoardGameBootstrap`から生成・注入します。
 - 新しい共通契約は、利用側の機能PRより先に共有PRとして確定します。
 
-`BoardGameBootstrap.Awake`は現在すべての実装差し替えが集中する唯一の注入口で、Resolverを選ぶSerializeFieldもFactoryもありません。移動・戦闘・合体・特殊マス・CPUのどの担当者も同じメソッドを編集するため、担当PRではCore側の実装とテストを先に確定し、`Awake`への配線は最後の1コミットにまとめてください。恒久的な解決は[§12](#12-将来の構造改善候補)のSession Factoryです。
+`BoardGameBootstrap.Awake`は現在すべての実装差し替えが集中する唯一の注入口で、Resolverを選ぶSerializeFieldもFactoryもありません。移動・戦闘・合体・特殊マス・CPUのどの担当者も同じメソッドを編集するため、担当PRではCore側の実装とテストを先に確定し、`Awake`への配線は最後の1コミットにまとめてください。恒久的な解決は[§13](#13-将来の構造改善候補)のSession Factoryです。
 
 ### 変更影響マトリクス
 
@@ -25,6 +25,7 @@
 | 合体 | `IFusionResolver`、`FusionResolution`、Command・Event | `BoardGameBootstrap`から`fusionResolver`へ注入（UI・View・音声は配線済み） | Ruleや確率を設定化する場合だけ追加 | EditMode、2駒選択とView更新のPlayMode | `GAME_RULES.md`、READMEの実装状況 |
 | 特殊マス | `ICellEffectHandler`、`CellEffectResult`、Event | `CellEffectConfig`派生Assetが定義とHandlerを生成し、Bootstrapが`GameSession`へ登録 | 効果Asset作成 → `cellEffectDefinitions`登録 → 対象座標の`cellEffects`設定 | EditMode、表示がある場合はPlayMode | `GAME_RULES.md`、Config説明 |
 | パワーランダム化 | `RandomizePowerCommand`、`RandomizePowerEvent`、`IRandomSource` | `GameHudView`のボタンと`GameCoordinator` | 範囲を設定化する場合だけ追加 | 固定乱数での範囲・禁止条件・手番消費 | `GAME_RULES.md`、`CORE_API.md` |
+| リザーブ配置・駒上限 | `DeployReservePieceCommand`、`ReservePieceDeployed`、`GameDefinition`の上限と配置範囲 | `GameHudView`の配置ボタンと`GameCoordinator`の配置モード（配線済み） | `maxPiecesPerPlayer`、`reserveDeploymentDepth` | 配置範囲・上限・手番消費のEditMode、候補表示のPlayMode | `GAME_RULES.md`、`CORE_API.md` |
 | CPU | `IPlayerAgent`実装 | Agentを生成して`GameCoordinator`へ注入 | 対戦形式を選択する場合に追加 | Agent単体、Human対CPU／CPU対CPUのPlayMode | READMEの実装状況、必要に応じて設計文書 |
 | 新Command・Event | 派生型、Handler、状態更新、Event | `GameSession`のdispatchとPresentationの送受信経路 | 操作を設定化する場合だけ追加 | 拒否時不変性、Event値・順序、View反映 | `CORE_API.md`、`ARCHITECTURE.md` |
 | UI・入力 | ルール変更がなければ変更しない | `GameCoordinator`、Input、View、Prefab | 表示値を設定化する場合だけ追加 | PlayMode、実機入力は手動確認 | `GAME_RULES.md`の表示・入力、`CODE_WALKTHROUGH.md` |
@@ -185,7 +186,7 @@ public interface IFusionResolver
 | 合体成功時のSFX | `BoardGameAudioManager.PlayEvents`の`PiecesFused` |
 | 成功・失敗のメッセージ | `GameCoordinator.ShowFusionResultMessage` |
 
-Resolverが新しいEventを発生させる場合だけ、[§8](#8-新しいcommandやeventを追加する)と[§10](#10-音声を変更する)に従ってViewと音声へ分岐を追加します。
+Resolverが新しいEventを発生させる場合だけ、[§8](#8-新しいcommandやeventを追加する)と[§11](#11-音声を変更する)に従ってViewと音声へ分岐を追加します。
 
 ### 設定
 
@@ -325,7 +326,7 @@ CPU実装は将来の`GCCC.BoardGame.AI`アセンブリへ置き、Coreだけを
 
 ### Core実装
 
-新しい操作が既存の`MovePieceCommand`、`FusePiecesCommand`、`RandomizePowerCommand`で表現できない場合にだけCommandを追加します。
+新しい操作が既存の`MovePieceCommand`、`FusePiecesCommand`、`RandomizePowerCommand`、`DeployReservePieceCommand`で表現できない場合にだけCommandを追加します。
 
 Commandの追加はCoreアセンブリ内でのみ可能です。`IGameCommandHandler`と`GameSession`の各操作実行メソッドは`internal`で、Handlerの登録先は`GameSession`のコンストラクタ内にある固定配列です。外部アセンブリからHandlerを登録する口はありません。他の拡張と違って`GameSession`本体の変更を伴うため、[§1](#1-拡張時の共通原則)のとおり契約だけを先行PRとして確定してから進めます。
 
@@ -421,7 +422,66 @@ Command・Eventの引数と値は`CORE_API.md`、実行順と責務は`ARCHITECT
 
 プレイヤーから見た挙動は`GAME_RULES.md`、Command・Eventの値は`CORE_API.md`、実装状況はREADMEを更新します。
 
-## 10. 音声を変更する
+## 10. リザーブ配置・駒上限を変更する
+
+### Core実装
+
+リザーブ駒は盤外に保管され、`DeployReservePieceCommand`で盤上へ出します。構成は`DeployReservePieceCommandHandler`と`ReservePieceDeployed`、失敗理由の`ReservePieceNotFound`・`PieceLimitReached`・`InvalidDeploymentPosition`です。獲得側は特殊マスの`ReservePieceGrant`が担当します（[§5](#5-特殊マスを追加する)）。
+
+| 変えたいこと | 変更場所 |
+|---|---|
+| 所有できる駒の上限 | `GameDefinition`の`maxPiecesPerPlayer`（既定は`StandardMaxPiecesPerPlayer` = 6） |
+| 配置できる行数 | `GameDefinition`の`reserveDeploymentDepth`（既定は`StandardReserveDeploymentDepth` = 2） |
+| 配置できるマスの条件 | `GameSession`の`GetLegalReserveDeploymentPositions` |
+| 配置時の処理順 | `GameSession`の`ExecuteDeployReservePiece` |
+
+配置候補は、自陣の行から相手陣地の向きへ`ReserveDeploymentDepth`行ぶんのうち、盤内で空いていて相手陣地ではないマスです。陣地行が各プレイヤー1行に定まらない盤面では候補が空になります。配置は`ApplyCellEffects`のあと`ResolveNextTurn`を呼ぶため、配置先に特殊マスがあればその場で発動し、手番を消費します。
+
+**上限の判定は2か所にあり、数え方が違います。**
+
+| 判定 | 数える対象 | 場所 |
+|---|---|---|
+| 配置できるか | 盤上の駒だけ（`GetBoardPieceCount`） | `ExecuteDeployReservePiece`と合法手の生成 |
+| リザーブを獲得できるか | 盤上＋リザーブ（`GetOwnedPieceCount`） | `AddReservePiece` |
+
+上限に達した状態でのリザーブ獲得は、例外にもCommandの失敗にもならず、`ReservePieceAdded`を出さずに黙って捨てられます。獲得側の上限挙動を変えるときはこの非対称を壊さないでください。
+
+### 本番への配線
+
+リザーブ配置は既に本番へ配線済みです。上限や配置範囲を変えるだけならPresentationは触りません。
+
+| 経路 | 実装場所 |
+|---|---|
+| 「リザーブ配置」ボタン | `GameHudView.ReserveDeployRequested` → `GameCoordinator.ToggleReserveDeployMode` |
+| 配置先の選択 | `GameCoordinator.HandleReserveDeploymentClick` |
+| 候補マスの表示 | `GameCoordinator.RenderReserveDeployment` → `BoardView.ShowSelection`の移動候補（緑） |
+| 配置後のView生成 | `PieceViewManager.ApplyEvents`の`case ReservePieceDeployed` |
+| ボタンの有効・無効 | `GameHudView.SetReserveDeployButtonInteractable` |
+
+配置モードは合体モードと排他で、どちらかに入るともう一方と駒選択が解除されます。新しいモードを足す場合は`GameCoordinator`の`HandleCellClick`冒頭にある分岐順を確認してください。
+
+### 設定
+
+`BoardGameConfig`の`maxPiecesPerPlayer`と`reserveDeploymentDepth`を変更し、`StandardBoardGameConfig.asset`にも同じ値を保存します。Config未設定時は`GameDefinition`の既定値が使われるため、§2の標準移動プロファイルと同じく片方だけを変更してはいけません。
+
+初期駒の数が`maxPiecesPerPlayer`を超える設定にすると`GameDefinition`の生成時に`ArgumentException`になります。`reserveDeploymentDepth`は0以上`rows`未満でなければなりません。
+
+### テスト
+
+- 自陣から前方`ReserveDeploymentDepth`行だけが候補になり、自陣・相手陣地・使用中のマスが除外されること。
+- 盤上の駒が上限のとき`PieceLimitReached`で拒否されること。
+- 他プレイヤーのリザーブ駒を指定すると`NotPieceOwner`、存在しないIDだと`ReservePieceNotFound`になること。
+- 配置が手番を消費し、配置先の特殊効果が発動すること。
+- 盤上＋リザーブが上限のとき獲得が行われず、`ReservePieceAdded`も出ないこと。
+- 候補表示、配置後の駒View生成、配置ボタンの状態のPlayMode検証。
+
+`CreateDefinitionWithEffectsAndLimits`で上限と配置範囲を指定した定義を作れます（[テストガイド §1](TESTING.md#1-editmodeテスト)）。
+
+### 文書更新
+
+プレイヤーから見た配置範囲と上限は`GAME_RULES.md`、Command・Event・`GameDefinition`の引数は`CORE_API.md`、Config項目は`DEVELOPMENT.md`を更新します。
+
+## 11. 音声を変更する
 
 ### Core実装
 
@@ -454,7 +514,7 @@ Clipの割り当てはPrefabとSceneで行い、コードにパスを埋め込�
 
 Audioレイヤーの責務は`ARCHITECTURE.md`、音量UIの操作は`GAME_RULES.md`の表示・入力、実装状況はREADMEを更新します。
 
-## 11. Scene遷移を変更する
+## 12. Scene遷移を変更する
 
 ### Core実装
 
@@ -491,7 +551,7 @@ Build SettingsのScene一覧を更新します。Scene自体の編集方針は[�
 
 Scene構成とBootstrapの責務は`ARCHITECTURE.md` §8、起動手順はREADMEと`DEVELOPMENT.md`を更新します。
 
-## 12. 将来の構造改善候補
+## 13. 将来の構造改善候補
 
 次は文書変更とは分離し、専用の実装PRで扱います。
 
