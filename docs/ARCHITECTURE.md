@@ -214,7 +214,9 @@ Prefab参照が未設定の場合は、同じComponentを持つGameObjectを実�
 | `BoardView` | 60セル、陣地枠、ラベル、選択、移動候補、リザーブ配置候補、座標変換 | 駒の戦闘力や勝敗ルール |
 | `PieceViewManager` | `PieceView`の生成、Eventに従った更新・削除、リセット時の再構築 | 戦闘結果の再計算 |
 | `PieceView` | 1個の駒の所有者色、位置、戦闘力テキスト | Coreの`PieceState`の直接変更 |
-| `GameHudView` | 手番、操作ボタン、音量スライダー、リザルト表示、UI入力遮断 | 手番や勝者の決定 |
+| `GameHudView` | 手番、操作ボタン、音量スライダー、リザルト表示、各UI Viewの仲介と入力遮断 | 手番や勝者の決定 |
+| `ReservePanelView` | 2人分のリザーブ一覧、個数、選択可能状態をSnapshotから同期 | 配置先や手番の決定 |
+| `ReservePieceCardView` | 1個のリザーブ駒のSprite、戦闘力、移動プロファイル、選択表示 | `ReservePieceState`の変更 |
 | `RuntimeSpriteFactory` | セルと円形駒のSpriteを実行時生成 | ゲーム状態 |
 
 `PieceState`と`PieceView`は1対1で対応しますが、役割は異なります。`PieceState`はCore上の正しいゲーム状態、`PieceView`はUnity上の見た目です。各駒GameObjectへ戦闘ルールを持たせず、`PieceViewManager`がSnapshotとEventを使って見た目だけを同期します。

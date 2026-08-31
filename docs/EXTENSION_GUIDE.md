@@ -25,7 +25,7 @@
 | 合体 | `IFusionResolver`、`FusionResolution`、Command・Event | `BoardGameBootstrap`から`fusionResolver`へ注入（UI・View・音声は配線済み） | Ruleや確率を設定化する場合だけ追加 | EditMode、2駒選択とView更新のPlayMode | `GAME_RULES.md`、READMEの実装状況 |
 | 特殊マス | `ICellEffectHandler`、`CellEffectResult`、Event | `CellEffectConfig`派生Assetが定義とHandlerを生成し、Bootstrapが`GameSession`へ登録 | 効果Asset作成 → `cellEffectDefinitions`登録 → 対象座標の`cellEffects`設定 | EditMode、表示がある場合はPlayMode | `GAME_RULES.md`、Config説明 |
 | パワーランダム化 | `RandomizePowerCommand`、`RandomizePowerEvent`、`IRandomSource` | `GameHudView`のボタンと`GameCoordinator` | 範囲を設定化する場合だけ追加 | 固定乱数での範囲・禁止条件・手番消費 | `GAME_RULES.md`、`CORE_API.md` |
-| リザーブ配置・駒上限 | `DeployReservePieceCommand`、`ReservePieceDeployed`、`GameDefinition`の上限と配置範囲 | `GameHudView`の配置ボタンと`GameCoordinator`の配置モード（配線済み） | `maxPiecesPerPlayer`、`reserveDeploymentDepth` | 配置範囲・上限・手番消費のEditMode、候補表示のPlayMode | `GAME_RULES.md`、`CORE_API.md` |
+| リザーブ配置・駒上限 | `DeployReservePieceCommand`、`ReservePieceDeployed`、`GameDefinition`の上限と配置範囲 | `ReservePanelView`の個別カード、`GameHudView`の配置ボタン、`GameCoordinator`の配置モード（配線済み） | `maxPiecesPerPlayer`、`reserveDeploymentDepth` | 配置範囲・上限・手番消費のEditMode、カード選択と候補表示のPlayMode | `GAME_RULES.md`、`CORE_API.md` |
 | CPU | `IPlayerAgent`実装 | Agentを生成して`GameCoordinator`へ注入 | 対戦形式を選択する場合に追加 | Agent単体、Human対CPU／CPU対CPUのPlayMode | READMEの実装状況、必要に応じて設計文書 |
 | 新Command・Event | 派生型、Handler、状態更新、Event | `GameSession`のdispatchとPresentationの送受信経路 | 操作を設定化する場合だけ追加 | 拒否時不変性、Event値・順序、View反映 | `CORE_API.md`、`ARCHITECTURE.md` |
 | UI・入力 | ルール変更がなければ変更しない | `GameCoordinator`、Input、View、Prefab | 表示値を設定化する場合だけ追加 | PlayMode、実機入力は手動確認 | `GAME_RULES.md`の表示・入力、`CODE_WALKTHROUGH.md` |
@@ -453,10 +453,11 @@ Command・Eventの引数と値は`CORE_API.md`、実行順と責務は`ARCHITECT
 | 経路 | 実装場所 |
 |---|---|
 | 「リザーブ配置」ボタン | `GameHudView.ReserveDeployRequested` → `GameCoordinator.ToggleReserveDeployMode` |
+| 個別カードの選択 | `ReservePieceCardView` → `ReservePanelView.ReservePieceSelected` → `GameHudView.ReservePieceSelected` → `GameCoordinator.ToggleReservePieceSelection` |
 | 配置先の選択 | `GameCoordinator.HandleReserveDeploymentClick` |
 | 候補マスの表示 | `GameCoordinator.RenderReserveDeployment` → `BoardView.ShowSelection`の移動候補（緑） |
 | 配置後のView生成 | `PieceViewManager.ApplyEvents`の`case ReservePieceDeployed` |
-| ボタンの有効・無効 | `GameHudView.SetReserveDeployButtonInteractable` |
+| ボタン・カードの有効状態 | `GameHudView.SetReserveDeployButtonInteractable`と`SetDeployableReservePieces` |
 
 配置モードは合体モードと排他で、どちらかに入るともう一方と駒選択が解除されます。新しいモードを足す場合は`GameCoordinator`の`HandleCellClick`冒頭にある分岐順を確認してください。
 
@@ -473,7 +474,7 @@ Command・Eventの引数と値は`CORE_API.md`、実行順と責務は`ARCHITECT
 - 他プレイヤーのリザーブ駒を指定すると`NotPieceOwner`、存在しないIDだと`ReservePieceNotFound`になること。
 - 配置が手番を消費し、配置先の特殊効果が発動すること。
 - 盤上＋リザーブが上限のとき獲得が行われず、`ReservePieceAdded`も出ないこと。
-- 候補表示、配置後の駒View生成、配置ボタンの状態のPlayMode検証。
+- 戦闘力・移動プロファイル・所有者Spriteを持つカード表示、先頭以外の選択、候補表示、配置後のカード削除と駒View生成、ボタン状態のPlayMode検証。
 
 `CreateDefinitionWithEffectsAndLimits`で上限と配置範囲を指定した定義を作れます（[テストガイド §1](TESTING.md#1-editmodeテスト)）。
 

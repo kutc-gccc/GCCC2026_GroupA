@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using GCCC.BoardGame.Core.Model;
 using GCCC.BoardGame.Presentation.Audio;
 using UnityEngine;
@@ -21,7 +22,7 @@ namespace GCCC.BoardGame.Presentation.Views
         private Text statusLabel;
         private Text messageLabel;
         private Text resultLabel;
-        private Text reserveLabel;
+        private ReservePanelView reservePanelView;
         private GameObject effectLegend;
         private GameObject resultOverlay;
         private GameObject createdEventSystem;
@@ -35,11 +36,13 @@ namespace GCCC.BoardGame.Presentation.Views
         private bool fuseButtonInteractable;
         private bool reserveDeployButtonInteractable;
         private BoardGameAudioManager audioManager;
+        private string reserveText = string.Empty;
 
         public event Action ResetRequested;
         public event Action OnRandomizePowerButtonClicked;
         public event Action FuseRequested;
         public event Action ReserveDeployRequested;
+        public event Action<PieceId> ReservePieceSelected;
         public event Action StartScreenRequested;
 
         public string StatusText => statusLabel != null ? statusLabel.text : string.Empty;
@@ -47,7 +50,9 @@ namespace GCCC.BoardGame.Presentation.Views
         public bool IsResultVisible => resultOverlay != null && resultOverlay.activeSelf;
         public Button RandomizePowerButton => randomizePowerButton;
         public Button ReserveDeployButton => reserveDeployButton;
-        public string ReserveText => reserveLabel != null ? reserveLabel.text : string.Empty;
+        public string ReserveText => reserveText;
+        public int ReserveCardCount =>
+            reservePanelView != null ? reservePanelView.CardCount : 0;
         public bool IsEffectLegendVisible =>
             effectLegend != null && effectLegend.activeSelf;
 
@@ -62,13 +67,21 @@ namespace GCCC.BoardGame.Presentation.Views
 
         public void Initialize()
         {
-            BuildUi(null);
+            Initialize(null, null, null);
         }
 
         public void Initialize(BoardGameAudioManager audioManager)
         {
+            Initialize(audioManager, null, null);
+        }
+
+        public void Initialize(
+            BoardGameAudioManager audioManager,
+            Sprite player1PieceSprite,
+            Sprite player2PieceSprite)
+        {
             this.audioManager = audioManager;
-            BuildUi(audioManager);
+            BuildUi(audioManager, player1PieceSprite, player2PieceSprite);
         }
 
         public void SetRandomizeButtonInteractable(bool interactable)
@@ -84,9 +97,10 @@ namespace GCCC.BoardGame.Presentation.Views
         {
             if (statusLabel == null) return;
 
-            reserveLabel.text =
+            reserveText =
                 $"リザーブ　青: {snapshot.GetPlayer(PlayerId.Player1).ReservePieces.Count}" +
                 $"　赤: {snapshot.GetPlayer(PlayerId.Player2).ReservePieces.Count}";
+            reservePanelView.Render(snapshot);
             effectLegend.SetActive(snapshot.CellEffectDefinitions.Count > 0);
 
             if (snapshot.Winner.HasValue)
@@ -123,7 +137,9 @@ namespace GCCC.BoardGame.Presentation.Views
                    IsPointerOverRect(randomizeButtonRect, screenPosition) ||
                    IsPointerOverRect(fuseButtonRect, screenPosition) ||
                    IsPointerOverRect(reserveDeployButtonRect, screenPosition) ||
-                   IsPointerOverRect(audioControlsRect, screenPosition);
+                   IsPointerOverRect(audioControlsRect, screenPosition) ||
+                   (reservePanelView != null &&
+                    reservePanelView.IsPointerOver(screenPosition));
         }
 
         public void SetFuseButtonInteractable(bool interactable)
@@ -144,6 +160,23 @@ namespace GCCC.BoardGame.Presentation.Views
             }
         }
 
+        public void SetDeployableReservePieces(IEnumerable<PieceId> pieceIds)
+        {
+            reservePanelView?.SetDeployablePieces(pieceIds);
+        }
+
+        public void SetSelectedReservePiece(PieceId? pieceId)
+        {
+            reservePanelView?.SetSelectedPiece(pieceId);
+        }
+
+        public ReservePieceCardView GetReserveCard(PieceId pieceId)
+        {
+            return reservePanelView != null
+                ? reservePanelView.GetCard(pieceId)
+                : null;
+        }
+
         public void ShowMessage(string text)
         {
             if (messageLabel != null)
@@ -152,7 +185,10 @@ namespace GCCC.BoardGame.Presentation.Views
             }
         }
 
-        private void BuildUi(BoardGameAudioManager audioManager)
+        private void BuildUi(
+            BoardGameAudioManager audioManager,
+            Sprite player1PieceSprite,
+            Sprite player2PieceSprite)
         {
             GameObject canvasObject = new GameObject(
                 "Board UI", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
@@ -178,10 +214,15 @@ namespace GCCC.BoardGame.Presentation.Views
             messageLabel.color = new Color32(255, 213, 79, 255);
             messageLabel.text = string.Empty;
 
-            reserveLabel = CreateUiText(
-                "Reserve Status", canvasObject.transform, font, 20,
-                TextAnchor.MiddleRight, new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-24f, -104f), new Vector2(500f, 42f));
+            GameObject reservePanelObject = new GameObject(
+                "Reserve Panels", typeof(RectTransform), typeof(ReservePanelView));
+            reservePanelView = reservePanelObject.GetComponent<ReservePanelView>();
+            reservePanelView.Initialize(
+                canvasObject.transform,
+                font,
+                player1PieceSprite,
+                player2PieceSprite);
+            reservePanelView.ReservePieceSelected += OnReservePieceSelected;
 
             effectLegend = CreateEffectLegend(canvasObject.transform, font);
 
@@ -367,6 +408,16 @@ namespace GCCC.BoardGame.Presentation.Views
             ReserveDeployRequested?.Invoke();
         }
 
+        private void OnReservePieceSelected(PieceId pieceId)
+        {
+            if (IsResultVisible)
+            {
+                return;
+            }
+
+            ReservePieceSelected?.Invoke(pieceId);
+        }
+
         private void OnStartScreenClicked()
         {
             StartScreenRequested?.Invoke();
@@ -425,6 +476,11 @@ namespace GCCC.BoardGame.Presentation.Views
             {
                 reserveDeployButton.interactable =
                     interactable && reserveDeployButtonInteractable;
+            }
+
+            if (!interactable)
+            {
+                reservePanelView?.SetDeployablePieces(Array.Empty<PieceId>());
             }
 
             if (bgmSlider != null)
@@ -696,6 +752,11 @@ namespace GCCC.BoardGame.Presentation.Views
             if (reserveDeployButton != null)
             {
                 reserveDeployButton.onClick.RemoveListener(OnReserveDeployClicked);
+            }
+
+            if (reservePanelView != null)
+            {
+                reservePanelView.ReservePieceSelected -= OnReservePieceSelected;
             }
 
             if (resultButton != null)

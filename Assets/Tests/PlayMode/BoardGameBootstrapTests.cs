@@ -1,7 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using GCCC.BoardGame.Core;
+using GCCC.BoardGame.Core.Commands;
 using GCCC.BoardGame.Core.Events;
 using GCCC.BoardGame.Core.Model;
+using GCCC.BoardGame.Core.Rules.CellEffects;
 using GCCC.BoardGame.Presentation;
 using GCCC.BoardGame.Presentation.Audio;
 using GCCC.BoardGame.Presentation.Bootstrap;
@@ -63,6 +67,10 @@ namespace GCCC.BoardGame.Tests
             Assert.That(GameObject.Find("Reserve Deploy Button"), Is.Not.Null);
             Assert.That(GameObject.Find("Reserve Deploy Button")
                 .GetComponent<Button>().interactable, Is.False);
+            Assert.That(GameObject.Find("Player 1 Reserve Panel"), Is.Not.Null);
+            Assert.That(GameObject.Find("Player 2 Reserve Panel"), Is.Not.Null);
+            Assert.That(bootstrapObject.GetComponentInChildren<GameHudView>()
+                .ReserveCardCount, Is.Zero);
             Assert.That(GameObject.Find("Audio Volume Controls"), Is.Not.Null);
             Assert.That(GameObject.Find("BGM Slider"), Is.Not.Null);
             Assert.That(GameObject.Find("SFX Slider"), Is.Not.Null);
@@ -229,6 +237,185 @@ namespace GCCC.BoardGame.Tests
             Assert.That(board.MoveIndicatorCount, Is.EqualTo(1));
             Assert.That(pieces.PieceViewCount, Is.EqualTo(1));
             Assert.That(hud.ReserveDeployButton.interactable, Is.True);
+        }
+
+        [UnityTest]
+        public IEnumerator ReserveCardsRenderDetailsSelectionAndPointerBlocking()
+        {
+            GameSnapshot standard = bootstrap.Snapshot;
+            ReservePieceState firstPlayer1Reserve = new ReservePieceState(
+                new PieceId(100),
+                PlayerId.Player1,
+                2,
+                PowerMovementProfile.StandardId);
+            ReservePieceState secondPlayer1Reserve = new ReservePieceState(
+                new PieceId(101),
+                PlayerId.Player1,
+                4,
+                new MovementProfileId("scout"));
+            ReservePieceState player2Reserve = new ReservePieceState(
+                new PieceId(200),
+                PlayerId.Player2,
+                3,
+                PowerMovementProfile.StandardId);
+            GameSnapshot snapshot = new GameSnapshot(
+                standard.Columns,
+                standard.Rows,
+                new PieceState[0],
+                standard.Cells,
+                PlayerId.Player1,
+                null,
+                false,
+                players: new[]
+                {
+                    new PlayerState(
+                        PlayerId.Player1,
+                        new[] { firstPlayer1Reserve, secondPlayer1Reserve }),
+                    new PlayerState(PlayerId.Player2, new[] { player2Reserve })
+                });
+
+            auxiliaryObject = new GameObject("Reserve Card Presentation Test");
+            auxiliarySprites = new RuntimeSpriteFactory();
+            GameHudView hud = auxiliaryObject.AddComponent<GameHudView>();
+            hud.Initialize(
+                null,
+                auxiliarySprites.CircleSprite,
+                auxiliarySprites.SquareSprite);
+            hud.Render(snapshot);
+            hud.SetDeployableReservePieces(
+                new[]
+                {
+                    firstPlayer1Reserve.Id,
+                    secondPlayer1Reserve.Id,
+                    player2Reserve.Id
+                });
+            yield return null;
+
+            ReservePieceCardView firstCard = hud.GetReserveCard(firstPlayer1Reserve.Id);
+            ReservePieceCardView secondCard = hud.GetReserveCard(secondPlayer1Reserve.Id);
+            ReservePieceCardView opponentCard = hud.GetReserveCard(player2Reserve.Id);
+            Assert.That(hud.ReserveCardCount, Is.EqualTo(3));
+            Assert.That(firstCard.CombatPowerText, Is.EqualTo("2"));
+            Assert.That(firstCard.MovementProfileText, Is.EqualTo("standard"));
+            Assert.That(firstCard.PieceSprite, Is.SameAs(auxiliarySprites.CircleSprite));
+            Assert.That(secondCard.CombatPowerText, Is.EqualTo("4"));
+            Assert.That(secondCard.MovementProfileText, Is.EqualTo("scout"));
+            Assert.That(firstCard.IsInteractable, Is.True);
+            Assert.That(secondCard.IsInteractable, Is.True);
+            Assert.That(opponentCard.IsInteractable, Is.False);
+            Assert.That(opponentCard.PieceSprite, Is.SameAs(auxiliarySprites.SquareSprite));
+
+            PieceId? clickedId = null;
+            hud.ReservePieceSelected += id => clickedId = id;
+            secondCard.GetComponent<Button>().onClick.Invoke();
+            Assert.That(clickedId, Is.EqualTo(secondPlayer1Reserve.Id));
+
+            hud.SetSelectedReservePiece(secondPlayer1Reserve.Id);
+            Assert.That(secondCard.GetComponent<Outline>().enabled, Is.True);
+            Assert.That(firstCard.GetComponent<Outline>().enabled, Is.False);
+
+            Canvas.ForceUpdateCanvases();
+            RectTransform panelRect = GameObject.Find("Player 2 Reserve Panel")
+                .GetComponent<RectTransform>();
+            Vector2 panelCenter = RectTransformUtility.WorldToScreenPoint(
+                null, panelRect.TransformPoint(panelRect.rect.center));
+            Assert.That(hud.IsPointerOverControl(panelCenter), Is.True);
+
+            GameSnapshot gameOver = new GameSnapshot(
+                snapshot.Columns,
+                snapshot.Rows,
+                snapshot.Pieces,
+                snapshot.Cells,
+                snapshot.CurrentPlayer,
+                PlayerId.Player1,
+                false,
+                players: snapshot.Players);
+            hud.Render(gameOver);
+            Assert.That(firstCard.IsInteractable, Is.False);
+            Assert.That(secondCard.IsInteractable, Is.False);
+            Assert.That(opponentCard.IsInteractable, Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator SelectingNonFirstReserveDeploysTheChosenPiece()
+        {
+            const string effectId = "reserve-test";
+            GameDefinition definition = CreateReserveSelectionDefinition(effectId);
+            GameSession session = new GameSession(
+                definition,
+                cellEffectHandlers: new ICellEffectHandler[]
+                {
+                    new ReservePieceGrantCellEffectHandler(
+                        effectId, 1, PowerMovementProfile.StandardId)
+                });
+            ExecuteMove(session, new PieceId(1), new GridPosition(1, 2));
+            ExecuteMove(session, new PieceId(3), new GridPosition(3, 3));
+            ExecuteMove(session, new PieceId(2), new GridPosition(1, 1));
+            ExecuteMove(session, new PieceId(3), new GridPosition(3, 2));
+
+            IReadOnlyList<ReservePieceState> reserves =
+                session.Snapshot.GetPlayer(PlayerId.Player1).ReservePieces;
+            Assert.That(reserves, Has.Count.EqualTo(2));
+            PieceId firstReserveId = reserves[0].Id;
+            PieceId secondReserveId = reserves[1].Id;
+
+            auxiliaryObject = new GameObject("Reserve Selection Coordinator Test");
+            auxiliarySprites = new RuntimeSpriteFactory();
+            BoardView board = auxiliaryObject.AddComponent<BoardView>();
+            board.Initialize(Camera.main, auxiliarySprites.SquareSprite, session.Snapshot);
+            PieceViewManager pieces = auxiliaryObject.AddComponent<PieceViewManager>();
+            pieces.Initialize(
+                auxiliarySprites.CircleSprite,
+                auxiliarySprites.SquareSprite,
+                session.Snapshot);
+            GameHudView hud = auxiliaryObject.AddComponent<GameHudView>();
+            hud.Initialize(
+                null,
+                auxiliarySprites.CircleSprite,
+                auxiliarySprites.SquareSprite);
+            GameCoordinator coordinator = new GameCoordinator(
+                session, board, pieces, hud);
+            hud.ReservePieceSelected += coordinator.ToggleReservePieceSelection;
+            yield return null;
+
+            ReservePieceCardView firstCard = hud.GetReserveCard(firstReserveId);
+            ReservePieceCardView secondCard = hud.GetReserveCard(secondReserveId);
+            Assert.That(firstCard.IsInteractable, Is.True);
+            Assert.That(secondCard.IsInteractable, Is.True);
+
+            secondCard.GetComponent<Button>().onClick.Invoke();
+            Assert.That(coordinator.SelectedReservePieceId, Is.EqualTo(secondReserveId));
+            Assert.That(board.MoveIndicatorCount, Is.GreaterThan(0));
+
+            secondCard.GetComponent<Button>().onClick.Invoke();
+            Assert.That(coordinator.SelectedReservePieceId, Is.Null);
+            Assert.That(board.MoveIndicatorCount, Is.Zero);
+
+            firstCard.GetComponent<Button>().onClick.Invoke();
+            Assert.That(coordinator.SelectedReservePieceId, Is.EqualTo(firstReserveId));
+            secondCard.GetComponent<Button>().onClick.Invoke();
+            Assert.That(coordinator.SelectedReservePieceId, Is.EqualTo(secondReserveId));
+
+            DeployReservePieceCommand deployment =
+                session.GetLegalCommands(PlayerId.Player1)
+                    .OfType<DeployReservePieceCommand>()
+                    .First(command => command.ReservePieceId == secondReserveId);
+            coordinator.HandleCellClick(deployment.Destination);
+            yield return null;
+
+            Assert.That(
+                session.Snapshot.TryGetPiece(deployment.Destination, out PieceState deployed),
+                Is.True);
+            Assert.That(deployed.Id, Is.EqualTo(secondReserveId));
+            Assert.That(
+                session.Snapshot.GetPlayer(PlayerId.Player1).ReservePieces
+                    .Select(piece => piece.Id),
+                Is.EquivalentTo(new[] { firstReserveId }));
+            Assert.That(hud.GetReserveCard(secondReserveId), Is.Null);
+            Assert.That(hud.GetReserveCard(firstReserveId), Is.Not.Null);
+
+            hud.ReservePieceSelected -= coordinator.ToggleReservePieceSelection;
+            coordinator.Dispose();
         }
 
         [UnityTest]
@@ -562,6 +749,70 @@ namespace GCCC.BoardGame.Tests
             bootstrap.HandleCellClick(from);
             Assert.That(bootstrap.SelectedCell, Is.EqualTo(from));
             bootstrap.HandleCellClick(to);
+        }
+
+        private static GameDefinition CreateReserveSelectionDefinition(string effectId)
+        {
+            const int columns = 4;
+            const int rows = 6;
+            List<CellDefinition> cells = new List<CellDefinition>();
+            for (int row = 0; row < rows; row++)
+            {
+                for (int column = 0; column < columns; column++)
+                {
+                    GridPosition position = new GridPosition(column, row);
+                    PlayerId? territoryOwner = row == 0
+                        ? PlayerId.Player1
+                        : row == rows - 1 ? PlayerId.Player2 : (PlayerId?)null;
+                    bool grantsReserve =
+                        position == new GridPosition(1, 1) ||
+                        position == new GridPosition(1, 2);
+                    cells.Add(new CellDefinition(
+                        position,
+                        territoryOwner,
+                        grantsReserve ? new[] { effectId } : null));
+                }
+            }
+
+            return new GameDefinition(
+                columns,
+                rows,
+                cells,
+                new[]
+                {
+                    new InitialPieceDefinition(
+                        new PieceId(1), PlayerId.Player1,
+                        new GridPosition(0, 1), 1,
+                        PowerMovementProfile.StandardId),
+                    new InitialPieceDefinition(
+                        new PieceId(2), PlayerId.Player1,
+                        new GridPosition(2, 1), 1,
+                        PowerMovementProfile.StandardId),
+                    new InitialPieceDefinition(
+                        new PieceId(3), PlayerId.Player2,
+                        new GridPosition(3, 4), 1,
+                        PowerMovementProfile.StandardId)
+                },
+                movementProfiles: new[] { PowerMovementProfile.CreateStandard() },
+                cellEffectDefinitions: new[]
+                {
+                    new CellEffectDefinition(
+                        effectId, CellEffectLifetime.PermanentOncePerPiece)
+                });
+        }
+
+        private static void ExecuteMove(
+            GameSession session,
+            PieceId pieceId,
+            GridPosition destination)
+        {
+            MovePieceCommand command = session
+                .GetLegalCommands(session.Snapshot.CurrentPlayer)
+                .OfType<MovePieceCommand>()
+                .First(candidate =>
+                    candidate.PieceId == pieceId &&
+                    candidate.Destination == destination);
+            Assert.That(session.Execute(command).Success, Is.True);
         }
 
         private static PieceView FindPieceView(

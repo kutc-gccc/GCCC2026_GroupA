@@ -68,6 +68,8 @@ namespace GCCC.BoardGame.Presentation
 
         public int ExecutedCommandCount { get; private set; }
 
+        public PieceId? SelectedReservePieceId => selectedReservePieceId;
+
         public void HandleCellClick(GridPosition cell)
         {
             GameSnapshot snapshot = session.Snapshot;
@@ -91,8 +93,7 @@ namespace GCCC.BoardGame.Presentation
             if (snapshot.TryGetPiece(cell, out PieceState clickedPiece) &&
                 clickedPiece.Owner == snapshot.CurrentPlayer)
             {
-                isReserveDeployModeActive = false;
-                selectedReservePieceId = null;
+                CancelReserveDeployment();
                 selectedPieceId = selectedPieceId == clickedPiece.Id
                     ? (PieceId?)null
                     : clickedPiece.Id;
@@ -125,8 +126,7 @@ namespace GCCC.BoardGame.Presentation
             }
 
             isFusionModeActive = !isFusionModeActive;
-            isReserveDeployModeActive = false;
-            selectedReservePieceId = null;
+            CancelReserveDeployment();
             RenderSelection();
         }
 
@@ -155,10 +155,40 @@ namespace GCCC.BoardGame.Presentation
                 return;
             }
 
+            ToggleReservePieceSelection(firstDeployment.ReservePieceId);
+        }
+
+        public void ToggleReservePieceSelection(PieceId reservePieceId)
+        {
+            GameSnapshot snapshot = session.Snapshot;
+            if (snapshot.IsGameOver)
+            {
+                return;
+            }
+
+            if (isReserveDeployModeActive &&
+                selectedReservePieceId.HasValue &&
+                selectedReservePieceId.Value == reservePieceId)
+            {
+                CancelReserveDeployment();
+                RenderSelection();
+                hudView.ShowMessage(string.Empty);
+                return;
+            }
+
+            bool canDeploy = session.GetLegalCommands(snapshot.CurrentPlayer)
+                .OfType<DeployReservePieceCommand>()
+                .Any(command => command.ReservePieceId == reservePieceId);
+            if (!canDeploy)
+            {
+                return;
+            }
+
             selectedPieceId = null;
             isFusionModeActive = false;
             isReserveDeployModeActive = true;
-            selectedReservePieceId = firstDeployment.ReservePieceId;
+            selectedReservePieceId = reservePieceId;
+            hudView.SetSelectedReservePiece(reservePieceId);
             RenderReserveDeployment();
             hudView.ShowMessage("リザーブを配置するマスを選んでください");
         }
@@ -172,15 +202,15 @@ namespace GCCC.BoardGame.Presentation
 
             session.Reset();
             selectedPieceId = null;
-            selectedReservePieceId = null;
+            CancelReserveDeployment();
             isFusionModeActive = false;
-            isReserveDeployModeActive = false;
             pieceViews.Rebuild(session.Snapshot);
             boardView.ShowSelection(null, NoCells, NoCells, session.Snapshot);
             hudView.Render(session.Snapshot);
             hudView.ShowMessage(string.Empty);
             hudView.SetRandomizeButtonInteractable(false);
             hudView.SetReserveDeployButtonInteractable(false);
+            hudView.SetDeployableReservePieces(Array.Empty<PieceId>());
             BeginCurrentTurn();
         }
 
@@ -272,9 +302,8 @@ namespace GCCC.BoardGame.Presentation
 
             ExecutedCommandCount++;
             selectedPieceId = null;
-            selectedReservePieceId = null;
+            CancelReserveDeployment();
             isFusionModeActive = false;
-            isReserveDeployModeActive = false;
             GameSnapshot snapshot = session.Snapshot;
             pieceViews.ApplyEvents(result.Events, snapshot);
             audioManager?.PlayEvents(result.Events);
@@ -321,8 +350,7 @@ namespace GCCC.BoardGame.Presentation
 
             IReadOnlyList<GameCommand> legalCommands =
                 session.GetLegalCommands(snapshot.CurrentPlayer);
-            hudView.SetReserveDeployButtonInteractable(
-                legalCommands.OfType<DeployReservePieceCommand>().Any());
+            UpdateReserveControls(legalCommands);
             GameSnapshot snapshotWithLegalCommands =
                 snapshot.WithLegalCommands(legalCommands);
 
@@ -367,10 +395,7 @@ namespace GCCC.BoardGame.Presentation
                 .Any(command => command.PieceId == selectedPiece.Id);
             hudView.SetRandomizeButtonInteractable(
                 canRandomize && !isFusionModeActive);
-            hudView.SetReserveDeployButtonInteractable(
-                !isFusionModeActive && legalCommands
-                    .OfType<DeployReservePieceCommand>()
-                    .Any());
+            UpdateReserveControls(legalCommands, !isFusionModeActive);
             if (isFusionModeActive)
             {
                 boardView.ShowSelection(
@@ -413,24 +438,39 @@ namespace GCCC.BoardGame.Presentation
 
             hudView.SetFuseButtonInteractable(false);
             hudView.SetRandomizeButtonInteractable(false);
-            hudView.SetReserveDeployButtonInteractable(true);
+            UpdateReserveControls(
+                session.GetLegalCommands(snapshot.CurrentPlayer));
             boardView.ShowSelection(
                 null, destinations, NoCells, snapshot);
         }
 
         private void RefreshReserveDeployButton(GameSnapshot snapshot)
         {
-            bool canDeploy = !snapshot.IsGameOver &&
-                session.GetLegalCommands(snapshot.CurrentPlayer)
-                    .OfType<DeployReservePieceCommand>()
-                    .Any();
-            hudView.SetReserveDeployButtonInteractable(canDeploy);
+            IReadOnlyList<GameCommand> legalCommands = snapshot.IsGameOver
+                ? Array.Empty<GameCommand>()
+                : session.GetLegalCommands(snapshot.CurrentPlayer);
+            UpdateReserveControls(legalCommands);
+        }
+
+        private void UpdateReserveControls(
+            IEnumerable<GameCommand> legalCommands,
+            bool buttonAllowed = true)
+        {
+            PieceId[] deployablePieceIds = legalCommands
+                .OfType<DeployReservePieceCommand>()
+                .Select(command => command.ReservePieceId)
+                .Distinct()
+                .ToArray();
+            hudView.SetReserveDeployButtonInteractable(
+                buttonAllowed && deployablePieceIds.Length > 0);
+            hudView.SetDeployableReservePieces(deployablePieceIds);
         }
 
         private void CancelReserveDeployment()
         {
             isReserveDeployModeActive = false;
             selectedReservePieceId = null;
+            hudView.SetSelectedReservePiece(null);
         }
     }
 }

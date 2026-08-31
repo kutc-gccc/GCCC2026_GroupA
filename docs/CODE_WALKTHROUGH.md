@@ -50,8 +50,8 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
 2. Configからセル効果Handlerを作り、`new GameSession(definition, cellEffectHandlers: ...)`でゲーム本体を作る
 3. `new RuntimeSpriteFactory()` で画像を実行時に生成する
 4. `ConfigureCamera()`で盤面が収まる正投影サイズを設定し、`BoardGameAudioManager`を取得または生成する
-5. `BoardView` / `PieceViewManager` / `GameHudView`を生成して`Initialize()`する
-6. `GameCoordinator`を作り、リセット、合体、パワーランダム化、タイトル復帰、音声の経路を接続する
+5. `BoardView` / `PieceViewManager` / `GameHudView`を生成して`Initialize()`し、HUD内で`ReservePanelView`とリザーブカードを構築する
+6. `GameCoordinator`を作り、リセット、合体、パワーランダム化、リザーブカード選択、タイトル復帰、音声の経路を接続する
 7. `BoardInputController`を作って配線する
 
 依存関係の組み立てがこの1メソッドに集まっています（Composition Root）。Prefab参照が未設定でも、同じComponentを持つGameObjectを実行時に作るフォールバックがあります。
@@ -69,7 +69,7 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
      毎フレーム、Touchscreen または Mouse の押下を検出
           ↓
 ② GameHudView.IsPointerOverControl()
-     操作ボタン、音量UI、リザルト上なら中断（UIクリックが盤面へ貫通しない）
+     操作ボタン、リザーブパネル、音量UI、リザルト上なら中断（UIクリックが盤面へ貫通しない）
           ↓
 ③ BoardView.TryScreenToCell()
      スクリーン座標 → ワールド → ローカル → (列, 行)
@@ -109,7 +109,7 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
 ⑪ PieceViewManager.ApplyEvents(events, snapshot) / BoardGameAudioManager.PlayEvents(events)
      Eventの型に応じてViewを更新し、対応するSFXを再生
           ↓
-⑫ BoardViewの選択表示を解除し、GameHudView.Render(snapshot)で手番・勝敗・リザーブを更新
+⑫ BoardViewの選択表示を解除し、GameHudView.Render(snapshot)からReservePanelViewを含む手番・勝敗・リザーブ表示を更新
 ```
 
 ### 読むときの要点

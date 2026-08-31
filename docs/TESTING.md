@@ -63,8 +63,9 @@
 - リセットボタンによる状態とViewの復元
 - `SampleScene`がBootstrap、単一の`BoardGameAudioManager`、EventSystem、BGM／SFX用AudioSourceを生成すること
 - BGM／SFXスライダーがAudioManagerとAudioSourceの音量へ反映されること
-- 特殊マスのオーバーレイ、凡例、リザーブ数がSnapshotどおりに表示されること
-- リザーブ配置候補の表示、配置後の駒View生成、配置ボタンの状態
+- 特殊マスのオーバーレイ、凡例、リザーブカードの個数・Sprite・戦闘力・移動プロファイルがSnapshotどおりに表示されること
+- 手番側カードだけの有効化、先頭以外の個別選択・解除・選択変更、リザーブ配置候補、配置後のカード削除と駒View生成
+- リザーブパネル上のクリックが盤面入力へ貫通せず、勝敗確定後は全カードが操作不能になること
 - ランダム化ボタンが対象駒の選択中だけ有効になること
 
 ## 3. Unity Test Runnerで実行する

@@ -144,7 +144,10 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
                     hudViewPrefab,
                     "Game HUD");
 
-            hudView.Initialize(audioManager);
+            hudView.Initialize(
+                audioManager,
+                player1PieceSprite,
+                player2PieceSprite);
 
             // ========================================
             // ゲーム進行
@@ -162,6 +165,8 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
             hudView.FuseRequested += Coordinator.ToggleFusionMode;
             hudView.ReserveDeployRequested +=
                 Coordinator.ToggleReserveDeployMode;
+            hudView.ReservePieceSelected +=
+                Coordinator.ToggleReservePieceSelection;
             hudView.StartScreenRequested +=
                 ReturnToTitleScreen;
 
@@ -396,6 +401,9 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
 
                 hudView.ReserveDeployRequested -=
                     Coordinator.ToggleReserveDeployMode;
+
+                hudView.ReservePieceSelected -=
+                    Coordinator.ToggleReservePieceSelection;
 
                 hudView.StartScreenRequested -=
                     ReturnToTitleScreen;
