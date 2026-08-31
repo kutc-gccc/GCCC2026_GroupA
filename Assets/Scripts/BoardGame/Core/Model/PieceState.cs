@@ -14,7 +14,8 @@ namespace GCCC.BoardGame.Core.Model
             int combatPower,
             MovementProfileId movementProfileId,
             IEnumerable<string> appliedPermanentEffectIds = null,
-            IEnumerable<ActiveCellEffectState> activeCellEffects = null)
+            IEnumerable<ActiveCellEffectState> activeCellEffects = null,
+            bool hasFused = false)
         {
             if (combatPower <= 0)
             {
@@ -55,6 +56,7 @@ namespace GCCC.BoardGame.Core.Model
                 new ReadOnlyCollection<string>(permanentEffects);
             ActiveCellEffects =
                 new ReadOnlyCollection<ActiveCellEffectState>(activeEffects);
+            HasFused = hasFused;
         }
 
         public PieceId Id { get; }
@@ -75,6 +77,9 @@ namespace GCCC.BoardGame.Core.Model
         public IReadOnlyList<string> AppliedPermanentEffectIds { get; }
 
         public IReadOnlyList<ActiveCellEffectState> ActiveCellEffects { get; }
+
+        /// <summary>この駒が、過去に合体（成功／大成功）を1回でも経験しているかどうか。</summary>
+        public bool HasFused { get; }
 
         public bool HasAppliedPermanentEffect(string effectId)
         {
@@ -194,7 +199,21 @@ namespace GCCC.BoardGame.Core.Model
                 CombatPower + second.CombatPower + bonus,
                 MovementProfileId,
                 permanentEffects,
-                ActiveCellEffects);
+                ActiveCellEffects,
+                true);
+        }
+
+        public PieceState WithFusedFlag(bool hasFused)
+        {
+            return new PieceState(
+                Id,
+                Owner,
+                Position,
+                CombatPower,
+                MovementProfileId,
+                AppliedPermanentEffectIds,
+                ActiveCellEffects,
+                hasFused);
         }
 
         private PieceState Copy(
@@ -211,7 +230,8 @@ namespace GCCC.BoardGame.Core.Model
                 combatPower ?? CombatPower,
                 movementProfileId ?? MovementProfileId,
                 appliedPermanentEffectIds ?? AppliedPermanentEffectIds,
-                activeCellEffects ?? ActiveCellEffects);
+                activeCellEffects ?? ActiveCellEffects,
+                HasFused);
         }
     }
 }

@@ -38,7 +38,7 @@
 | `CreateDefinition(firstPlayer, cellEffects, params pieces)` | セル効果を指定した`GameDefinition`を作る |
 | `CreateDefinitionWithProfiles(firstPlayer, profiles, cellEffects, params pieces)` | 独自の移動プロファイルを差し込む |
 | `CreateDefinitionWithEffects(firstPlayer, cellEffects, definitions, params pieces)` | Lifetimeを指定した特殊マス定義を作る |
-| `CreateDefinitionWithEffectsAndLimits(...)` | 駒上限とリザーブ配置範囲を指定した定義を作る |
+| `CreateDefinitionWithEffectsAndLimits(firstPlayer, cellEffects, definitions, maxPiecesPerPlayer, reserveDeploymentDepth, params pieces)` | 駒上限とリザーブ配置範囲を指定した定義を作る |
 | `InitialPiece(id, column, row, owner, power, movementProfileId)` | 初期駒定義を1行で書く。戦闘力とプロファイルIDは省略可 |
 | `GetPiece(snapshot, position)` | 位置を指定して駒を取得する |
 | `AssertPiece(snapshot, position, owner, combatPower)` | 位置・所有者・戦闘力をまとめて検証する |
@@ -63,8 +63,9 @@
 - リセットボタンによる状態とViewの復元
 - `SampleScene`がBootstrap、単一の`BoardGameAudioManager`、EventSystem、BGM／SFX用AudioSourceを生成すること
 - BGM／SFXスライダーがAudioManagerとAudioSourceの音量へ反映されること
-- 特殊マスのオーバーレイ、凡例、リザーブ数がSnapshotどおりに表示されること
-- リザーブ配置候補の表示、配置後の駒View生成、配置ボタンの状態
+- 特殊マスのオーバーレイ、凡例、リザーブカードの個数・Sprite・戦闘力・移動プロファイルがSnapshotどおりに表示されること
+- 手番側カードだけの有効化、先頭以外の個別選択・解除・選択変更、リザーブ配置候補、配置後のカード削除と駒View生成
+- リザーブパネル上のクリックが盤面入力へ貫通せず、勝敗確定後は全カードが操作不能になること
 - ランダム化ボタンが対象駒の選択中だけ有効になること
 
 ## 3. Unity Test Runnerで実行する
@@ -79,11 +80,17 @@ PlayMode実行中は一時Sceneが生成・破棄されます。Test Runnerが�
 
 ## 4. Windowsバッチモードで実行する
 
-同じプロジェクトを開いているUnity Editorを先に閉じます。プロジェクトルートのPowerShellで次を実行します。
+同じプロジェクトを開いているUnity Editorを先に閉じます。開いたままだとプロジェクトが排他ロックされ、バッチモードは起動できません。
+
+**結果の出力先はプロジェクトの`Temp`以外にします。** Unityは終了時に`Temp`を消去するため、`Temp`へ保存すると実行後にXMLとlogが残りません。ここではOSの一時フォルダを使います。
+
+プロジェクトルートのPowerShellで次を実行します。
 
 ```powershell
 $unityEditor = 'C:\Program Files\Unity\Hub\Editor\6000.3.11f1\Editor\Unity.exe'
 $projectRoot = (Get-Location).Path
+$output = Join-Path $env:TEMP 'GCCC-Tests'
+New-Item -ItemType Directory -Force $output | Out-Null
 
 & $unityEditor `
   -batchmode `
@@ -91,8 +98,8 @@ $projectRoot = (Get-Location).Path
   -projectPath $projectRoot `
   -runTests `
   -testPlatform editmode `
-  -testResults "$projectRoot\Temp\EditModeResults.xml" `
-  -logFile "$projectRoot\Temp\EditModeTests.log"
+  -testResults "$output\EditModeResults.xml" `
+  -logFile "$output\EditModeTests.log"
 
 & $unityEditor `
   -batchmode `
@@ -100,15 +107,18 @@ $projectRoot = (Get-Location).Path
   -projectPath $projectRoot `
   -runTests `
   -testPlatform playmode `
-  -testResults "$projectRoot\Temp\PlayModeResults.xml" `
-  -logFile "$projectRoot\Temp\PlayModeTests.log"
+  -testResults "$output\PlayModeResults.xml" `
+  -logFile "$output\PlayModeTests.log"
 ```
 
 成功件数はXMLの`total`、`passed`、`failed`で確認します。コンパイルエラーはlogを検索します。
 
 ```powershell
-Select-String -Path Temp\*ModeTests.log -Pattern 'error CS|Unhandled|Exception'
+Select-String -Path "$output\*ModeResults.xml" -Pattern '<test-run .*result='
+Select-String -Path "$output\*ModeTests.log" -Pattern 'error CS|Unhandled|Exception'
 ```
+
+`-runTests`の終了コードは、全件成功で`0`、1件でも失敗すると`2`になります。
 
 Test Runnerの結果保存を知らせるUnity内部ログが表示される場合があります。最終判定はTest Result XMLの`result="Passed"`、失敗件数0、通常再生時Console Error 0の組み合わせで行います。
 
@@ -145,7 +155,7 @@ Test Runnerの結果保存を知らせるUnity内部ログが表示される場�
 
 ## 7. 現在の未検証領域
 
-- 標準盤面への具体的な特殊マス配置とゲームバランス
+- 特殊マス配置を含む長時間プレイでのゲームバランス
 - CPU Agentと非同期思考
 - 実機のタッチデバイス入力
 - 複数解像度・縦長画面の網羅的な表示確認

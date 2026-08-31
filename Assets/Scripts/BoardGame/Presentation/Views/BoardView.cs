@@ -35,7 +35,7 @@ namespace GCCC.BoardGame.Presentation.Views
 
         // 陣地枠
         private static readonly Color TerritoryBorderColor =
-            new Color32(255, 255, 255, 235);
+            new Color32(255, 0, 0, 235);
 
         private static readonly Color FusionCandidateColor =
             new Color32(33, 150, 243, 175);

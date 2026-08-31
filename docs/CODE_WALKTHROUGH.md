@@ -50,8 +50,8 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
 2. Configからセル効果Handlerを作り、`new GameSession(definition, cellEffectHandlers: ...)`でゲーム本体を作る
 3. `new RuntimeSpriteFactory()` で画像を実行時に生成する
 4. `ConfigureCamera()`で盤面が収まる正投影サイズを設定し、`BoardGameAudioManager`を取得または生成する
-5. `BoardView` / `PieceViewManager` / `GameHudView`を生成して`Initialize()`する
-6. `GameCoordinator`を作り、リセット、合体、パワーランダム化、タイトル復帰、音声の経路を接続する
+5. `BoardView` / `PieceViewManager` / `GameHudView`を生成して`Initialize()`し、HUD内で`ReservePanelView`とリザーブカードを構築する
+6. `GameCoordinator`を作り、リセット、合体、パワーランダム化、リザーブカード選択、タイトル復帰、音声の経路を接続する
 7. `BoardInputController`を作って配線する
 
 依存関係の組み立てがこの1メソッドに集まっています（Composition Root）。Prefab参照が未設定でも、同じComponentを持つGameObjectを実行時に作るフォールバックがあります。
@@ -69,15 +69,21 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
      毎フレーム、Touchscreen または Mouse の押下を検出
           ↓
 ② GameHudView.IsPointerOverControl()
-     操作ボタン、音量UI、リザルト上なら中断（UIクリックが盤面へ貫通しない）
+     操作ボタン、リザーブパネル、音量UI、リザルト上なら中断（UIクリックが盤面へ貫通しない）
           ↓
 ③ BoardView.TryScreenToCell()
      スクリーン座標 → ワールド → ローカル → (列, 行)
           ↓
 ④ GameCoordinator.HandleCellClick(cell)
+     モードを先に見る。合体・リザーブ配置は互いに排他
+     ├─ 合体モード中        → HandleFusionModeClick()        → FusePiecesCommand
+     ├─ 配置モード中        → HandleReserveDeploymentClick() → DeployReservePieceCommand
      ├─ 自分の駒だった      → 選択 / 選択解除して RenderSelection()
      │                          合法手を緑（空きマス）とオレンジ（敵駒）で表示
      └─ 合法な移動先だった  → HumanPlayerAgent.TrySubmit(move)
+
+   「パワーランダム化」ボタンは盤面クリックを経ずに
+   GameCoordinator.HandleRandomizePowerButtonClicked から RandomizePowerCommand を送る
           ↓
 ⑤ HumanPlayerAgent が BeginTurn で預かった callback を呼ぶ
      = GameCoordinator.ExecuteSubmittedCommand
@@ -85,7 +91,10 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
 ⑥ GameSession.Execute(command)
      null? / ゲーム終了? / 手番一致? / Handlerある? の4段階を検証
           ↓
-⑦ GameSession.ExecuteMove()
+⑦ Command の型に対応する実行メソッドへ分岐（以下は移動の場合）
+     ExecuteMove / ExecuteFusion / ExecuteRandomizePower / ExecuteDeployReservePiece
+
+   GameSession.ExecuteMove()
      駒の存在と所有権を確認し、DirectionalMovementRule で合法性を判定
      移動元の滞在中効果を失効してから処理する
      ├─ 空きマス → ResolveUnoccupiedMove()
@@ -100,7 +109,7 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
 ⑪ PieceViewManager.ApplyEvents(events, snapshot) / BoardGameAudioManager.PlayEvents(events)
      Eventの型に応じてViewを更新し、対応するSFXを再生
           ↓
-⑫ BoardViewの選択表示を解除し、GameHudView.Render(snapshot)で手番・勝敗・リザーブを更新
+⑫ BoardViewの選択表示を解除し、GameHudView.Render(snapshot)からReservePanelViewを含む手番・勝敗・リザーブ表示を更新
 ```
 
 ### 読むときの要点
@@ -168,14 +177,14 @@ MoveDirections（実効的な移動方向）
 
 コードを追うと分かる、現在の標準設定の挙動です。仕様の欠陥ではなく、**拡張の土台が先に用意されている**状態だと理解してください。
 
-初期戦闘力は1ですが、パワーランダム化と合体で戦闘力2以上へ変化するため、標準移動プロファイルの各帯域は通常プレイで発動します。特殊マスのHandlerと表示も実装済みですが、標準Configの`cellEffects`は空なので、特殊マスを使うには効果Config AssetとセルへのID設定が必要です。
+初期戦闘力は1ですが、パワーランダム化と合体で戦闘力2以上へ変化するため、標準移動プロファイルの各帯域は通常プレイで発動します。標準Configでは`(1,4)`と`(4,5)`へ共通の`reserve-piece-grant`が設定され、どちらのプレイヤーも駒ごとに一度、戦闘力1・`standard`移動プロファイルのリザーブ駒を獲得できます。所有駒上限6に達している場合は追加されません。
 
 現在の拡張状況は次のとおりです。
 
 | 機能 | 用意されているもの | 足りないもの |
 |---|---|---|
 | 合体 | `AdjacentFusionResolver`、確率判定、2駒選択UI | 追加ルールが必要な場合だけResolverを差し替える |
-| 特殊マス | 2種のLifetime、戦闘力増加、リザーブ獲得、盤面・HUD表示 | 標準盤面への具体的な配置 |
+| 特殊マス | 2種のLifetime、戦闘力増加、リザーブ獲得、盤面・HUD表示、標準盤面の獲得マス2個 | 追加効果や配置を増やす場合だけConfigを拡張する |
 | CPU | `IPlayerAgent`、Agentの注入口 | 実装そのもの |
 
 追加手順は[拡張ガイド](EXTENSION_GUIDE.md)にあります。

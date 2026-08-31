@@ -107,21 +107,29 @@ namespace GCCC.BoardGame.Tests
         {
             PowerMovementProfile profile = PowerMovementProfile.CreateStandard();
 
+            // 制限は累積する。上の段は下の段で失った方向をすべて引き継ぐ。
+            MoveDirections power2 = MoveDirections.All & ~MoveDirections.NorthEast;
+            MoveDirections power3 = power2 & ~MoveDirections.SouthEast;
+            MoveDirections power4 = power3 & ~MoveDirections.NorthWest;
+            MoveDirections power5 = power4 & ~MoveDirections.SouthWest;
+            MoveDirections power6 = power5 & ~MoveDirections.West;
+            MoveDirections power7 = power6 & ~MoveDirections.East;
+
             Assert.That(profile.GetDirections(1), Is.EqualTo(MoveDirections.All));
-            Assert.That(profile.GetDirections(2), Is.EqualTo(
-                MoveDirections.All & ~MoveDirections.NorthEast));
-            Assert.That(profile.GetDirections(3), Is.EqualTo(
-                MoveDirections.All & ~MoveDirections.SouthEast));
-            Assert.That(profile.GetDirections(4), Is.EqualTo(
-                MoveDirections.All & ~MoveDirections.NorthWest));
-            Assert.That(profile.GetDirections(5), Is.EqualTo(
-                MoveDirections.All & ~MoveDirections.SouthWest));
-            Assert.That(profile.GetDirections(6), Is.EqualTo(
-                MoveDirections.All & ~MoveDirections.West));
-            Assert.That(profile.GetDirections(7), Is.EqualTo(
-                MoveDirections.All & ~MoveDirections.East));
-            Assert.That(profile.GetDirections(8), Is.EqualTo(MoveDirections.All));
-            Assert.That(profile.GetDirections(100), Is.EqualTo(MoveDirections.All));
+            Assert.That(profile.GetDirections(2), Is.EqualTo(power2));
+            Assert.That(profile.GetDirections(3), Is.EqualTo(power3));
+            Assert.That(profile.GetDirections(4), Is.EqualTo(power4));
+            Assert.That(profile.GetDirections(5), Is.EqualTo(power5));
+            Assert.That(profile.GetDirections(6), Is.EqualTo(power6));
+            Assert.That(profile.GetDirections(7), Is.EqualTo(power7));
+            Assert.That(profile.GetDirections(8), Is.EqualTo(power7));
+            Assert.That(profile.GetDirections(100), Is.EqualTo(power7));
+
+            // 累積の結果を絶対値でも固定する。
+            Assert.That(power6, Is.EqualTo(
+                MoveDirections.North | MoveDirections.East | MoveDirections.South));
+            Assert.That(power7, Is.EqualTo(
+                MoveDirections.North | MoveDirections.South));
         }
 
         [Test]
@@ -234,15 +242,16 @@ namespace GCCC.BoardGame.Tests
         [Test]
         public void StrongerAttackerMovesWithRemainingPower()
         {
+            // 戦闘力5は累積制限で斜め4方向を失うため、東（右）へ攻撃する。
             GameSession custom = CreateSession(PlayerId.Player1,
                 InitialPiece(1, 2, 2, PlayerId.Player1, 5),
-                InitialPiece(2, 3, 3, PlayerId.Player2, 2),
+                InitialPiece(2, 3, 2, PlayerId.Player2, 2),
                 InitialPiece(3, 5, 8, PlayerId.Player2));
 
             custom.Execute(new MovePieceCommand(
-                PlayerId.Player1, new PieceId(1), new GridPosition(3, 3)));
+                PlayerId.Player1, new PieceId(1), new GridPosition(3, 2)));
 
-            AssertPiece(custom.Snapshot, new GridPosition(3, 3), PlayerId.Player1, 3);
+            AssertPiece(custom.Snapshot, new GridPosition(3, 2), PlayerId.Player1, 3);
             Assert.That(custom.Snapshot.TryGetPiece(new PieceId(2), out _), Is.False);
         }
 
@@ -587,6 +596,62 @@ namespace GCCC.BoardGame.Tests
             custom.Reset();
             Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
                 .ReservePieces, Is.Empty);
+        }
+
+        [Test]
+        public void SharedReserveGrantCellsWorkForBothPlayersAndOnlyOncePerPiece()
+        {
+            const string effectId = "reserve-piece-grant";
+            GameDefinition definition = CreateDefinitionWithEffects(
+                PlayerId.Player1,
+                new Dictionary<GridPosition, string[]>
+                {
+                    [new GridPosition(1, 4)] = new[] { effectId },
+                    [new GridPosition(4, 5)] = new[] { effectId }
+                },
+                new[]
+                {
+                    new CellEffectDefinition(
+                        effectId, CellEffectLifetime.PermanentOncePerPiece)
+                },
+                InitialPiece(1, 1, 3, PlayerId.Player1),
+                InitialPiece(2, 4, 6, PlayerId.Player2));
+            GameSession custom = new GameSession(
+                definition,
+                cellEffectHandlers: new ICellEffectHandler[]
+                {
+                    new ReservePieceGrantCellEffectHandler(
+                        effectId, 1, PowerMovementProfile.StandardId)
+                });
+
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(1, 4)));
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player2, new PieceId(2), new GridPosition(4, 5)));
+
+            Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
+                .ReservePieces.Single().CombatPower, Is.EqualTo(1));
+            Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player2)
+                .ReservePieces.Single().CombatPower, Is.EqualTo(1));
+            Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
+                .ReservePieces.Single().MovementProfileId,
+                Is.EqualTo(PowerMovementProfile.StandardId));
+
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 5)));
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player2, new PieceId(2), new GridPosition(5, 4)));
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(3, 5)));
+            custom.Execute(new RandomizePowerCommand(
+                PlayerId.Player2, new PieceId(2)));
+            CommandResult secondCell = custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(4, 5)));
+
+            Assert.That(secondCell.Success, Is.True);
+            Assert.That(secondCell.Events.OfType<ReservePieceAdded>(), Is.Empty);
+            Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
+                .ReservePieces.Count, Is.EqualTo(1));
         }
 
         [Test]

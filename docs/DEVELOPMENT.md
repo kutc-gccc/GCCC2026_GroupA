@@ -36,9 +36,10 @@ Set-Location GCCC2026_GroupA
 5. 隣接する自駒を選び、「合体」から青表示の候補を選ぶと成功・大成功・失敗の結果が表示され、手番を消費することを確認します。
 6. オレンジの敵駒マスへ移動すると戦闘が発生することを確認します。
 7. 移動・戦闘・破壊・合体で対応する効果音が再生され、BGM／SFXスライダーが音量へ反映されることを確認します。
-8. リセットで12駒、効果・リザーブなし、プレイヤー1の手番へ戻ることを確認します。
-9. 勝敗確定後にリザルトが表示され、背後の操作と音量スライダーが無効になることを確認します。
-10. 「スタート画面に戻る」でBGMが停止し、タイトルへ戻ることを確認します。
+8. 特殊マスで獲得した駒が右側のリザーブ一覧へ表示され、手番側のカードだけを選んで緑の候補マスへ配置できることを確認します。
+9. リセットで12駒、リザーブと駒の効果履歴が空、紫色の特殊マス2個、プレイヤー1の手番へ戻ることを確認します。
+10. 勝敗確定後にリザルトが表示され、背後の操作、リザーブカード、音量スライダーが無効になることを確認します。
+11. 「スタート画面に戻る」でBGMが停止し、タイトルへ戻ることを確認します。
 
 ## 4. フォルダと担当境界
 
@@ -76,8 +77,8 @@ Set-Location GCCC2026_GroupA
 | `reserveDeploymentDepth` | 2 | 自陣行から前方へリザーブ配置を許可する行数 |
 | `initialMovementProfileId` | standard | 全初期駒が参照する移動プロファイルID |
 | `movementProfiles` | standard 1件 | 戦闘力範囲と移動方向の対応表 |
-| `cellEffects` | 空 | 座標ごとの効果ID |
-| `cellEffectDefinitions` | 空 | 効果定義とHandlerを生成する`CellEffectConfig` Asset |
+| `cellEffects` | `(1,4)`、`(4,5)`に`reserve-piece-grant` | 座標ごとの効果ID |
+| `cellEffectDefinitions` | `ReservePieceGrantEffect` 1件 | 効果定義とHandlerを生成する`CellEffectConfig` Asset |
 
 行設定は盤面内でなければなりません。両陣地を同じ行にする、自分の陣地と初期配置を同じ行にする、両プレイヤーの初期配置を同じ行にすると、`CreateDefinition`が`InvalidOperationException`を送出します。
 

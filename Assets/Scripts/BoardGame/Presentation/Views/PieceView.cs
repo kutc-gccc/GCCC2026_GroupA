@@ -5,10 +5,10 @@ namespace GCCC.BoardGame.Presentation.Views
 {
     public sealed class PieceView : MonoBehaviour
     {
-        // é§’ã®å¤§ãã•
+        // ‹î‚Ì‘å‚«‚³
         private const float PieceScale = 0.45f;
 
-        // é§’ã®è‰²
+        // ‹î‚ÌF
         private static readonly Color PieceColor =
             Color.white;
 
@@ -86,7 +86,7 @@ namespace GCCC.BoardGame.Presentation.Views
         private void EnsureRenderer()
         {
             // ========================================
-            // é§’ã®SpriteRenderer
+            // ‹î‚ÌSpriteRenderer
             // ========================================
 
             if (pieceRenderer == null)
@@ -104,7 +104,7 @@ namespace GCCC.BoardGame.Presentation.Views
             pieceRenderer.sortingOrder = 10;
 
             // ========================================
-            // æˆ¦é—˜åŠ›è¡¨ç¤º
+            // í“¬—Í•\¦
             // ========================================
 
             if (combatPowerLabel == null)
@@ -117,7 +117,7 @@ namespace GCCC.BoardGame.Presentation.Views
                     transform,
                     false);
 
-                // é§’ã®ä¸­å¤®
+                // ‹î‚Ì’†‰›
                 labelObject.transform.localPosition =
                     new Vector3(
                         0f,
@@ -130,24 +130,24 @@ namespace GCCC.BoardGame.Presentation.Views
                 combatPowerLabel =
                     labelObject.AddComponent<TextMesh>();
 
-                // æ–‡å­—ã‚’ä¸­å¤®æƒãˆ
+                // •¶š‚ğ’†‰›‘µ‚¦
                 combatPowerLabel.anchor =
                     TextAnchor.MiddleCenter;
 
                 combatPowerLabel.alignment =
                     TextAlignment.Center;
 
-                // æ–‡å­—ã‚’å¤§ããã™ã‚‹
+                // •¶š‚ğ‘å‚«‚­‚·‚é
                 combatPowerLabel.fontSize = 64;
 
-                // é§’ã®å¤§ãã•ã«åˆã‚ã›ãŸæ–‡å­—ã‚µã‚¤ã‚º
+                // ‹î‚Ì‘å‚«‚³‚É‡‚í‚¹‚½•¶šƒTƒCƒY
                 combatPowerLabel.characterSize = 0.20f;
 
-                // æ¿ƒã„ç·‘è‰²ã®é§’ã®ä¸Šã§ã‚‚è¦‹ã‚„ã™ã„ã‚ˆã†ã«ç™½
+                // ”Z‚¢—ÎF‚Ì‹î‚Ìã‚Å‚àŒ©‚â‚·‚¢‚æ‚¤‚É”’
                 combatPowerLabel.color =
                     Color.white;
 
-                // ãƒ•ã‚©ãƒ³ãƒˆã‚’å¤ªãè¦‹ã›ã‚‹
+                // ƒtƒHƒ“ƒg‚ğ‘¾‚­Œ©‚¹‚é
                 combatPowerLabel.fontStyle =
                     FontStyle.Bold;
 
@@ -156,10 +156,10 @@ namespace GCCC.BoardGame.Presentation.Views
 
                 if (meshRenderer != null)
                 {
-                    // SpriteRendererã‚ˆã‚Šæ‰‹å‰ã«è¡¨ç¤º
+                    // SpriteRenderer‚æ‚èè‘O‚É•\¦
                     meshRenderer.sortingOrder = 11;
 
-                    // Spriteã¨åŒã˜Sorting Layerã‚’ä½¿ç”¨
+                    // Sprite‚Æ“¯‚¶Sorting Layer‚ğg—p
                     meshRenderer.sortingLayerID =
                         pieceRenderer.sortingLayerID;
                 }
