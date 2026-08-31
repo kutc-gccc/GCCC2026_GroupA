@@ -6,8 +6,6 @@ namespace GCCC.BoardGame.Presentation.Views
     public sealed class PieceView : MonoBehaviour
     {
         private const float PieceScale = 0.72f;
-        private static readonly Color Player1Color = new Color32(42, 91, 153, 255);
-        private static readonly Color Player2Color = new Color32(196, 61, 54, 255);
         private static readonly Color FusedLabelColor = Color.black;
 
         private SpriteRenderer pieceRenderer;
@@ -35,9 +33,7 @@ namespace GCCC.BoardGame.Presentation.Views
 
             EnsureRenderer();
             pieceRenderer.sprite = pieceSprite;
-            pieceRenderer.color = state.Owner == PlayerId.Player1
-                ? Player1Color
-                : Player2Color;
+            pieceRenderer.color = Color.white;
             Render();
         }
 
@@ -49,9 +45,7 @@ namespace GCCC.BoardGame.Presentation.Views
 
             EnsureRenderer();
             pieceRenderer.sprite = pieceSprite;
-            pieceRenderer.color = state.Owner == PlayerId.Player1
-                ? Player1Color
-                : Player2Color;
+            pieceRenderer.color = Color.white;
             transform.localPosition = BoardGeometry.CellToLocalPosition(
                 state.Position, columns, rows);
             UpdateCombatPowerLabel();
