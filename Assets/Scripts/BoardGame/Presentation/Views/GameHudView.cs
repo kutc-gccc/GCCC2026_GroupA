@@ -92,8 +92,8 @@ namespace GCCC.BoardGame.Presentation.Views
             if (snapshot.Winner.HasValue)
             {
                 string resultText = snapshot.Winner.Value == PlayerId.Player1
-                    ? "プレイヤー1（青）の勝利"
-                    : "プレイヤー2（赤）の勝利";
+                    ? "プレイヤー1の勝利"
+                    : "プレイヤー2の勝利";
                 statusLabel.text = resultText;
                 ShowResult(resultText);
                 return;
@@ -108,8 +108,8 @@ namespace GCCC.BoardGame.Presentation.Views
 
             HideResult();
             statusLabel.text = snapshot.CurrentPlayer == PlayerId.Player1
-                ? "プレイヤー1（青）のターン"
-                : "プレイヤー2（赤）のターン";
+                ? "プレイヤー1のターン"
+                : "プレイヤー2のターン";
         }
 
         public bool IsPointerOverControl(Vector2 screenPosition)
