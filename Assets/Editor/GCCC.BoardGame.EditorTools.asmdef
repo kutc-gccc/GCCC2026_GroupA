@@ -1,0 +1,18 @@
+{
+  "name": "GCCC.BoardGame.EditorTools",
+  "rootNamespace": "GCCC.BoardGame.EditorTools",
+  "references": [
+    "GCCC.BoardGame.Presentation"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
