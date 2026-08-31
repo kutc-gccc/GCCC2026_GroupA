@@ -38,7 +38,7 @@
 | `CreateDefinition(firstPlayer, cellEffects, params pieces)` | セル効果を指定した`GameDefinition`を作る |
 | `CreateDefinitionWithProfiles(firstPlayer, profiles, cellEffects, params pieces)` | 独自の移動プロファイルを差し込む |
 | `CreateDefinitionWithEffects(firstPlayer, cellEffects, definitions, params pieces)` | Lifetimeを指定した特殊マス定義を作る |
-| `CreateDefinitionWithEffectsAndLimits(...)` | 駒上限とリザーブ配置範囲を指定した定義を作る |
+| `CreateDefinitionWithEffectsAndLimits(firstPlayer, cellEffects, definitions, maxPiecesPerPlayer, reserveDeploymentDepth, params pieces)` | 駒上限とリザーブ配置範囲を指定した定義を作る |
 | `InitialPiece(id, column, row, owner, power, movementProfileId)` | 初期駒定義を1行で書く。戦闘力とプロファイルIDは省略可 |
 | `GetPiece(snapshot, position)` | 位置を指定して駒を取得する |
 | `AssertPiece(snapshot, position, owner, combatPower)` | 位置・所有者・戦闘力をまとめて検証する |
@@ -145,7 +145,7 @@ Test Runnerの結果保存を知らせるUnity内部ログが表示される場�
 
 ## 7. 現在の未検証領域
 
-- 標準盤面への具体的な特殊マス配置とゲームバランス
+- 特殊マス配置を含む長時間プレイでのゲームバランス
 - CPU Agentと非同期思考
 - 実機のタッチデバイス入力
 - 複数解像度・縦長画面の網羅的な表示確認

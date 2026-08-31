@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using GCCC.BoardGame.Core;
@@ -12,6 +13,9 @@ namespace GCCC.BoardGame.Presentation
 {
     public sealed class GameCoordinator
     {
+        private static readonly IReadOnlyList<GridPosition> NoCells =
+            Array.Empty<GridPosition>();
+
         private readonly GameSession session;
         private readonly BoardView boardView;
         private readonly PieceViewManager pieceViews;
@@ -172,8 +176,7 @@ namespace GCCC.BoardGame.Presentation
             isFusionModeActive = false;
             isReserveDeployModeActive = false;
             pieceViews.Rebuild(session.Snapshot);
-            boardView.ShowSelection(
-                null, new List<GridPosition>(), new List<GridPosition>(), session.Snapshot);
+            boardView.ShowSelection(null, NoCells, NoCells, session.Snapshot);
             hudView.Render(session.Snapshot);
             hudView.ShowMessage(string.Empty);
             hudView.SetRandomizeButtonInteractable(false);
@@ -275,8 +278,7 @@ namespace GCCC.BoardGame.Presentation
             GameSnapshot snapshot = session.Snapshot;
             pieceViews.ApplyEvents(result.Events, snapshot);
             audioManager?.PlayEvents(result.Events);
-            boardView.ShowSelection(
-                null, new List<GridPosition>(), new List<GridPosition>(), snapshot);
+            boardView.ShowSelection(null, NoCells, NoCells, snapshot);
             hudView.Render(snapshot);
             hudView.SetRandomizeButtonInteractable(false);
             hudView.SetReserveDeployButtonInteractable(false);
@@ -338,8 +340,7 @@ namespace GCCC.BoardGame.Presentation
                 hudView.SetFuseButtonInteractable(false);
                 hudView.SetRandomizeButtonInteractable(false);
                 RefreshReserveDeployButton(snapshot);
-                boardView.ShowSelection(
-                    null, new List<GridPosition>(), new List<GridPosition>(), snapshot);
+                boardView.ShowSelection(null, NoCells, NoCells, snapshot);
                 return;
             }
 
@@ -367,13 +368,13 @@ namespace GCCC.BoardGame.Presentation
             hudView.SetRandomizeButtonInteractable(
                 canRandomize && !isFusionModeActive);
             hudView.SetReserveDeployButtonInteractable(
-                !isFusionModeActive && session.GetLegalCommands(snapshot.CurrentPlayer)
+                !isFusionModeActive && legalCommands
                     .OfType<DeployReservePieceCommand>()
                     .Any());
             if (isFusionModeActive)
             {
                 boardView.ShowSelection(
-                    selectedPiece.Position, new List<GridPosition>(), fusionTargets, snapshot);
+                    selectedPiece.Position, NoCells, fusionTargets, snapshot);
                 return;
             }
 
@@ -383,7 +384,7 @@ namespace GCCC.BoardGame.Presentation
                 .Select(command => command.Destination)
                 .ToList();
             boardView.ShowSelection(
-                selectedPiece.Position, destinations, new List<GridPosition>(), snapshot);
+                selectedPiece.Position, destinations, NoCells, snapshot);
         }
 
         private void RenderReserveDeployment()
@@ -414,7 +415,7 @@ namespace GCCC.BoardGame.Presentation
             hudView.SetRandomizeButtonInteractable(false);
             hudView.SetReserveDeployButtonInteractable(true);
             boardView.ShowSelection(
-                null, destinations, new List<GridPosition>(), snapshot);
+                null, destinations, NoCells, snapshot);
         }
 
         private void RefreshReserveDeployButton(GameSnapshot snapshot)

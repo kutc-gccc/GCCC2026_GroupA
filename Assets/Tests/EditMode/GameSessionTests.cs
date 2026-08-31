@@ -590,6 +590,62 @@ namespace GCCC.BoardGame.Tests
         }
 
         [Test]
+        public void SharedReserveGrantCellsWorkForBothPlayersAndOnlyOncePerPiece()
+        {
+            const string effectId = "reserve-piece-grant";
+            GameDefinition definition = CreateDefinitionWithEffects(
+                PlayerId.Player1,
+                new Dictionary<GridPosition, string[]>
+                {
+                    [new GridPosition(1, 4)] = new[] { effectId },
+                    [new GridPosition(4, 5)] = new[] { effectId }
+                },
+                new[]
+                {
+                    new CellEffectDefinition(
+                        effectId, CellEffectLifetime.PermanentOncePerPiece)
+                },
+                InitialPiece(1, 1, 3, PlayerId.Player1),
+                InitialPiece(2, 4, 6, PlayerId.Player2));
+            GameSession custom = new GameSession(
+                definition,
+                cellEffectHandlers: new ICellEffectHandler[]
+                {
+                    new ReservePieceGrantCellEffectHandler(
+                        effectId, 1, PowerMovementProfile.StandardId)
+                });
+
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(1, 4)));
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player2, new PieceId(2), new GridPosition(4, 5)));
+
+            Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
+                .ReservePieces.Single().CombatPower, Is.EqualTo(1));
+            Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player2)
+                .ReservePieces.Single().CombatPower, Is.EqualTo(1));
+            Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
+                .ReservePieces.Single().MovementProfileId,
+                Is.EqualTo(PowerMovementProfile.StandardId));
+
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 5)));
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player2, new PieceId(2), new GridPosition(5, 4)));
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(3, 5)));
+            custom.Execute(new RandomizePowerCommand(
+                PlayerId.Player2, new PieceId(2)));
+            CommandResult secondCell = custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(4, 5)));
+
+            Assert.That(secondCell.Success, Is.True);
+            Assert.That(secondCell.Events.OfType<ReservePieceAdded>(), Is.Empty);
+            Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
+                .ReservePieces.Count, Is.EqualTo(1));
+        }
+
+        [Test]
         public void ReserveGrantCannotExceedSixOwnedPieces()
         {
             const string effectId = "reserve-piece-limit";
