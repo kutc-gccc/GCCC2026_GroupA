@@ -81,6 +81,12 @@ namespace GCCC.BoardGame.Core.Model
         /// <summary>この駒が、過去に合体（成功／大成功）を1回でも経験しているかどうか。</summary>
         public bool HasFused { get; }
 
+        /// <summary>
+        /// 所有上限のうち、この駒が占める枠の数。
+        /// 合体してできた駒は2駒ぶんの枠を使うので、合体しても空き枠は生まれない。
+        /// </summary>
+        public int SlotCost => HasFused ? 2 : 1;
+
         public bool HasAppliedPermanentEffect(string effectId)
         {
             return AppliedPermanentEffectIds.Contains(effectId, StringComparer.Ordinal);

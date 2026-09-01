@@ -83,10 +83,10 @@ namespace GCCC.BoardGame.Presentation.Views
             // 所有者は ▲▼ で示し、駒数は上限つきで常に見せる。
             player1Header.text =
                 $"▲ プレイヤー1　リザーブ {player1Reserves.Count}" +
-                $"／駒 {snapshot.GetOwnedPieceCount(PlayerId.Player1)} / {snapshot.MaxPiecesPerPlayer}";
+                $"／駒 {snapshot.GetOwnedSlotCount(PlayerId.Player1)} / {snapshot.MaxPiecesPerPlayer}";
             player2Header.text =
                 $"▼ プレイヤー2　リザーブ {player2Reserves.Count}" +
-                $"／駒 {snapshot.GetOwnedPieceCount(PlayerId.Player2)} / {snapshot.MaxPiecesPerPlayer}";
+                $"／駒 {snapshot.GetOwnedSlotCount(PlayerId.Player2)} / {snapshot.MaxPiecesPerPlayer}";
             player1CardsRoot.gameObject.SetActive(player1Reserves.Count > 0);
             player2CardsRoot.gameObject.SetActive(player2Reserves.Count > 0);
 

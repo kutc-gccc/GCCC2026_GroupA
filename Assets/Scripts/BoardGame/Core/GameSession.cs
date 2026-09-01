@@ -70,7 +70,7 @@ namespace GCCC.BoardGame.Core
                 this.movementRule,
                 this.fusionResolver,
                 CanRandomizePower,
-                GetBoardPieceCount,
+                GetBoardSlotCount,
                 state.GetReserves,
                 GetLegalReserveDeploymentPositions,
                 definition.MaxPiecesPerPlayer);
@@ -314,7 +314,7 @@ namespace GCCC.BoardGame.Core
                     : CommandFailureReason.ReservePieceNotFound);
             }
 
-            if (GetBoardPieceCount(command.Player) >= definition.MaxPiecesPerPlayer)
+            if (GetBoardSlotCount(command.Player) >= definition.MaxPiecesPerPlayer)
             {
                 return CommandResult.Failed(CommandFailureReason.PieceLimitReached);
             }
@@ -504,7 +504,7 @@ namespace GCCC.BoardGame.Core
                     "Reserve pieces must use a registered movement profile.");
             }
 
-            if (GetOwnedPieceCount(grant.Owner) >= definition.MaxPiecesPerPlayer)
+            if (GetOwnedSlotCount(grant.Owner) >= definition.MaxPiecesPerPlayer)
             {
                 return;
             }
@@ -525,14 +525,14 @@ namespace GCCC.BoardGame.Core
                 player, state.IsOccupied, IsOpponentTerritory);
         }
 
-        private int GetBoardPieceCount(PlayerId player)
+        private int GetBoardSlotCount(PlayerId player)
         {
-            return state.GetBoardPieceCount(player);
+            return state.GetBoardSlotCount(player);
         }
 
-        private int GetOwnedPieceCount(PlayerId player)
+        private int GetOwnedSlotCount(PlayerId player)
         {
-            return state.GetOwnedPieceCount(player);
+            return state.GetOwnedSlotCount(player);
         }
 
         private void ResolveNextTurn(
@@ -578,7 +578,7 @@ namespace GCCC.BoardGame.Core
                 return true;
             }
 
-            return GetBoardPieceCount(player) < definition.MaxPiecesPerPlayer &&
+            return GetBoardSlotCount(player) < definition.MaxPiecesPerPlayer &&
                    state.GetReserves(player).Count > 0 &&
                    GetLegalReserveDeploymentPositions(player).Any();
         }

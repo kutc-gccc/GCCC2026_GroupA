@@ -31,6 +31,74 @@ namespace GCCC.BoardGame.Tests
             sprites?.Dispose();
         }
 
+        /// <summary>
+        /// 合体してできた駒は、駒を少し大きくし、数字を白く縁取った黒にして見分けられるようにする。
+        /// 数字そのものの見た目の大きさは変えない。
+        /// </summary>
+        [UnityTest]
+        public IEnumerator FusedPieceGrowsAndOutlinesItsPowerInWhite()
+        {
+            root = new GameObject("Fused Piece Label Test");
+            sprites = new RuntimeSpriteFactory();
+
+            PieceView view = new GameObject("Piece").AddComponent<PieceView>();
+            view.transform.SetParent(root.transform, false);
+            view.Initialize(CreateLabelTestPiece(false), sprites.TriangleSprite, 6, 10);
+
+            TextMesh label = view.transform.Find("Combat Power").GetComponent<TextMesh>();
+            Assert.That(label, Is.Not.Null);
+            Assert.That(label.color, Is.EqualTo(Color.white));
+            float normalPieceScale = view.transform.localScale.x;
+            float normalApparentSize = label.characterSize * normalPieceScale;
+            Assert.That(OutlineMeshes(label).Any(outline => outline.gameObject.activeSelf),
+                Is.False, "通常の駒には縁取りを出さない。");
+
+            view.Render(CreateLabelTestPiece(true), sprites.TriangleSprite);
+
+            Assert.That(view.transform.localScale.x, Is.GreaterThan(normalPieceScale),
+                "合体してできた駒は少し大きくする。");
+            Assert.That(label.color, Is.EqualTo(Color.black),
+                "合体してできた駒は数字を黒くする。");
+            Assert.That(label.characterSize * view.transform.localScale.x,
+                Is.EqualTo(normalApparentSize).Within(0.0001f),
+                "駒を大きくしても、数字の見た目の大きさは変えない。");
+
+            TextMesh[] outlines = OutlineMeshes(label);
+            Assert.That(outlines.Length, Is.GreaterThanOrEqualTo(4),
+                "黒い数字を読めるようにする白い縁取りを敷く。");
+            Assert.That(outlines.All(outline => outline.gameObject.activeSelf), Is.True);
+            Assert.That(outlines.All(outline => outline.color == Color.white), Is.True);
+            Assert.That(outlines.All(outline => outline.text == label.text), Is.True);
+            Assert.That(
+                outlines.All(outline => outline.transform.localPosition.magnitude > 0f),
+                Is.True, "縁取りは数字からずらして置く。");
+
+            view.Render(CreateLabelTestPiece(false), sprites.TriangleSprite);
+            Assert.That(OutlineMeshes(label).Any(outline => outline.gameObject.activeSelf),
+                Is.False, "合体していない状態へ戻したら縁取りは消す。");
+            yield return null;
+        }
+
+        private static TextMesh[] OutlineMeshes(TextMesh label)
+        {
+            return label.GetComponentsInChildren<TextMesh>(true)
+                .Where(mesh => mesh != label)
+                .ToArray();
+        }
+
+        private static PieceState CreateLabelTestPiece(bool hasFused)
+        {
+            return new PieceState(
+                new PieceId(1),
+                PlayerId.Player1,
+                new GridPosition(0, 1),
+                3,
+                PowerMovementProfile.StandardId,
+                null,
+                null,
+                hasFused);
+        }
+
         [UnityTest]
         public IEnumerator TerritoryBordersFollowSnapshotCellsAtArbitraryRows()
         {

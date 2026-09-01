@@ -504,8 +504,7 @@ namespace GCCC.BoardGame.Presentation.Views
             float y = stepsHeight + 26f;
             foreach (HowToPlayContent.ButtonAction action in HowToPlayContent.ButtonActions)
             {
-                BuildButtonAction(figure, action, y, width);
-                y += 72f;
+                y += BuildButtonAction(figure, action, y, width) + 12f;
             }
 
             return y - 12f;
@@ -567,7 +566,8 @@ namespace GCCC.BoardGame.Presentation.Views
             }
         }
 
-        private void BuildButtonAction(
+        /// <summary>ボタンを使う行動の1行を組み立て、その高さを返す。</summary>
+        private float BuildButtonAction(
             RectTransform figure, HowToPlayContent.ButtonAction action, float y, float width)
         {
             RectTransform row = CreateChild($"Action {action.Button}", figure);
@@ -609,6 +609,11 @@ namespace GCCC.BoardGame.Presentation.Views
 
             Text result = CreateText(row, "Result", action.Result, 22, TextAnchor.MiddleLeft, Soft);
             TopLeft(result.rectTransform, x, 13f, Mathf.Max(width - x - 22f, 120f), 34f);
+
+            // 環境によって字面の計測が変わるので、高さは実測に追従させる。
+            float rowHeight = Mathf.Max(60f, Fit(result, 34f) + 26f);
+            row.sizeDelta = new Vector2(width, rowHeight);
+            return rowHeight;
         }
 
         // ---- 節4: 動ける向き（現行のまま） ----

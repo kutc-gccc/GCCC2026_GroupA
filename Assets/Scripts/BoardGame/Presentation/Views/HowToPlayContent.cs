@@ -80,7 +80,7 @@ namespace GCCC.BoardGame.Presentation.Views
                 "ここから先は、遊びながらで大丈夫",
                 "残りは出てきたときに画面が教えてくれます。いま覚える必要はありません。",
                 FigureKind.LaterTopics,
-                "持てる駒は盤上とリザーブを合わせて6個まで。色の意味はゲーム画面に常に出ています。")
+                "持てる駒は盤上とリザーブを合わせて6個まで。合体した駒は2個ぶんを使うので、合体で枠は空きません。")
         };
 
         // ---- 節1: 盤面の凡例 ----
@@ -182,7 +182,7 @@ namespace GCCC.BoardGame.Presentation.Views
         internal static readonly IReadOnlyList<ButtonAction> ButtonActions = new[]
         {
             new ButtonAction(
-                "自分の駒を選ぶ", "パワーランダム化", "強さが 1〜3 に変わる（今より弱くなることもある）", false),
+                "自分の駒を選ぶ", "パワーランダム化", "強さが 1〜3 に変わる。弱くなることもある", false),
             new ButtonAction(
                 "自分の駒を選ぶ", "合体", "青い枠が付いた味方を選ぶ", true)
         };
