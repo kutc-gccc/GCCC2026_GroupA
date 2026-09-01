@@ -77,7 +77,7 @@ namespace GCCC.BoardGame.Presentation.Config
                 pieces,
                 firstPlayer,
                 coreMovementProfiles,
-                (cellEffectDefinitions ?? new List<CellEffectConfig>())
+                GetValidCellEffectConfigs()
                 .Select(effect => effect.CreateDefinition()),
                 maxPiecesPerPlayer,
                 reserveDeploymentDepth);
@@ -85,10 +85,26 @@ namespace GCCC.BoardGame.Presentation.Config
 
         public IReadOnlyList<ICellEffectHandler> CreateCellEffectHandlers()
         {
-            return (cellEffectDefinitions ?? new List<CellEffectConfig>())
+            return GetValidCellEffectConfigs()
                 .Select(effect => effect.CreateHandler())
                 .ToArray();
         }
+        private IEnumerable<CellEffectConfig> GetValidCellEffectConfigs()
+        {
+            foreach (CellEffectConfig effect in cellEffectDefinitions ?? new List<CellEffectConfig>())
+            {
+                if (effect == null)
+                {
+                    Debug.LogWarning(
+                        "BoardGameConfig has an empty (None) entry in Cell Effect " +
+                         "Definitions. Assign an asset to that slot or remove it. Skipping.",
+                        this);
+                    continue;
+                }
+
+                    yield return effect;
+                }
+            }
 
         private void AddStartingRow(
             ICollection<InitialPieceDefinition> pieces,
