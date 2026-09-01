@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 934eeff343e5bde4d9c193ea7d919432
+guid: a969c4d511014df9a7be181d6b5f98ae
 TrueTypeFontImporter:
   externalObjects: {}
   serializedVersion: 4
@@ -9,13 +9,13 @@ TrueTypeFontImporter:
   characterPadding: 1
   includeFontData: 1
   fontNames:
-  - Noto Sans JP
+  - Noto Sans JP Medium
   fallbackFontReferences: []
-  customCharacters: 
+  customCharacters:
   fontRenderingMode: 1
   ascentCalculationMode: 1
   useLegacyBoundsCalculation: 0
   shouldRoundAdvanceValue: 1
-  userData: 
-  assetBundleName: 
-  assetBundleVariant: 
+  userData:
+  assetBundleName:
+  assetBundleVariant:

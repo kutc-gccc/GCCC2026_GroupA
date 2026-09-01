@@ -16,7 +16,9 @@ namespace GCCC.BoardGame.EditorTools
         private const string MenuPath = "GCCC/Migrate HUD Prefab and SampleScene";
         private const string PrefabPath = "Assets/Prefabs/BoardGame/GameHud.prefab";
         private const string ScenePath = "Assets/Scenes/SampleScene.unity";
-        private const string FontPath = "Assets/NotoSansJP-VariableFont_wght.ttf";
+        // 可変フォントは legacy UI Text がウェイト軸を扱えず細く潰れるため、
+        // 静的な Medium を使う。
+        private const string FontPath = "Assets/NotoSansJP-Medium.ttf";
 
         private static readonly Color32 PanelColor =
             new Color32(35, 41, 52, 225);
@@ -360,7 +362,7 @@ namespace GCCC.BoardGame.EditorTools
             layout.childControlWidth = true;
             layout.childForceExpandHeight = false;
             layout.childForceExpandWidth = false;
-            label = CreateText(labelText + " Label", row, font, 20, TextAnchor.MiddleLeft);
+            label = CreateText(labelText + " Label", row, font, 22, TextAnchor.MiddleLeft);
             label.text = labelText;
             label.color = ButtonTextColor;
             label.fontStyle = FontStyle.Bold;
@@ -476,7 +478,7 @@ namespace GCCC.BoardGame.EditorTools
             layout.childForceExpandHeight = false;
             layout.childForceExpandWidth = false;
             CreateLegendIcon(row, iconStyle, color);
-            Text label = CreateText("Legend Label", row, font, 19, TextAnchor.MiddleLeft);
+            Text label = CreateText("Legend Label", row, font, 22, TextAnchor.MiddleLeft);
             label.text = text;
             label.color = ButtonTextColor;
             label.fontStyle = FontStyle.Bold;
