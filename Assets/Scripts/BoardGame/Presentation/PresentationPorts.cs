@@ -35,6 +35,10 @@ namespace GCCC.BoardGame.Presentation
 
         void SetReserveDeployButtonInteractable(bool interactable);
 
+        void SetFuseModeActive(bool active);
+
+        void SetReserveDeployModeActive(bool active);
+
         void SetDeployableReservePieces(IEnumerable<PieceId> pieceIds);
 
         void SetSelectedReservePiece(PieceId? pieceId);

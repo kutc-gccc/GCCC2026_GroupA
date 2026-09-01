@@ -123,7 +123,7 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
             BoardView view = CreatePresentationComponent(
                 boardViewPrefab, "Board View");
             view.Initialize(
-                boardCamera, spriteFactory.SquareSprite, Session.Snapshot);
+                boardCamera, spriteFactory, Session.Snapshot);
             return view;
         }
 

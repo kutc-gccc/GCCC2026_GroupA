@@ -20,10 +20,18 @@ namespace GCCC.BoardGame.EditorTools
 
         private static readonly Color32 PanelColor =
             new Color32(35, 41, 52, 225);
+        private static readonly Color32 NavyColor =
+            new Color32(38, 54, 77, 255);
         private static readonly Color32 ButtonColor =
             new Color32(235, 238, 244, 255);
         private static readonly Color32 ButtonTextColor =
             new Color32(35, 41, 52, 255);
+        private static readonly Color32 LegendSurfaceColor =
+            new Color32(248, 249, 251, 248);
+        private static readonly Color32 BorderColor =
+            new Color32(158, 166, 178, 255);
+        private static readonly Color32 DangerColor =
+            new Color32(198, 40, 40, 255);
 
         [MenuItem(MenuPath)]
         private static void Apply()
@@ -75,10 +83,10 @@ namespace GCCC.BoardGame.EditorTools
                 BuildOperationBar(
                     canvasObject.transform,
                     font,
-                    out Button reset,
                     out Button randomize,
                     out Button fuse,
                     out Button reserveDeploy);
+                Button reset = BuildResetButton(canvasObject.transform, font);
                 ReservePanelView reserves = BuildReservePanels(
                     canvasObject.transform,
                     font,
@@ -154,6 +162,8 @@ namespace GCCC.BoardGame.EditorTools
 
             Text status = CreatePanelText(
                 "Turn Status", stack, font, 28, TextAnchor.MiddleLeft, 64f);
+            status.fontStyle = FontStyle.Bold;
+            status.transform.parent.GetComponent<Image>().color = NavyColor;
             message = CreateText(
                 "Fusion Message", stack, font, 24, TextAnchor.MiddleLeft);
             message.color = new Color32(255, 213, 79, 255);
@@ -164,7 +174,6 @@ namespace GCCC.BoardGame.EditorTools
         private static void BuildOperationBar(
             Transform parent,
             Font font,
-            out Button reset,
             out Button randomize,
             out Button fuse,
             out Button reserveDeploy)
@@ -175,7 +184,7 @@ namespace GCCC.BoardGame.EditorTools
                 Vector2.one,
                 Vector2.one,
                 new Vector2(-24f, -24f),
-                new Vector2(820f, 64f));
+                new Vector2(574f, 64f));
             HorizontalLayoutGroup layout = bar.gameObject.AddComponent<HorizontalLayoutGroup>();
             layout.spacing = 12f;
             layout.childControlHeight = true;
@@ -188,10 +197,28 @@ namespace GCCC.BoardGame.EditorTools
             fuse = CreateButton("Fuse Button", bar, font, "合体", 140f);
             randomize = CreateButton(
                 "Randomize Power Button", bar, font, "パワーランダム化", 220f);
-            reset = CreateButton("Reset Button", bar, font, "リセット", 160f);
             reserveDeploy.interactable = false;
             fuse.interactable = false;
             randomize.interactable = false;
+        }
+
+        private static Button BuildResetButton(Transform parent, Font font)
+        {
+            Button reset = CreateButton(
+                "Reset Button",
+                parent,
+                font,
+                "リセット",
+                180f,
+                ButtonVisualStyle.DangerOutline);
+            Object.DestroyImmediate(reset.GetComponent<LayoutElement>());
+            SetAnchoredRect(
+                reset.GetComponent<RectTransform>(),
+                new Vector2(1f, 0f),
+                new Vector2(1f, 0f),
+                new Vector2(-24f, 24f),
+                new Vector2(180f, 64f));
+            return reset;
         }
 
         private static ReservePanelView BuildReservePanels(
@@ -213,7 +240,7 @@ namespace GCCC.BoardGame.EditorTools
                 new Vector2(1f, 1f),
                 new Vector2(1f, 1f),
                 new Vector2(-24f, -128f),
-                new Color32(255, 145, 145, 255),
+                Color.white,
                 out player2Header,
                 out player2Cards);
             player1Panel = CreateReservePanel(
@@ -223,7 +250,7 @@ namespace GCCC.BoardGame.EditorTools
                 new Vector2(1f, 0f),
                 new Vector2(1f, 0f),
                 new Vector2(-24f, 128f),
-                new Color32(134, 196, 255, 255),
+                Color.white,
                 out player1Header,
                 out player1Cards);
             return view;
@@ -255,6 +282,7 @@ namespace GCCC.BoardGame.EditorTools
 
             header = CreateText("Header", panel, font, 22, TextAnchor.MiddleLeft);
             header.color = headerColor;
+            header.fontStyle = FontStyle.Bold;
             header.gameObject.AddComponent<LayoutElement>().preferredHeight = 32f;
 
             RectTransform cards = CreateRect(
@@ -276,7 +304,7 @@ namespace GCCC.BoardGame.EditorTools
                 "Player 2 Territory Label",
                 parent,
                 font,
-                "プレイヤー2の陣地",
+                "▼ プレイヤー2の陣地",
                 new Vector2(0.5f, 1f),
                 new Vector2(0.5f, 1f),
                 new Vector2(0f, -12f));
@@ -284,7 +312,7 @@ namespace GCCC.BoardGame.EditorTools
                 "Player 1 Territory Label",
                 parent,
                 font,
-                "プレイヤー1の陣地",
+                "▲ プレイヤー1の陣地",
                 new Vector2(0.5f, 0f),
                 new Vector2(0.5f, 0f),
                 new Vector2(0f, 12f));
@@ -301,15 +329,13 @@ namespace GCCC.BoardGame.EditorTools
                 parent,
                 Vector2.zero,
                 Vector2.zero,
-                new Vector2(24f, 112f),
-                new Vector2(320f, 142f));
-            panel.gameObject.AddComponent<Image>().color = PanelColor;
+                new Vector2(24f, 24f),
+                new Vector2(300f, 104f));
             VerticalLayoutGroup vertical = panel.gameObject.AddComponent<VerticalLayoutGroup>();
-            vertical.padding = new RectOffset(16, 16, 12, 12);
-            vertical.spacing = 8f;
+            vertical.spacing = 4f;
             vertical.childControlHeight = true;
             vertical.childControlWidth = true;
-            vertical.childForceExpandHeight = true;
+            vertical.childForceExpandHeight = false;
             vertical.childForceExpandWidth = true;
             bgm = CreateSliderRow("BGM", panel, font, out _);
             sfx = CreateSliderRow("SFX", panel, font, out _);
@@ -326,34 +352,45 @@ namespace GCCC.BoardGame.EditorTools
         {
             RectTransform row = CreateRect(
                 labelText + " Row", parent, Vector2.zero, Vector2.zero,
-                Vector2.zero, new Vector2(288f, 48f));
+                Vector2.zero, new Vector2(300f, 48f));
             HorizontalLayoutGroup layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
             layout.spacing = 8f;
             layout.childControlHeight = true;
             layout.childControlWidth = true;
-            layout.childForceExpandHeight = true;
+            layout.childForceExpandHeight = false;
             layout.childForceExpandWidth = false;
             label = CreateText(labelText + " Label", row, font, 20, TextAnchor.MiddleLeft);
             label.text = labelText;
+            label.color = ButtonTextColor;
+            label.fontStyle = FontStyle.Bold;
             label.gameObject.AddComponent<LayoutElement>().preferredWidth = 64f;
 
             GameObject sliderObject = CreateObject(
                 labelText + " Slider",
                 row,
                 typeof(RectTransform),
-                typeof(CanvasRenderer),
-                typeof(Image),
                 typeof(Slider),
                 typeof(LayoutElement));
-            sliderObject.GetComponent<LayoutElement>().preferredWidth = 210f;
-            sliderObject.GetComponent<Image>().color = new Color32(90, 99, 112, 255);
+            LayoutElement sliderLayout = sliderObject.GetComponent<LayoutElement>();
+            sliderLayout.preferredWidth = 220f;
+            sliderLayout.preferredHeight = 40f;
             Slider slider = sliderObject.GetComponent<Slider>();
             slider.minValue = 0f;
             slider.maxValue = 1f;
 
+            RectTransform background = CreateRect(
+                "Background",
+                sliderObject.transform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                Vector2.zero,
+                new Vector2(220f, 8f));
+            Image backgroundImage = background.gameObject.AddComponent<Image>();
+            backgroundImage.color = new Color32(183, 189, 198, 255);
+
             RectTransform slideArea = CreateStretchRect("Handle Slide Area", sliderObject.transform);
-            slideArea.offsetMin = new Vector2(14f, 0f);
-            slideArea.offsetMax = new Vector2(-14f, 0f);
+            slideArea.offsetMin = new Vector2(11f, 0f);
+            slideArea.offsetMax = new Vector2(-11f, 0f);
             GameObject handleObject = CreateObject(
                 "Handle",
                 slideArea,
@@ -364,9 +401,14 @@ namespace GCCC.BoardGame.EditorTools
             handle.anchorMin = new Vector2(0f, 0f);
             handle.anchorMax = new Vector2(0f, 1f);
             handle.pivot = new Vector2(0.5f, 0.5f);
-            handle.sizeDelta = new Vector2(28f, 0f);
+            handle.sizeDelta = new Vector2(22f, 0f);
             Image handleImage = handleObject.GetComponent<Image>();
-            handleImage.color = ButtonColor;
+            handleImage.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>(
+                "UI/Skin/Knob.psd");
+            handleImage.color = Color.white;
+            Outline handleOutline = handleObject.AddComponent<Outline>();
+            handleOutline.effectColor = BorderColor;
+            handleOutline.effectDistance = new Vector2(1f, -1f);
             slider.handleRect = handle;
             slider.targetGraphic = handleImage;
             return slider;
@@ -377,19 +419,39 @@ namespace GCCC.BoardGame.EditorTools
             RectTransform panel = CreateRect(
                 "Cell Effect Legend",
                 parent,
-                Vector2.zero,
-                Vector2.zero,
-                new Vector2(24f, 24f),
-                new Vector2(320f, 76f));
-            panel.gameObject.AddComponent<Image>().color = PanelColor;
+                new Vector2(0f, 0.5f),
+                new Vector2(0f, 0.5f),
+                new Vector2(24f, 0f),
+                new Vector2(400f, 282f));
+            panel.gameObject.AddComponent<Image>().color = LegendSurfaceColor;
+            Outline panelOutline = panel.gameObject.AddComponent<Outline>();
+            panelOutline.effectColor = BorderColor;
+            panelOutline.effectDistance = new Vector2(1f, -1f);
             VerticalLayoutGroup vertical = panel.gameObject.AddComponent<VerticalLayoutGroup>();
-            vertical.padding = new RectOffset(12, 12, 8, 8);
-            vertical.spacing = 4f;
+            vertical.padding = new RectOffset(20, 20, 16, 16);
+            vertical.spacing = 6f;
             vertical.childControlHeight = true;
             vertical.childControlWidth = true;
-            vertical.childForceExpandHeight = true;
-            CreateLegendRow(panel, font, "滞在中効果", new Color32(0, 188, 212, 255));
-            CreateLegendRow(panel, font, "一度で永続する効果", new Color32(156, 39, 176, 255));
+            vertical.childForceExpandHeight = false;
+            vertical.childForceExpandWidth = true;
+            CreateLegendRow(
+                panel, font, "Selected", "選択中（琥珀の枠）",
+                LegendIconStyle.Frame, new Color32(255, 179, 0, 255));
+            CreateLegendRow(
+                panel, font, "Movable", "移動可能（白い点）",
+                LegendIconStyle.Dot, Color.white);
+            CreateLegendRow(
+                panel, font, "Combat", "戦闘可能（赤い枠）",
+                LegendIconStyle.Frame, new Color32(244, 67, 54, 255));
+            CreateLegendRow(
+                panel, font, "Fusion", "合体候補（青い枠）",
+                LegendIconStyle.Frame, new Color32(33, 150, 243, 255));
+            CreateLegendRow(
+                panel, font, "Permanent", "永続効果（紫の塗り）",
+                LegendIconStyle.Fill, new Color32(156, 39, 176, 255));
+            CreateLegendRow(
+                panel, font, "While Occupied", "滞在中効果（シアンの塗り）",
+                LegendIconStyle.Fill, new Color32(0, 188, 212, 255));
             panel.gameObject.SetActive(false);
             return panel.gameObject;
         }
@@ -397,32 +459,70 @@ namespace GCCC.BoardGame.EditorTools
         private static void CreateLegendRow(
             Transform parent,
             Font font,
+            string name,
             string text,
+            LegendIconStyle iconStyle,
             Color color)
         {
             RectTransform row = CreateRect(
-                text + " Row", parent, Vector2.zero, Vector2.zero,
-                Vector2.zero, new Vector2(296f, 26f));
+                name + " Legend Row", parent, Vector2.zero, Vector2.zero,
+                Vector2.zero, new Vector2(360f, 36f));
+            row.gameObject.AddComponent<LayoutElement>().preferredHeight = 36f;
             HorizontalLayoutGroup layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
-            layout.spacing = 10f;
+            layout.spacing = 12f;
             layout.childControlHeight = true;
             layout.childControlWidth = true;
-            layout.childForceExpandHeight = true;
+            layout.childForceExpandHeight = false;
             layout.childForceExpandWidth = false;
-            GameObject swatch = CreateObject(
-                "Legend Swatch",
-                row,
-                typeof(RectTransform),
-                typeof(CanvasRenderer),
-                typeof(Image),
-                typeof(LayoutElement));
-            swatch.GetComponent<Image>().color = color;
-            LayoutElement swatchLayout = swatch.GetComponent<LayoutElement>();
-            swatchLayout.preferredWidth = 22f;
-            swatchLayout.preferredHeight = 22f;
-            Text label = CreateText("Legend Label", row, font, 18, TextAnchor.MiddleLeft);
+            CreateLegendIcon(row, iconStyle, color);
+            Text label = CreateText("Legend Label", row, font, 19, TextAnchor.MiddleLeft);
             label.text = text;
-            label.gameObject.AddComponent<LayoutElement>().preferredWidth = 250f;
+            label.color = ButtonTextColor;
+            label.fontStyle = FontStyle.Bold;
+            label.gameObject.AddComponent<LayoutElement>().preferredWidth = 310f;
+        }
+
+        private static void CreateLegendIcon(
+            Transform parent,
+            LegendIconStyle iconStyle,
+            Color color)
+        {
+            RectTransform icon = CreateRect(
+                "Legend Icon",
+                parent,
+                Vector2.zero,
+                Vector2.zero,
+                Vector2.zero,
+                new Vector2(28f, 28f));
+            LayoutElement iconLayout = icon.gameObject.AddComponent<LayoutElement>();
+            iconLayout.preferredWidth = 28f;
+            iconLayout.preferredHeight = 28f;
+
+            if (iconStyle == LegendIconStyle.Frame)
+            {
+                CreateBorder(icon, color, 3f);
+                return;
+            }
+
+            RectTransform mark = CreateRect(
+                "Mark",
+                icon,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                Vector2.zero,
+                iconStyle == LegendIconStyle.Dot
+                    ? new Vector2(18f, 18f)
+                    : new Vector2(24f, 24f));
+            Image markImage = mark.gameObject.AddComponent<Image>();
+            markImage.color = color;
+            if (iconStyle == LegendIconStyle.Dot)
+            {
+                markImage.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>(
+                    "UI/Skin/Knob.psd");
+                Outline dotOutline = mark.gameObject.AddComponent<Outline>();
+                dotOutline.effectColor = BorderColor;
+                dotOutline.effectDistance = new Vector2(1f, -1f);
+            }
         }
 
         private static void BuildResultOverlay(
@@ -515,7 +615,8 @@ namespace GCCC.BoardGame.EditorTools
             Transform parent,
             Font font,
             string label,
-            float width)
+            float width,
+            ButtonVisualStyle style = ButtonVisualStyle.Standard)
         {
             GameObject buttonObject = CreateObject(
                 name,
@@ -526,21 +627,93 @@ namespace GCCC.BoardGame.EditorTools
                 typeof(Button),
                 typeof(LayoutElement));
             Image image = buttonObject.GetComponent<Image>();
-            image.color = ButtonColor;
+            image.color = style == ButtonVisualStyle.DangerOutline
+                ? new Color32(255, 255, 255, 8)
+                : ButtonColor;
             Button button = buttonObject.GetComponent<Button>();
             button.targetGraphic = image;
+            ColorBlock colors = button.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color32(230, 235, 243, 255);
+            colors.pressedColor = new Color32(205, 214, 226, 255);
+            colors.selectedColor = colors.highlightedColor;
+            colors.disabledColor = new Color32(175, 183, 195, 255);
+            colors.fadeDuration = 0.08f;
+            button.colors = colors;
             LayoutElement element = buttonObject.GetComponent<LayoutElement>();
             element.preferredWidth = width;
             element.preferredHeight = 64f;
             Text text = CreateText("Label", buttonObject.transform, font, 22, TextAnchor.MiddleCenter);
             text.text = label;
-            text.color = ButtonTextColor;
+            text.color = style == ButtonVisualStyle.DangerOutline
+                ? DangerColor
+                : ButtonTextColor;
+            text.fontStyle = FontStyle.Bold;
             RectTransform textRect = text.rectTransform;
             textRect.anchorMin = Vector2.zero;
             textRect.anchorMax = Vector2.one;
             textRect.offsetMin = Vector2.zero;
             textRect.offsetMax = Vector2.zero;
+            CreateBorder(
+                buttonObject.transform,
+                style == ButtonVisualStyle.DangerOutline
+                    ? DangerColor
+                    : BorderColor,
+                3f);
             return button;
+        }
+
+        private static void CreateBorder(
+            Transform parent,
+            Color color,
+            float thickness)
+        {
+            CreateBorderEdge(
+                "Top Border", parent,
+                new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(0f, -thickness * 0.5f),
+                new Vector2(0f, thickness), color);
+            CreateBorderEdge(
+                "Bottom Border", parent,
+                new Vector2(0f, 0f), new Vector2(1f, 0f),
+                new Vector2(0f, thickness * 0.5f),
+                new Vector2(0f, thickness), color);
+            CreateBorderEdge(
+                "Left Border", parent,
+                new Vector2(0f, 0f), new Vector2(0f, 1f),
+                new Vector2(thickness * 0.5f, 0f),
+                new Vector2(thickness, 0f), color);
+            CreateBorderEdge(
+                "Right Border", parent,
+                new Vector2(1f, 0f), new Vector2(1f, 1f),
+                new Vector2(-thickness * 0.5f, 0f),
+                new Vector2(thickness, 0f), color);
+        }
+
+        private static void CreateBorderEdge(
+            string name,
+            Transform parent,
+            Vector2 anchorMin,
+            Vector2 anchorMax,
+            Vector2 position,
+            Vector2 size,
+            Color color)
+        {
+            GameObject edgeObject = CreateObject(
+                name,
+                parent,
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image));
+            RectTransform edgeRect = edgeObject.GetComponent<RectTransform>();
+            edgeRect.anchorMin = anchorMin;
+            edgeRect.anchorMax = anchorMax;
+            edgeRect.pivot = new Vector2(0.5f, 0.5f);
+            edgeRect.anchoredPosition = position;
+            edgeRect.sizeDelta = size;
+            Image edgeImage = edgeObject.GetComponent<Image>();
+            edgeImage.color = color;
+            edgeImage.raycastTarget = false;
         }
 
         private static Text CreateText(
@@ -575,12 +748,22 @@ namespace GCCC.BoardGame.EditorTools
         {
             GameObject gameObject = CreateObject(name, parent, typeof(RectTransform));
             RectTransform rect = gameObject.GetComponent<RectTransform>();
+            SetAnchoredRect(rect, anchor, pivot, position, size);
+            return rect;
+        }
+
+        private static void SetAnchoredRect(
+            RectTransform rect,
+            Vector2 anchor,
+            Vector2 pivot,
+            Vector2 position,
+            Vector2 size)
+        {
             rect.anchorMin = anchor;
             rect.anchorMax = anchor;
             rect.pivot = pivot;
             rect.anchoredPosition = position;
             rect.sizeDelta = size;
-            return rect;
         }
 
         private static RectTransform CreateStretchRect(string name, Transform parent)
@@ -601,6 +784,19 @@ namespace GCCC.BoardGame.EditorTools
             GameObject gameObject = new GameObject(name, components);
             gameObject.transform.SetParent(parent, false);
             return gameObject;
+        }
+
+        private enum ButtonVisualStyle
+        {
+            Standard,
+            DangerOutline
+        }
+
+        private enum LegendIconStyle
+        {
+            Frame,
+            Dot,
+            Fill
         }
 
         private static void Assign(Object target, string propertyName, Object value)

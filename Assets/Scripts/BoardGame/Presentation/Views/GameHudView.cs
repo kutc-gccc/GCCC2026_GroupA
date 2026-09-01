@@ -10,6 +10,21 @@ namespace GCCC.BoardGame.Presentation.Views
 {
     public sealed class GameHudView : MonoBehaviour, IGameHud
     {
+        // モード中のボタンは押し込んで見せる。Prefabの既定色と揃えている。
+        private static readonly Color InactiveModeButtonColor =
+            new Color32(235, 238, 244, 255);
+
+        private static readonly Color ActiveModeButtonColor =
+            new Color32(38, 54, 77, 255);
+
+        private static readonly Color InactiveModeButtonTextColor =
+            new Color32(35, 41, 52, 255);
+
+        private static readonly Color ActiveModeButtonTextColor = Color.white;
+
+        private static readonly Color InactiveModeButtonBorderColor =
+            new Color32(158, 166, 178, 255);
+
         [Header("Status")]
         [SerializeField] private Text statusLabel;
         [SerializeField] private Text messageLabel;
@@ -120,16 +135,15 @@ namespace GCCC.BoardGame.Presentation.Views
             }
 
             reserveText =
-                $"リザーブ　青: {snapshot.GetPlayer(PlayerId.Player1).ReservePieces.Count}" +
-                $"　赤: {snapshot.GetPlayer(PlayerId.Player2).ReservePieces.Count}";
+                $"リザーブ　プレイヤー1: {snapshot.GetPlayer(PlayerId.Player1).ReservePieces.Count}" +
+                $"　プレイヤー2: {snapshot.GetPlayer(PlayerId.Player2).ReservePieces.Count}";
+
             reservePanelView.Render(snapshot);
             effectLegend.SetActive(snapshot.CellEffectDefinitions.Count > 0);
 
             if (snapshot.Winner.HasValue)
             {
-                string text = snapshot.Winner.Value == PlayerId.Player1
-                    ? "プレイヤー1の勝利"
-                    : "プレイヤー2の勝利";
+                string text = $"{PlayerLabel(snapshot.Winner.Value)}の勝利";
                 statusLabel.text = text;
                 ShowResult(text);
                 return;
@@ -143,9 +157,18 @@ namespace GCCC.BoardGame.Presentation.Views
             }
 
             HideResult();
-            statusLabel.text = snapshot.CurrentPlayer == PlayerId.Player1
-                ? "プレイヤー1のターン"
-                : "プレイヤー2のターン";
+            statusLabel.text = $"{PlayerLabel(snapshot.CurrentPlayer)}のターン";
+        }
+
+        /// <summary>
+        /// 駒は両プレイヤーとも濃緑で、所有者は三角の向きでしか区別できない。
+        /// 所有者を出す表示には盤面と同じ ▲▼ を必ず添える。
+        /// </summary>
+        private static string PlayerLabel(PlayerId player)
+        {
+            return player == PlayerId.Player1
+                ? "▲ プレイヤー1"
+                : "▼ プレイヤー2";
         }
 
         public bool IsPointerOverControl(Vector2 screenPosition)
@@ -187,6 +210,70 @@ namespace GCCC.BoardGame.Presentation.Views
             if (reserveDeployButton != null)
             {
                 reserveDeployButton.interactable = interactable && !IsResultVisible;
+            }
+        }
+
+        /// <summary>
+        /// 「合体」「リザーブ配置」はトグルなので、押した後の状態をボタンに出す。
+        /// 有効・無効とは別の軸なので、色で押し込みを表現する。
+        /// </summary>
+        public void SetFuseModeActive(bool active)
+        {
+            ApplyModeAppearance(fuseButton, active);
+        }
+
+        public void SetReserveDeployModeActive(bool active)
+        {
+            ApplyModeAppearance(reserveDeployButton, active);
+        }
+
+        private static void ApplyModeAppearance(Button button, bool active)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            Image background = button.targetGraphic as Image;
+            if (background == null)
+            {
+                return;
+            }
+
+            background.color = active
+                ? ActiveModeButtonColor
+                : InactiveModeButtonColor;
+
+            Transform labelTransform = button.transform.Find("Label");
+            Text label = labelTransform != null
+                ? labelTransform.GetComponent<Text>()
+                : null;
+            if (label != null)
+            {
+                label.color = active
+                    ? ActiveModeButtonTextColor
+                    : InactiveModeButtonTextColor;
+            }
+
+            Color borderColor = active
+                ? ActiveModeButtonColor
+                : InactiveModeButtonBorderColor;
+            ApplyBorderColor(button.transform, "Top Border", borderColor);
+            ApplyBorderColor(button.transform, "Bottom Border", borderColor);
+            ApplyBorderColor(button.transform, "Left Border", borderColor);
+            ApplyBorderColor(button.transform, "Right Border", borderColor);
+        }
+
+        private static void ApplyBorderColor(
+            Transform parent,
+            string childName,
+            Color color)
+        {
+            Transform edge = parent.Find(childName);
+            Image edgeImage = edge != null ? edge.GetComponent<Image>() : null;
+            if (edgeImage != null)
+            {
+                edgeImage.color = color;
             }
         }
 

@@ -13,6 +13,7 @@ namespace GCCC.BoardGame.Presentation.Views
 
         private const float CellScale = 0.9f;
         private const float TerritoryBorderThickness = 0.09f;
+        private const float TerritoryMarkerScale = 0.34f;
         private const float GridLineThickness = 0.04f;
 
         private static readonly Color GridLineColor =
@@ -25,18 +26,29 @@ namespace GCCC.BoardGame.Presentation.Views
         private static readonly Color CellColor =
             new Color32(255, 255, 255, 35);
 
+        // 選択中は塗りつぶしではなく枠線で示す。
         private static readonly Color SelectionColor =
-            new Color32(255, 193, 7, 175);
+            new Color32(224, 162, 27, 235);
 
+        // 駒の濃緑と紛れないよう、移動候補は緑をやめて白い点にする。
         private static readonly Color LegalMoveColor =
-            new Color32(76, 175, 80, 150);
+            new Color32(255, 255, 255, 225);
 
+        // 陣地から外した赤を、危険の意味が合う戦闘可能へ回す。
         private static readonly Color CombatMoveColor =
-            new Color32(255, 152, 0, 175);
+            new Color32(224, 58, 47, 235);
 
-        // 陣地枠
+        // 陣地と盤面の境に引く区切り線。純赤はやめて無彩色にする。
         private static readonly Color TerritoryBorderColor =
-            new Color32(255, 0, 0, 235);
+            new Color32(34, 38, 44, 235);
+
+        // 陣地は「入れない／勝てる」別空間なので、通常セルと違う無彩色の地形にする。
+        private static readonly Color TerritoryCellColor =
+            new Color32(90, 96, 105, 215);
+
+        // 陣地の所有者を示す ▲▼。駒と同じ記号を使う。
+        private static readonly Color TerritoryMarkerColor =
+            new Color32(237, 233, 225, 205);
 
         private static readonly Color FusionCandidateColor =
             new Color32(33, 150, 243, 175);
@@ -56,6 +68,9 @@ namespace GCCC.BoardGame.Presentation.Views
 
         private Camera boardCamera;
         private Sprite squareSprite;
+        private Sprite dotSprite;
+        private Sprite frameSprite;
+        private Sprite markerSprite;
         private Transform indicatorsRoot;
         private SpriteRenderer selectionIndicator;
 
@@ -74,11 +89,14 @@ namespace GCCC.BoardGame.Presentation.Views
 
         public void Initialize(
             Camera camera,
-            Sprite cellSprite,
+            RuntimeSpriteFactory sprites,
             GameSnapshot snapshot)
         {
             boardCamera = camera;
-            squareSprite = cellSprite;
+            squareSprite = sprites.SquareSprite;
+            dotSprite = sprites.CircleSprite;
+            frameSprite = sprites.FrameSprite;
+            markerSprite = sprites.TriangleSprite;
 
             columns = snapshot.Columns;
             rows = snapshot.Rows;
@@ -117,17 +135,22 @@ namespace GCCC.BoardGame.Presentation.Views
                         destination,
                         out _);
 
+                // 敵駒は枠で囲み、空きマスは点で示す。形で役割を分ける。
                 SpriteRenderer indicator =
                     CreateSpriteRenderer(
                         isCombat
                             ? $"Combat Candidate ({destination.Column}, {destination.Row})"
                             : $"Move Candidate ({destination.Column}, {destination.Row})",
                         indicatorsRoot,
-                        squareSprite,
+                        isCombat
+                            ? frameSprite
+                            : dotSprite,
                         isCombat
                             ? CombatMoveColor
                             : LegalMoveColor,
-                        Vector3.one * 0.82f,
+                        isCombat
+                            ? Vector3.one * 0.94f
+                            : Vector3.one * 0.28f,
                         4);
 
                 indicator.transform.localPosition =
@@ -145,9 +168,9 @@ namespace GCCC.BoardGame.Presentation.Views
                     CreateSpriteRenderer(
                         $"Fusion Candidate ({target.Column}, {target.Row})",
                         indicatorsRoot,
-                        squareSprite,
+                        frameSprite,
                         FusionCandidateColor,
-                        Vector3.one * 0.82f,
+                        Vector3.one * 0.94f,
                         4);
 
                 indicator.transform.localPosition =
@@ -258,12 +281,19 @@ namespace GCCC.BoardGame.Presentation.Views
                             column,
                             row);
 
+                    snapshot.TryGetCell(cell, out CellDefinition cellDefinition);
+
+                    PlayerId? territoryOwner =
+                        cellDefinition?.TerritoryOwner;
+
                     SpriteRenderer renderer =
                         CreateSpriteRenderer(
                             $"Cell ({column}, {row})",
                             cellsRoot,
                             squareSprite,
-                            CellColor,
+                            territoryOwner.HasValue
+                                ? TerritoryCellColor
+                                : CellColor,
                             Vector3.one * CellScale,
                             1);
 
@@ -273,13 +303,20 @@ namespace GCCC.BoardGame.Presentation.Views
                             columns,
                             rows);
 
-                    // Cell Effect
-                    if (snapshot.TryGetCell(
+                    if (territoryOwner.HasValue)
+                    {
+                        CreateTerritoryMarker(
                             cell,
-                            out CellDefinition definition) &&
-                        definition.EffectIds.Count > 0 &&
+                            territoryOwner.Value,
+                            cellsRoot,
+                            renderer.transform.localPosition);
+                    }
+
+                    // Cell Effect
+                    if (cellDefinition != null &&
+                        cellDefinition.EffectIds.Count > 0 &&
                         snapshot.TryGetCellEffectDefinition(
-                            definition.EffectIds[0],
+                            cellDefinition.EffectIds[0],
                             out CellEffectDefinition effectDefinition))
                     {
                         Color effectColor =
@@ -294,7 +331,7 @@ namespace GCCC.BoardGame.Presentation.Views
                                 cellsRoot,
                                 squareSprite,
                                 effectColor,
-                                Vector3.one * 0.72f,
+                                Vector3.one * CellScale,
                                 2);
 
                         effectOverlay.transform.localPosition =
@@ -334,9 +371,9 @@ namespace GCCC.BoardGame.Presentation.Views
                 CreateSpriteRenderer(
                     "Selection",
                     transform,
-                    squareSprite,
+                    frameSprite,
                     SelectionColor,
-                    Vector3.one * 0.84f,
+                    Vector3.one * 0.98f,
                     4);
 
             selectionIndicator.enabled = false;
@@ -478,6 +515,37 @@ namespace GCCC.BoardGame.Presentation.Views
                     center + Vector3.right * halfCell,
                     new Vector3(TerritoryBorderThickness, segmentLength, 1f));
             }
+        }
+
+        /// <summary>
+        /// 陣地のマスへ所有者の ▲▼ を敷く。駒と同じ記号を使うことで、
+        /// 色を使わずに「誰の陣地か」を盤上で示す。
+        /// </summary>
+        private void CreateTerritoryMarker(
+            GridPosition cell,
+            PlayerId owner,
+            Transform parent,
+            Vector3 localPosition)
+        {
+            // プレイヤー1が上向き、プレイヤー2は縦を反転して下向きにする。
+            float verticalDirection =
+                owner == PlayerId.Player1
+                    ? 1f
+                    : -1f;
+
+            SpriteRenderer marker =
+                CreateSpriteRenderer(
+                    $"Territory Marker ({cell.Column}, {cell.Row})",
+                    parent,
+                    markerSprite,
+                    TerritoryMarkerColor,
+                    new Vector3(
+                        TerritoryMarkerScale,
+                        TerritoryMarkerScale * verticalDirection,
+                        1f),
+                    2);
+
+            marker.transform.localPosition = localPosition;
         }
 
         private void CreateTerritoryEdgeIfExposed(

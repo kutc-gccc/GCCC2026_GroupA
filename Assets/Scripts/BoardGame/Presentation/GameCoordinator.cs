@@ -22,7 +22,24 @@ namespace GCCC.BoardGame.Presentation
         private readonly IGameHud hudView;
         private readonly IGameAudio audioManager;
         private readonly Dictionary<PlayerId, IPlayerAgent> agents;
-        private InteractionState interactionState = InteractionState.None;
+        private InteractionState interactionStateValue = InteractionState.None;
+
+        /// <summary>
+        /// モードは11箇所から書き換わるので、代入経路を1本にまとめて
+        /// ボタンの押し込み表示を必ず追随させる。
+        /// </summary>
+        private InteractionState interactionState
+        {
+            get => interactionStateValue;
+            set
+            {
+                interactionStateValue = value;
+                hudView.SetFuseModeActive(
+                    value.Mode == InteractionMode.Fusion);
+                hudView.SetReserveDeployModeActive(
+                    value.Mode == InteractionMode.ReserveDeployment);
+            }
+        }
 
         public GameCoordinator(
             GameSession session,

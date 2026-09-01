@@ -21,7 +21,7 @@ namespace GCCC.BoardGame.Tests
     public sealed partial class BoardGameBootstrapTests
     {
         [UnityTest]
-        public IEnumerator TitleSceneStartsFreshGame()
+        public IEnumerator TitleSceneShowsHowToAndStartsFreshGame()
         {
             Assert.That(SceneUtility.GetScenePathByBuildIndex(0),
                 Is.EqualTo("Assets/Scenes/TitleScene.unity"));
@@ -35,6 +35,16 @@ namespace GCCC.BoardGame.Tests
                 GameObject.Find("Title Text").GetComponent<Text>().text,
                 Is.EqualTo("Number War"));
             Assert.That(
+                GameObject.Find("Title Text").GetComponent<Text>().fontStyle,
+                Is.EqualTo(FontStyle.Bold));
+            Assert.That(
+                GameObject.Find("Title Text").GetComponent<Text>().font.name,
+                Does.StartWith("NotoSerifJP"));
+            Assert.That(GameObject.Find("Title Backdrop"), Is.Null);
+            Assert.That(
+                GameObject.Find("Title Subtitle").GetComponent<Text>().text,
+                Is.EqualTo("6×10 の陣地到達型ボードゲーム"));
+            Assert.That(
                 GameObject.Find("Background").GetComponent<Image>().sprite,
                 Is.Not.Null);
 
@@ -43,6 +53,51 @@ namespace GCCC.BoardGame.Tests
             Assert.That(
                 startButton.transform.Find("Label").GetComponent<Text>().text,
                 Is.EqualTo("ゲーム開始"));
+
+            GameObject titlePage = GameObject.Find("Title Page");
+            Transform howToPageTransform = GameObject.Find("Title Canvas")
+                .transform.Find("How To Page");
+            GameObject howToPage = howToPageTransform.gameObject;
+            Button howToButton = GameObject.Find("How To Button").GetComponent<Button>();
+            Assert.That(titlePage.activeSelf, Is.True);
+            Assert.That(howToPage.activeSelf, Is.False);
+            Assert.That(
+                howToButton.transform.Find("Label").GetComponent<Text>().text,
+                Is.EqualTo("遊び方"));
+            Assert.That(startButton.GetComponent<Image>().color.a, Is.EqualTo(1f));
+            Assert.That(howToButton.GetComponent<Image>().color.a, Is.EqualTo(0f));
+            Assert.That(howToButton.transform.Find("Top Border"), Is.Not.Null);
+            Assert.That(howToButton.transform.Find("Bottom Border"), Is.Not.Null);
+            Assert.That(howToButton.transform.Find("Left Border"), Is.Not.Null);
+            Assert.That(howToButton.transform.Find("Right Border"), Is.Not.Null);
+            Assert.That(
+                startButton.GetComponent<LayoutElement>().preferredWidth,
+                Is.GreaterThan(howToButton.GetComponent<LayoutElement>().preferredWidth));
+
+            howToButton.onClick.Invoke();
+            yield return null;
+
+            Assert.That(SceneManager.GetActiveScene().name,
+                Is.EqualTo(BoardGameSceneNames.Title));
+            Assert.That(titlePage.activeSelf, Is.False);
+            Assert.That(howToPage.activeSelf, Is.True);
+            Assert.That(
+                GameObject.Find("How To Title").GetComponent<Text>().text,
+                Is.EqualTo("遊び方"));
+            Assert.That(
+                GameObject.Find("How To Placeholder").GetComponent<Text>().text,
+                Is.EqualTo("遊び方の内容は後ほど追加予定です。"));
+            Button backButton = GameObject.Find("How To Back Button")
+                .GetComponent<Button>();
+            Assert.That(
+                backButton.transform.Find("Label").GetComponent<Text>().text,
+                Is.EqualTo("戻る"));
+
+            backButton.onClick.Invoke();
+            yield return null;
+
+            Assert.That(titlePage.activeSelf, Is.True);
+            Assert.That(howToPage.activeSelf, Is.False);
 
             startButton.onClick.Invoke();
             yield return null;

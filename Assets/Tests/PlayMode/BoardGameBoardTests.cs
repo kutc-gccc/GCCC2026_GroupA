@@ -33,25 +33,89 @@ namespace GCCC.BoardGame.Tests
             Assert.That(GameObject.Find("Piece Views"), Is.Not.Null);
             Assert.That(GameObject.Find("Game HUD"), Is.Not.Null);
             Assert.That(GameObject.Find("Board Input"), Is.Not.Null);
-            Assert.That(GameObject.Find("Reset Button"), Is.Not.Null);
+            GameObject boardUi = GameObject.Find("Board UI");
+            GameObject resetButton = GameObject.Find("Reset Button");
+            Assert.That(resetButton, Is.Not.Null);
+            Assert.That(resetButton.transform.parent, Is.EqualTo(boardUi.transform));
+            Assert.That(boardUi.transform.Find("Operation Bar/Reset Button"), Is.Null);
+            RectTransform resetRect = resetButton.GetComponent<RectTransform>();
+            Assert.That(resetRect.anchorMin, Is.EqualTo(new Vector2(1f, 0f)));
+            Assert.That(resetRect.anchorMax, Is.EqualTo(new Vector2(1f, 0f)));
+            Assert.That(resetButton.GetComponent<Image>().color.a, Is.LessThan(0.1f));
+            Assert.That(resetButton.transform.Find("Top Border"), Is.Not.Null);
+            Assert.That(
+                (Color32)resetButton.transform.Find("Label").GetComponent<Text>().color,
+                Is.EqualTo(new Color32(198, 40, 40, 255)));
             Assert.That(GameObject.Find("Reserve Deploy Button"), Is.Not.Null);
             Assert.That(GameObject.Find("Reserve Deploy Button")
                 .GetComponent<Button>().interactable, Is.False);
             Assert.That(GameObject.Find("Player 1 Reserve Panel"), Is.Not.Null);
             Assert.That(GameObject.Find("Player 2 Reserve Panel"), Is.Not.Null);
+            Assert.That(
+                GameObject.Find("Player 1 Reserve Panel")
+                    .transform.Find("Header").GetComponent<Text>().text,
+                Does.Contain("駒 6 / 6"));
+            Assert.That(
+                GameObject.Find("Player 2 Reserve Panel")
+                    .transform.Find("Header").GetComponent<Text>().text,
+                Does.Contain("駒 6 / 6"));
             Assert.That(bootstrapObject.GetComponentInChildren<GameHudView>()
                 .ReserveCardCount, Is.Zero);
             Assert.That(GameObject.Find("Audio Volume Controls"), Is.Not.Null);
             Assert.That(GameObject.Find("BGM Slider"), Is.Not.Null);
             Assert.That(GameObject.Find("SFX Slider"), Is.Not.Null);
+            RectTransform legendRect = boardUi.transform.Find("Cell Effect Legend")
+                .GetComponent<RectTransform>();
+            Assert.That(legendRect.anchorMin, Is.EqualTo(new Vector2(0f, 0.5f)));
+            Assert.That(legendRect.childCount, Is.EqualTo(6));
+            Assert.That(legendRect.Find("Selected Legend Row"), Is.Not.Null);
+            Assert.That(legendRect.Find("Movable Legend Row"), Is.Not.Null);
+            Assert.That(legendRect.Find("Combat Legend Row"), Is.Not.Null);
+            Assert.That(legendRect.Find("Fusion Legend Row"), Is.Not.Null);
+            Assert.That(legendRect.Find("Permanent Legend Row"), Is.Not.Null);
+            Assert.That(legendRect.Find("While Occupied Legend Row"), Is.Not.Null);
+            RectTransform audioRect = GameObject.Find("Audio Volume Controls")
+                .GetComponent<RectTransform>();
+            Assert.That(audioRect.anchorMin, Is.EqualTo(Vector2.zero));
+            Assert.That(audioRect.GetComponent<Image>(), Is.Null);
+            Assert.That(
+                GameObject.Find("BGM Slider").transform.Find("Background")
+                    .GetComponent<RectTransform>().sizeDelta.y,
+                Is.EqualTo(8f));
+
+            GameHudView hud = bootstrapObject.GetComponentInChildren<GameHudView>();
+            Button reserveDeployButton = GameObject.Find("Reserve Deploy Button")
+                .GetComponent<Button>();
+            hud.SetReserveDeployModeActive(true);
+            Assert.That(
+                (Color32)reserveDeployButton.GetComponent<Image>().color,
+                Is.EqualTo(new Color32(38, 54, 77, 255)));
+            Assert.That(
+                reserveDeployButton.transform.Find("Label").GetComponent<Text>().color,
+                Is.EqualTo(Color.white));
+            hud.SetReserveDeployModeActive(false);
+            Assert.That(
+                (Color32)reserveDeployButton.transform.Find("Label").GetComponent<Text>().color,
+                Is.EqualTo(new Color32(35, 41, 52, 255)));
             Assert.That(GameObject.Find("Player 1 Territory Border"), Is.Not.Null);
             Assert.That(GameObject.Find("Player 2 Territory Border"), Is.Not.Null);
 
+            // 陣地は通常マスと別の地形として描き、所有者を ▲▼ で示す。
             SpriteRenderer territoryCell = GameObject.Find("Cell (0, 0)")
                 .GetComponent<SpriteRenderer>();
             SpriteRenderer normalCell = GameObject.Find("Cell (0, 2)")
                 .GetComponent<SpriteRenderer>();
-            Assert.That(territoryCell.color, Is.EqualTo(normalCell.color));
+            Assert.That(territoryCell.color, Is.Not.EqualTo(normalCell.color));
+            Assert.That(GameObject.Find("Territory Marker (0, 0)"), Is.Not.Null);
+            Assert.That(GameObject.Find("Territory Marker (0, 9)"), Is.Not.Null);
+            Assert.That(
+                GameObject.Find("Player 1 Territory Label Text")
+                    .GetComponent<Text>().text,
+                Is.EqualTo("▲ プレイヤー1の陣地"));
+            Assert.That(
+                GameObject.Find("Player 2 Territory Label Text")
+                    .GetComponent<Text>().text,
+                Is.EqualTo("▼ プレイヤー2の陣地"));
             yield return null;
         }
 
@@ -127,7 +191,7 @@ namespace GCCC.BoardGame.Tests
             auxiliaryObject = new GameObject("Cell Effect Presentation Test");
             auxiliarySprites = new RuntimeSpriteFactory();
             BoardView board = auxiliaryObject.AddComponent<BoardView>();
-            board.Initialize(Camera.main, auxiliarySprites.SquareSprite, snapshot);
+            board.Initialize(Camera.main, auxiliarySprites, snapshot);
             GameHudView hud = CreateHudView(auxiliaryObject.transform);
             hud.Initialize();
             hud.Render(snapshot);
@@ -135,8 +199,8 @@ namespace GCCC.BoardGame.Tests
 
             Assert.That(board.EffectOverlayCount, Is.EqualTo(1));
             Assert.That(hud.IsEffectLegendVisible, Is.True);
-            Assert.That(hud.ReserveText, Does.Contain("青: 1"));
-            Assert.That(hud.ReserveText, Does.Contain("赤: 0"));
+            Assert.That(hud.ReserveText, Does.Contain("プレイヤー1: 1"));
+            Assert.That(hud.ReserveText, Does.Contain("プレイヤー2: 0"));
         }
 
         [UnityTest]
@@ -165,7 +229,7 @@ namespace GCCC.BoardGame.Tests
             auxiliaryObject = new GameObject("Reserve Deployment Presentation Test");
             auxiliarySprites = new RuntimeSpriteFactory();
             BoardView board = auxiliaryObject.AddComponent<BoardView>();
-            board.Initialize(Camera.main, auxiliarySprites.SquareSprite, before);
+            board.Initialize(Camera.main, auxiliarySprites, before);
             PieceViewManager pieces = auxiliaryObject.AddComponent<PieceViewManager>();
             pieces.Initialize(
                 auxiliarySprites.CircleSprite,

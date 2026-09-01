@@ -46,7 +46,7 @@ namespace GCCC.BoardGame.Tests
             auxiliaryObject = new GameObject("Reserve Selection Coordinator Test");
             auxiliarySprites = new RuntimeSpriteFactory();
             BoardView board = auxiliaryObject.AddComponent<BoardView>();
-            board.Initialize(Camera.main, auxiliarySprites.SquareSprite, session.Snapshot);
+            board.Initialize(Camera.main, auxiliarySprites, session.Snapshot);
             PieceViewManager pieces = auxiliaryObject.AddComponent<PieceViewManager>();
             pieces.Initialize(
                 auxiliarySprites.CircleSprite,

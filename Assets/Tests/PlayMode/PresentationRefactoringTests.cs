@@ -38,7 +38,7 @@ namespace GCCC.BoardGame.Tests
             root = new GameObject("Territory Border Test");
             sprites = new RuntimeSpriteFactory();
             BoardView board = root.AddComponent<BoardView>();
-            board.Initialize(Camera.main, sprites.SquareSprite, snapshot);
+            board.Initialize(Camera.main, sprites, snapshot);
             yield return null;
 
             Transform player1 = root.transform.Find("Player 1 Territory Border");

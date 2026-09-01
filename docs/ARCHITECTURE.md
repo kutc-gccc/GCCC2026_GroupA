@@ -192,7 +192,7 @@ Ruleは状態を直接所有せず、`GameSession`から渡された入力を計
 
 ### SceneとBootstrap
 
-起動Sceneは`TitleScene`です。`TitleScreenController`が「ゲーム開始」を受け取り、ゲーム本体の`SampleScene`を読み込みます。ゲーム終了時は`GameHudView`がリザルトを重ね、`BoardGameBootstrap`が「スタート画面に戻る」を受け取って`TitleScene`へ遷移します。Scene遷移はPresentationに閉じ、CoreはScene名や`SceneManager`を参照しません。
+起動Sceneは`TitleScene`です。`TitleScreenController`はタイトルページと遊び方ページを同一Scene内で切り替え、「ゲーム開始」を受け取るとゲーム本体の`SampleScene`を読み込みます。遊び方の内容は`How To Content`配下へ追加します。ゲーム終了時は`GameHudView`がリザルトを重ね、`BoardGameBootstrap`が「スタート画面に戻る」を受け取って`TitleScene`へ遷移します。Scene遷移はPresentationに閉じ、CoreはScene名や`SceneManager`を参照しません。
 
 `SampleScene`にはMain Camera、`Board Game Bootstrap`、`EventSystem`を明示配置します。Bootstrapと同じGameObjectに`BoardGameAudioManager`を配置し、BGM／SFX用AudioSourceだけを実行時に生成します。HUD階層は`GameHud.prefab`に保存します。`BoardGameBootstrap`は次を組み立てます。
 
@@ -213,11 +213,11 @@ Ruleは状態を直接所有せず、`GameSession`から渡された入力を計
 |---|---|---|
 | `BoardView` | 60セル、陣地枠、ラベル、選択、移動候補、リザーブ配置候補、座標変換 | 駒の戦闘力や勝敗ルール |
 | `PieceViewManager` | Snapshotとの差分をreconcileし、既存`PieceView`を保持したまま生成・更新・削除 | 戦闘結果の再計算 |
-| `PieceView` | 1個の駒の所有者色、位置、戦闘力テキスト | Coreの`PieceState`の直接変更 |
+| `PieceView` | 1個の駒のスプライト（所有者ごとの向き）、位置、戦闘力テキスト | Coreの`PieceState`の直接変更 |
 | `GameHudView` | 手番、操作ボタン、音量スライダー、リザルト表示、各UI Viewの仲介と入力遮断 | 手番や勝者の決定 |
 | `ReservePanelView` | 2人分のリザーブ一覧、個数、選択可能状態をSnapshotから同期 | 配置先や手番の決定 |
 | `ReservePieceCardView` | 1個のリザーブ駒のSprite、戦闘力、移動プロファイル、選択表示 | `ReservePieceState`の変更 |
-| `RuntimeSpriteFactory` | セルと円形駒のSpriteを実行時生成 | ゲーム状態 |
+| `RuntimeSpriteFactory` | 盤面セルのSpriteを実行時生成 | ゲーム状態 |
 
 `PieceState`と`PieceView`は1対1で対応しますが、役割は異なります。`PieceState`はCore上の正しいゲーム状態、`PieceView`はUnity上の見た目です。各駒GameObjectへ戦闘ルールを持たせず、`PieceViewManager`がSnapshotとEventを使って見た目だけを同期します。
 
