@@ -62,7 +62,7 @@ namespace GCCC.BoardGame.Presentation.Views
                 "1手でできることは、3つのうち1つだけ",
                 "自分の駒を選んでから、どれかを1回。終わると相手の番になります。",
                 FigureKind.TurnActions,
-                "駒をもう一度押すと選択を解除できます。選ぶだけでは手番は進みません。"),
+                "選ぶだけでは手番は進みません。同じ駒をもう一度押すと選択を解除できます。"),
             new Section(
                 "動ける向き",
                 "強い駒ほど、動ける向きが減る",
@@ -80,15 +80,38 @@ namespace GCCC.BoardGame.Presentation.Views
                 "ここから先は、遊びながらで大丈夫",
                 "残りは出てきたときに画面が教えてくれます。いま覚える必要はありません。",
                 FigureKind.LaterTopics,
-                "持てる駒は盤上と控えを合わせて6個まで。先に知っておくと、控えが増えない理由で悩みません。")
+                "持てる駒は盤上とリザーブを合わせて6個まで。色の意味はゲーム画面に常に出ています。")
         };
 
         // ---- 節1: 盤面の凡例 ----
-        internal static readonly string[] BoardKeys =
+        /// <summary>凡例に添える見本の種別。</summary>
+        internal enum KeySwatch
         {
-            "いちばん上 ＝ 相手の陣地。入れば勝ち",
-            "いちばん下 ＝ 自分の陣地。自分では入れない",
-            "ふつうのマス"
+            Territory,
+            Wood,
+
+            /// <summary>効果マス。シアンと紫の二色見本にする。</summary>
+            Effect
+        }
+
+        internal sealed class BoardKey
+        {
+            internal BoardKey(KeySwatch swatch, string label)
+            {
+                Swatch = swatch;
+                Label = label;
+            }
+
+            internal KeySwatch Swatch { get; }
+            internal string Label { get; }
+        }
+
+        internal static readonly IReadOnlyList<BoardKey> BoardKeys = new[]
+        {
+            new BoardKey(KeySwatch.Territory, "いちばん上 ＝ 相手の陣地。入れば勝ち"),
+            new BoardKey(KeySwatch.Territory, "いちばん下 ＝ 自分の陣地。自分では入れない"),
+            new BoardKey(KeySwatch.Wood, "ふつうのマス"),
+            new BoardKey(KeySwatch.Effect, "色つきのマス ＝ 特別な効果（あとで）")
         };
 
         // ---- 節2: 駒の見分け ----
@@ -106,32 +129,62 @@ namespace GCCC.BoardGame.Presentation.Views
             internal string Body { get; }
         }
 
+        // 図は盤を上から下へ描くので、並びもそれに合わせる。
         internal static readonly IReadOnlyList<Identity> Identities = new[]
         {
-            new Identity(true, "▲ 上向き ＝ 先手", "上の陣地を目指す\n盤の下側から始まる"),
-            new Identity(false, "▼ 下向き ＝ 後手", "下の陣地を目指す\n盤の上側から始まる")
+            new Identity(false, "▼ 下向き ＝ 後手", "盤の上側から始まり、下の陣地を目指す"),
+            new Identity(true, "▲ 上向き ＝ 先手", "盤の下側から始まり、上の陣地を目指す")
         };
 
         // ---- 節3: 手番の行動 ----
-        internal sealed class TurnAction
+        /// <summary>駒を動かす手順の1コマ。図は<see cref="HowToPlayView"/>が盤の抜粋で描く。</summary>
+        internal sealed class OperationStep
         {
-            internal TurnAction(string chip, string title, string body)
+            internal OperationStep(string title, string body)
             {
-                Chip = chip;
                 Title = title;
                 Body = body;
             }
 
-            internal string Chip { get; }
             internal string Title { get; }
             internal string Body { get; }
         }
 
-        internal static readonly IReadOnlyList<TurnAction> TurnActions = new[]
+        internal static readonly IReadOnlyList<OperationStep> OperationSteps = new[]
         {
-            new TurnAction("白い点", "動かす", "点のマスへ1マス進む。赤い枠の敵駒へ進むと戦闘になる。"),
-            new TurnAction("ボタン", "パワーを振り直す", "強さを1〜3のどれかに引き直す。今より弱くなることもある。"),
-            new TurnAction("青い枠", "となりの味方と合体", "2駒を1つにまとめる。失敗しても手番は終わる。")
+            new OperationStep("① 自分の駒を押す", "琥珀の枠が付く（選択中）"),
+            new OperationStep("② 候補が出る", "白い点＝移動　赤い枠＝戦闘"),
+            new OperationStep("③ 行き先を押す", "進む。敵なら戦闘になる")
+        };
+
+        /// <summary>
+        /// ボタンを押してから使う行動。<see cref="Button"/>はゲーム画面のボタン名と一致させること。
+        /// 合体は駒を選ぶだけでは始まらず、ボタンを押して初めて青い枠が出る。
+        /// </summary>
+        internal sealed class ButtonAction
+        {
+            internal ButtonAction(string lead, string button, string result, bool showFusionSwatch)
+            {
+                Lead = lead;
+                Button = button;
+                Result = result;
+                ShowFusionSwatch = showFusionSwatch;
+            }
+
+            internal string Lead { get; }
+            internal string Button { get; }
+            internal string Result { get; }
+
+            /// <summary>結果の前に青い枠の見本を置くかどうか。</summary>
+            internal bool ShowFusionSwatch { get; }
+        }
+
+        internal static readonly IReadOnlyList<ButtonAction> ButtonActions = new[]
+        {
+            new ButtonAction(
+                "自分の駒を選ぶ", "パワーランダム化", "強さが 1〜3 に変わる（今より弱くなることもある）", false),
+            new ButtonAction(
+                "自分の駒を選ぶ", "合体", "青い枠が付いた味方を選ぶ", true)
         };
 
         // ---- 節4: 戦闘力ごとの移動方向 ----
@@ -230,14 +283,14 @@ namespace GCCC.BoardGame.Presentation.Views
 
         internal static readonly IReadOnlyList<LaterTopic> LaterTopics = new[]
         {
-            new LaterTopic(LaterAccent.Cyan, "シアンのマス",
+            new LaterTopic(LaterAccent.Cyan, "滞在中効果（シアンの塗り）",
                 "止まっている間だけ強さ +2。離れると戻ります。"),
-            new LaterTopic(LaterAccent.Violet, "紫のマス",
-                "控えの駒を1つもらえます。1駒につき1回だけ。"),
+            new LaterTopic(LaterAccent.Violet, "永続効果（紫の塗り）",
+                "リザーブを1つもらえます。1駒につき1回だけ。"),
             new LaterTopic(LaterAccent.Fusion, "合体",
                 "2駒の強さを合わせて1駒に。25%で失敗し、そのまま手番が終わります。"),
-            new LaterTopic(LaterAccent.Amber, "控えの駒",
-                "画面右の一覧から、自陣側の空きマスへ置けます。置くと1手使います。")
+            new LaterTopic(LaterAccent.Amber, "リザーブ",
+                "画面右のリザーブ一覧から、自陣側の空きマスへ置けます。置くと1手使います。")
         };
     }
 }

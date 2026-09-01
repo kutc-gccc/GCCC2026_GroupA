@@ -27,15 +27,16 @@ namespace GCCC.BoardGame.Presentation.Views
             new Color32(255, 255, 255, 35);
 
         // 選択中は塗りつぶしではなく枠線で示す。
-        private static readonly Color SelectionColor =
+        // 遊び方ページ（HowToPlayView）と色を共有するため internal で公開する。
+        internal static readonly Color SelectionColor =
             new Color32(224, 162, 27, 235);
 
         // 駒の濃緑と紛れないよう、移動候補は緑をやめて白い点にする。
-        private static readonly Color LegalMoveColor =
+        internal static readonly Color LegalMoveColor =
             new Color32(255, 255, 255, 225);
 
         // 陣地から外した赤を、危険の意味が合う戦闘可能へ回す。
-        private static readonly Color CombatMoveColor =
+        internal static readonly Color CombatMoveColor =
             new Color32(224, 58, 47, 235);
 
         // 陣地と盤面の境に引く区切り線。純赤はやめて無彩色にする。
@@ -50,7 +51,7 @@ namespace GCCC.BoardGame.Presentation.Views
         private static readonly Color TerritoryMarkerColor =
             new Color32(237, 233, 225, 205);
 
-        private static readonly Color FusionCandidateColor =
+        internal static readonly Color FusionCandidateColor =
             new Color32(33, 150, 243, 175);
 
         // 凡例（GameHudView）と色を共有するため internal で公開する。

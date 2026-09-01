@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using GCCC.BoardGame.Presentation;
 using GCCC.BoardGame.Presentation.Views;
@@ -12,6 +13,22 @@ namespace GCCC.BoardGame.Tests
 {
     public sealed partial class BoardGameBootstrapTests
     {
+        /// <summary>
+        /// ゲーム画面（<c>GameHud.prefab</c> の凡例とボタン）と遊び方ページの両方に出るべき言葉。
+        /// どちらか一方の表記を変えたらここで落ちる。
+        /// </summary>
+        private static readonly string[] SharedTerms =
+        {
+            "パワーランダム化", "リザーブ", "滞在中効果", "永続効果",
+            "選択中", "琥珀の枠", "白い点", "赤い枠", "青い枠", "合体"
+        };
+
+        /// <summary>ゲーム画面と食い違っていた古い言い回し。復活していないことを確かめる。</summary>
+        private static readonly string[] RetiredWordings =
+        {
+            "パワーを振り直す", "控えの駒", "シアンのマス", "紫のマス"
+        };
+
         private static readonly string[] ExpectedNavLabels =
         {
             "勝ち方", "自分の駒", "1手の行動", "動ける向き", "戦闘", "あとで"
@@ -118,6 +135,58 @@ namespace GCCC.BoardGame.Tests
 
             Assert.That(view.SectionCount, Is.Zero, "参照が欠けたまま不完全なUIを作らない。");
             Object.Destroy(host);
+        }
+
+        /// <summary>
+        /// 遊び方ページとゲーム画面で同じ言葉を使っていることを確かめる。
+        /// ページを読んで操作しに行ったとき、その名前のボタンや表示が見つからない事故を防ぐ。
+        /// </summary>
+        [UnityTest]
+        public IEnumerator HowToPageUsesTheSameWordsAsTheGameScreen()
+        {
+            yield return SceneManager.LoadSceneAsync(
+                BoardGameSceneNames.Game, LoadSceneMode.Single);
+            yield return null;
+
+            GameObject hud = GameObject.Find("Game HUD");
+            Assert.That(hud, Is.Not.Null);
+            string onScreen = CollectText(hud.GetComponentsInChildren<Text>(true));
+
+            HowToPlayView view = null;
+            yield return OpenHowToPage(result => view = result);
+
+            var page = new List<Text>();
+            for (int i = 0; i < view.SectionCount; i++)
+            {
+                page.AddRange(view.GetPane(i).GetComponentsInChildren<Text>(true));
+            }
+
+            string explained = CollectText(page.ToArray());
+
+            foreach (string term in SharedTerms)
+            {
+                Assert.That(onScreen, Does.Contain(term),
+                    $"ゲーム画面に「{term}」が出ていない。用語の一次情報が変わった可能性がある。");
+                Assert.That(explained, Does.Contain(term),
+                    $"遊び方ページが「{term}」を使っていない。ゲーム画面の表記に合わせること。");
+            }
+
+            foreach (string retired in RetiredWordings)
+            {
+                Assert.That(explained, Does.Not.Contain(retired),
+                    $"遊び方ページに旧表記「{retired}」が残っている。");
+            }
+        }
+
+        private static string CollectText(Text[] texts)
+        {
+            var all = new System.Text.StringBuilder();
+            foreach (Text text in texts)
+            {
+                all.AppendLine(text.text);
+            }
+
+            return all.ToString();
         }
 
         private static IEnumerator OpenHowToPage(System.Action<HowToPlayView> onOpened)
