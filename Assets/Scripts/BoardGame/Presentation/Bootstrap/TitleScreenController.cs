@@ -1,3 +1,4 @@
+using GCCC.BoardGame.Presentation.Views;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -12,6 +13,9 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
         [SerializeField] private Button startButton;
         [SerializeField] private Button howToButton;
         [SerializeField] private Button backButton;
+
+        /// <summary>省略可。設定されていれば、ページを開くたび先頭の節へ戻す。</summary>
+        [SerializeField] private HowToPlayView howToPlayView;
 
         private bool bindingsValid;
 
@@ -48,6 +52,11 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
         private void ShowHowToPage()
         {
             SetPageVisibility(showHowTo: true);
+            if (howToPlayView != null)
+            {
+                howToPlayView.ResetToFirstSection();
+            }
+
             SelectButton(backButton);
         }
 

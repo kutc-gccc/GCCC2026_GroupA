@@ -87,8 +87,12 @@ namespace GCCC.BoardGame.Tests
                 GameObject.Find("How To Title").GetComponent<Text>().text,
                 Is.EqualTo("遊び方"));
             Assert.That(
-                GameObject.Find("How To Placeholder").GetComponent<Text>().text,
-                Is.EqualTo("遊び方の内容は後ほど追加予定です。"));
+                GameObject.Find("How To Placeholder"), Is.Null,
+                "仮置きの1行は遊び方の内容に置き換わっている。");
+            HowToPlayView howToView = Object.FindFirstObjectByType<HowToPlayView>();
+            Assert.That(howToView, Is.Not.Null);
+            Assert.That(howToView.SectionCount, Is.EqualTo(6));
+            Assert.That(howToView.SelectedSection, Is.Zero);
             Button backButton = GameObject.Find("How To Back Button")
                 .GetComponent<Button>();
             Assert.That(
@@ -149,7 +153,8 @@ namespace GCCC.BoardGame.Tests
                 player1Renderer.sprite,
                 Is.Not.SameAs(player2Renderer.sprite));
 
-            Assert.That(sceneBootstrap.EffectOverlayCount, Is.EqualTo(2));
+            // 標準設定の効果マスは控え付与2つと戦闘力上昇2つ。
+            Assert.That(sceneBootstrap.EffectOverlayCount, Is.EqualTo(4));
             Assert.That(sceneBootstrap.IsEffectLegendVisible, Is.True);
             Assert.That(
                 sceneBootstrap.Snapshot.TryGetCell(
@@ -177,7 +182,7 @@ namespace GCCC.BoardGame.Tests
                     configuredEffectCellCount++;
                 }
             }
-            Assert.That(configuredEffectCellCount, Is.EqualTo(2));
+            Assert.That(configuredEffectCellCount, Is.EqualTo(4));
             Assert.That(GameObject.Find("Board View"), Is.Not.Null);
             Assert.That(GameObject.Find("Game HUD"), Is.Not.Null);
             Assert.That(GameObject.Find("EventSystem"), Is.Not.Null);
