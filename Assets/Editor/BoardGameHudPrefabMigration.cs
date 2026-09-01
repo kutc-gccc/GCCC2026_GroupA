@@ -166,7 +166,8 @@ namespace GCCC.BoardGame.EditorTools
             status.transform.parent.GetComponent<Image>().color = NavyColor;
             message = CreateText(
                 "Fusion Message", stack, font, 24, TextAnchor.MiddleLeft);
-            message.color = new Color32(255, 213, 79, 255);
+            // 合体の成否メッセージ。明色の背景に黄色は読みにくいので黒で出す。
+            message.color = Color.black;
             message.gameObject.AddComponent<LayoutElement>().preferredHeight = 48f;
             return status;
         }
