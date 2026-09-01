@@ -11,7 +11,7 @@ namespace GCCC.BoardGame.Presentation.Config
     public sealed class BoardGameConfig : ScriptableObject
     {
         [SerializeField, Min(1)] private int columns = 6;
-        [SerializeField, Min(3)] private int rows = 10;
+        [SerializeField, Min(4)] private int rows = 10;
         [SerializeField] private PlayerId firstPlayer = PlayerId.Player1;
         [SerializeField] private int player1TerritoryRow;
         [SerializeField] private int player2TerritoryRow = 9;
@@ -32,10 +32,10 @@ namespace GCCC.BoardGame.Presentation.Config
 
         public GameDefinition CreateDefinition()
         {
-            ValidateRows();
+            ValidateConfiguration();
 
             Dictionary<GridPosition, string[]> effectsByPosition =
-                (cellEffects ?? new List<CellEffectEntry>())
+                cellEffects
                 .ToDictionary(entry => entry.Position, entry => entry.EffectIds);
             PowerMovementProfile[] coreMovementProfiles = movementProfiles
                 .Select(entry => entry.CreateProfile())
@@ -85,7 +85,8 @@ namespace GCCC.BoardGame.Presentation.Config
 
         public IReadOnlyList<ICellEffectHandler> CreateCellEffectHandlers()
         {
-            return (cellEffectDefinitions ?? new List<CellEffectConfig>())
+            ValidateCellEffectDefinitions();
+            return cellEffectDefinitions
                 .Select(effect => effect.CreateHandler())
                 .ToArray();
         }
@@ -137,8 +138,20 @@ namespace GCCC.BoardGame.Presentation.Config
             };
         }
 
-        private void ValidateRows()
+        private void ValidateConfiguration()
         {
+            if (columns <= 0)
+            {
+                throw new InvalidOperationException(
+                    "BoardGameConfig columns must be greater than zero.");
+            }
+
+            if (rows < 4)
+            {
+                throw new InvalidOperationException(
+                    "BoardGameConfig rows must be at least four.");
+            }
+
             int[] configuredRows =
             {
                 player1TerritoryRow,
@@ -155,6 +168,90 @@ namespace GCCC.BoardGame.Presentation.Config
                 throw new InvalidOperationException(
                     "Territory and starting rows in BoardGameConfig are invalid.");
             }
+
+            ValidateMovementProfiles();
+            ValidateCellEffects();
+            ValidateCellEffectDefinitions();
+        }
+
+        private void ValidateMovementProfiles()
+        {
+            if (movementProfiles == null || movementProfiles.Count == 0 ||
+                movementProfiles.Any(profile => profile == null))
+            {
+                throw new InvalidOperationException(
+                    "BoardGameConfig requires non-null movement profiles.");
+            }
+
+            if (string.IsNullOrWhiteSpace(initialMovementProfileId))
+            {
+                throw new InvalidOperationException(
+                    "BoardGameConfig requires an initial movement profile ID.");
+            }
+
+            string[] profileIds = movementProfiles
+                .Select(profile => profile.ProfileId)
+                .ToArray();
+            if (profileIds.Any(string.IsNullOrWhiteSpace) ||
+                profileIds.Distinct(StringComparer.Ordinal).Count() != profileIds.Length)
+            {
+                throw new InvalidOperationException(
+                    "BoardGameConfig movement profile IDs must be valid and unique.");
+            }
+
+            if (!profileIds.Contains(initialMovementProfileId, StringComparer.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Initial movement profile '{initialMovementProfileId}' is not registered.");
+            }
+
+            if (movementProfiles.Any(profile => !profile.HasValidBands))
+            {
+                throw new InvalidOperationException(
+                    "BoardGameConfig movement profile bands must not contain null.");
+            }
+        }
+
+        private void ValidateCellEffects()
+        {
+            if (cellEffects == null)
+            {
+                throw new InvalidOperationException(
+                    "BoardGameConfig cell effects list must not be null.");
+            }
+
+            if (cellEffects.Any(entry => entry == null))
+            {
+                throw new InvalidOperationException(
+                    "BoardGameConfig cell effects must not contain null entries.");
+            }
+
+            GridPosition[] positions = cellEffects
+                .Select(entry => entry.Position)
+                .ToArray();
+            if (positions.Distinct().Count() != positions.Length)
+            {
+                throw new InvalidOperationException(
+                    "BoardGameConfig cell effect positions must be unique.");
+            }
+
+            if (positions.Any(position =>
+                    position.Column < 0 || position.Column >= columns ||
+                    position.Row < 0 || position.Row >= rows))
+            {
+                throw new InvalidOperationException(
+                    "BoardGameConfig cell effect positions must be inside the board.");
+            }
+        }
+
+        private void ValidateCellEffectDefinitions()
+        {
+            if (cellEffectDefinitions == null ||
+                cellEffectDefinitions.Any(effect => effect == null))
+            {
+                throw new InvalidOperationException(
+                    "BoardGameConfig cell effect definitions must not contain null.");
+            }
         }
 
         [Serializable]
@@ -170,6 +267,11 @@ namespace GCCC.BoardGame.Presentation.Config
                 this.profileId = profileId;
                 this.bands = bands;
             }
+
+            public string ProfileId => profileId;
+
+            public bool HasValidBands =>
+                bands != null && bands.Count > 0 && bands.All(band => band != null);
 
             public PowerMovementProfile CreateProfile()
             {

@@ -1,11 +1,12 @@
 using System.Collections.Generic;
 using GCCC.BoardGame.Core.Model;
+using GCCC.BoardGame.Presentation;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
 namespace GCCC.BoardGame.Presentation.Views
 {
-    public sealed class BoardView : MonoBehaviour
+    public sealed class BoardView : MonoBehaviour, IBoardGameBoardView
     {
         [SerializeField] private Sprite woodBoardSprite;
         [SerializeField] private Sprite boardSprite;
@@ -311,15 +312,15 @@ namespace GCCC.BoardGame.Presentation.Views
 
             BuildGridLines();
 
-            // Player1陣地
             BuildTerritoryBorder(
                 "Player 1 Territory Border",
-                0);
+                PlayerId.Player1,
+                snapshot);
 
-            // Player2陣地
             BuildTerritoryBorder(
                 "Player 2 Territory Border",
-                rows - 1);
+                PlayerId.Player2,
+                snapshot);
 
             indicatorsRoot =
                 new GameObject(
@@ -420,7 +421,8 @@ namespace GCCC.BoardGame.Presentation.Views
 
         private void BuildTerritoryBorder(
             string objectName,
-            int row)
+            PlayerId owner,
+            GameSnapshot snapshot)
         {
             Transform borderRoot =
                 new GameObject(objectName).transform;
@@ -429,70 +431,73 @@ namespace GCCC.BoardGame.Presentation.Views
                 transform,
                 false);
 
-            float rowCenterY =
-                BoardGeometry.CellToLocalPosition(
-                    new GridPosition(0, row),
-                    columns,
-                    rows).y;
+            foreach (CellDefinition territoryCell in snapshot.Cells)
+            {
+                if (territoryCell.TerritoryOwner != owner)
+                {
+                    continue;
+                }
 
-            float halfWidth =
-                columns *
-                BoardGeometry.CellSpacing *
-                0.5f;
+                GridPosition position = territoryCell.Position;
+                Vector3 center = BoardGeometry.CellToLocalPosition(
+                    position, columns, rows);
+                float halfCell = BoardGeometry.CellSpacing * 0.5f;
+                float segmentLength =
+                    BoardGeometry.CellSpacing + TerritoryBorderThickness;
 
-            float halfHeight =
-                BoardGeometry.CellSpacing *
-                0.5f;
+                CreateTerritoryEdgeIfExposed(
+                    snapshot,
+                    owner,
+                    new GridPosition(position.Column, position.Row + 1),
+                    $"Top ({position.Column}, {position.Row})",
+                    borderRoot,
+                    center + Vector3.up * halfCell,
+                    new Vector3(segmentLength, TerritoryBorderThickness, 1f));
+                CreateTerritoryEdgeIfExposed(
+                    snapshot,
+                    owner,
+                    new GridPosition(position.Column, position.Row - 1),
+                    $"Bottom ({position.Column}, {position.Row})",
+                    borderRoot,
+                    center + Vector3.down * halfCell,
+                    new Vector3(segmentLength, TerritoryBorderThickness, 1f));
+                CreateTerritoryEdgeIfExposed(
+                    snapshot,
+                    owner,
+                    new GridPosition(position.Column - 1, position.Row),
+                    $"Left ({position.Column}, {position.Row})",
+                    borderRoot,
+                    center + Vector3.left * halfCell,
+                    new Vector3(TerritoryBorderThickness, segmentLength, 1f));
+                CreateTerritoryEdgeIfExposed(
+                    snapshot,
+                    owner,
+                    new GridPosition(position.Column + 1, position.Row),
+                    $"Right ({position.Column}, {position.Row})",
+                    borderRoot,
+                    center + Vector3.right * halfCell,
+                    new Vector3(TerritoryBorderThickness, segmentLength, 1f));
+            }
+        }
 
-            CreateBorderSegment(
-                "Top",
-                borderRoot,
-                new Vector3(
-                    0f,
-                    rowCenterY + halfHeight,
-                    0f),
-                new Vector3(
-                    columns +
-                    TerritoryBorderThickness,
-                    TerritoryBorderThickness,
-                    1f));
+        private void CreateTerritoryEdgeIfExposed(
+            GameSnapshot snapshot,
+            PlayerId owner,
+            GridPosition adjacentPosition,
+            string segmentName,
+            Transform parent,
+            Vector3 position,
+            Vector3 scale)
+        {
+            if (snapshot.TryGetCell(
+                    adjacentPosition,
+                    out CellDefinition adjacentCell) &&
+                adjacentCell.TerritoryOwner == owner)
+            {
+                return;
+            }
 
-            CreateBorderSegment(
-                "Bottom",
-                borderRoot,
-                new Vector3(
-                    0f,
-                    rowCenterY - halfHeight,
-                    0f),
-                new Vector3(
-                    columns +
-                    TerritoryBorderThickness,
-                    TerritoryBorderThickness,
-                    1f));
-
-            CreateBorderSegment(
-                "Left",
-                borderRoot,
-                new Vector3(
-                    -halfWidth,
-                    rowCenterY,
-                    0f),
-                new Vector3(
-                    TerritoryBorderThickness,
-                    1f,
-                    1f));
-
-            CreateBorderSegment(
-                "Right",
-                borderRoot,
-                new Vector3(
-                    halfWidth,
-                    rowCenterY,
-                    0f),
-                new Vector3(
-                    TerritoryBorderThickness,
-                    1f,
-                    1f));
+            CreateBorderSegment(segmentName, parent, position, scale);
         }
 
         private void CreateBorderSegment(

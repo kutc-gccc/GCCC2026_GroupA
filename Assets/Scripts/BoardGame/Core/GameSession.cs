@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using GCCC.BoardGame.Core.Commands;
 using GCCC.BoardGame.Core.Events;
+using GCCC.BoardGame.Core.Internal;
 using GCCC.BoardGame.Core.Model;
 using GCCC.BoardGame.Core.Rules.CellEffects;
 using GCCC.BoardGame.Core.Rules.Combat;
@@ -22,21 +23,16 @@ namespace GCCC.BoardGame.Core
         private readonly IRandomSource randomSource;
         private readonly TurnResolver turnResolver;
         private readonly Dictionary<string, ICellEffectHandler> cellEffectHandlers;
-        private readonly Dictionary<Type, IGameCommandHandler> commandHandlers;
         private readonly Dictionary<GridPosition, CellDefinition> cellsByPosition =
             new Dictionary<GridPosition, CellDefinition>();
-        private readonly Dictionary<PieceId, PieceState> piecesById =
-            new Dictionary<PieceId, PieceState>();
-        private readonly Dictionary<GridPosition, PieceId> pieceIdsByPosition =
-            new Dictionary<GridPosition, PieceId>();
-        private readonly Dictionary<PlayerId, List<ReservePieceState>> reservesByPlayer =
-            new Dictionary<PlayerId, List<ReservePieceState>>();
-        private readonly Dictionary<PlayerId, int> reserveDeploymentOriginRow =
-            new Dictionary<PlayerId, int>();
-        private readonly Dictionary<PlayerId, int> reserveDeploymentDirection =
-            new Dictionary<PlayerId, int>();
+        private readonly GameStateStore state;
+        private readonly ReserveDeploymentRules reserveDeploymentRules;
+        private readonly LegalCommandGenerator legalCommandGenerator;
+        private readonly CellEffectProcessor cellEffectProcessor;
 
         private GameSnapshot cachedSnapshot;
+        private IReadOnlyList<GameCommand> cachedLegalCommands;
+        private PlayerId? cachedLegalCommandsPlayer;
         private PlayerId currentPlayer;
         private PlayerId? winner;
         private bool isDraw;
@@ -62,17 +58,29 @@ namespace GCCC.BoardGame.Core
                     Array.Empty<ICellEffectHandler>())
                 .ToDictionary(handler => handler.EffectId, StringComparer.Ordinal);
 
-            commandHandlers = new IGameCommandHandler[]
-            {
-                new MovePieceCommandHandler(),
-                new FusePiecesCommandHandler(),
-                new RandomizePowerCommandHandler(),
-                new DeployReservePieceCommandHandler()
-            }.ToDictionary(handler => handler.CommandType);
-
+            state = new GameStateStore(InvalidateSnapshot);
             ValidateAndLoadCells();
             ValidateCellEffectHandlers();
-            PrecomputeReserveDeployment();
+            reserveDeploymentRules = new ReserveDeploymentRules(
+                definition.Columns,
+                definition.Rows,
+                definition.ReserveDeploymentDepth,
+                cellsByPosition.Values);
+            legalCommandGenerator = new LegalCommandGenerator(
+                this.movementRule,
+                this.fusionResolver,
+                CanRandomizePower,
+                GetBoardPieceCount,
+                state.GetReserves,
+                GetLegalReserveDeploymentPositions,
+                definition.MaxPiecesPerPlayer);
+            cellEffectProcessor = new CellEffectProcessor(
+                definition,
+                this.cellEffectHandlers,
+                () => Snapshot,
+                SetPiece,
+                AddReservePiece,
+                ValidateCellEffectResult);
             Reset();
         }
 
@@ -106,25 +114,40 @@ namespace GCCC.BoardGame.Core
                 return CommandResult.Failed(CommandFailureReason.NotPlayersTurn);
             }
 
-            return commandHandlers.TryGetValue(command.GetType(), out IGameCommandHandler handler)
-                ? handler.Execute(this, command)
-                : CommandResult.Failed(CommandFailureReason.InvalidCommand);
+            switch (command)
+            {
+                case MovePieceCommand move:
+                    return ExecuteMove(move);
+                case FusePiecesCommand fusion:
+                    return ExecuteFusion(fusion);
+                case RandomizePowerCommand randomize:
+                    return ExecuteRandomizePower(randomize);
+                case DeployReservePieceCommand deploy:
+                    return ExecuteDeployReservePiece(deploy);
+                default:
+                    return CommandResult.Failed(CommandFailureReason.InvalidCommand);
+            }
         }
 
         public IReadOnlyList<GameCommand> GetLegalCommands(PlayerId player)
         {
-            return winner.HasValue || isDraw || player != currentPlayer
-                ? Array.Empty<GameCommand>()
-                : BuildLegalCommands(player);
+            if (winner.HasValue || isDraw || player != currentPlayer)
+            {
+                return Array.Empty<GameCommand>();
+            }
+
+            if (cachedLegalCommands == null || cachedLegalCommandsPlayer != player)
+            {
+                cachedLegalCommands = BuildLegalCommands(player).ToArray();
+                cachedLegalCommandsPlayer = player;
+            }
+
+            return cachedLegalCommands;
         }
 
         public void Reset()
         {
-            piecesById.Clear();
-            pieceIdsByPosition.Clear();
-            reservesByPlayer.Clear();
-            reservesByPlayer[PlayerId.Player1] = new List<ReservePieceState>();
-            reservesByPlayer[PlayerId.Player2] = new List<ReservePieceState>();
+            state.Reset();
             currentPlayer = definition.FirstPlayer;
             winner = null;
             isDraw = false;
@@ -158,7 +181,7 @@ namespace GCCC.BoardGame.Core
 
         internal CommandResult ExecuteMove(MovePieceCommand command)
         {
-            if (!piecesById.TryGetValue(command.PieceId, out PieceState attacker))
+            if (!state.TryGetPiece(command.PieceId, out PieceState attacker))
             {
                 return CommandResult.Failed(CommandFailureReason.PieceNotFound);
             }
@@ -204,8 +227,8 @@ namespace GCCC.BoardGame.Core
                 return CommandResult.Failed(CommandFailureReason.FusionDisabled);
             }
 
-            if (!piecesById.TryGetValue(command.FirstPieceId, out PieceState first) ||
-                !piecesById.TryGetValue(command.SecondPieceId, out PieceState second))
+            if (!state.TryGetPiece(command.FirstPieceId, out PieceState first) ||
+                !state.TryGetPiece(command.SecondPieceId, out PieceState second))
             {
                 return CommandResult.Failed(CommandFailureReason.PieceNotFound);
             }
@@ -248,7 +271,7 @@ namespace GCCC.BoardGame.Core
 
         internal CommandResult ExecuteRandomizePower(RandomizePowerCommand command)
         {
-            if (!piecesById.TryGetValue(command.PieceId, out PieceState piece))
+            if (!state.TryGetPiece(command.PieceId, out PieceState piece))
             {
                 return CommandResult.Failed(CommandFailureReason.PieceNotFound);
             }
@@ -280,14 +303,12 @@ namespace GCCC.BoardGame.Core
         internal CommandResult ExecuteDeployReservePiece(
             DeployReservePieceCommand command)
         {
-            ReservePieceState reservePiece = reservesByPlayer[command.Player]
+            ReservePieceState reservePiece = state.GetReserves(command.Player)
                 .FirstOrDefault(piece => piece.Id == command.ReservePieceId);
             if (reservePiece == null)
             {
-                bool belongsToOpponent = reservesByPlayer
-                    .Where(pair => pair.Key != command.Player)
-                    .SelectMany(pair => pair.Value)
-                    .Any(piece => piece.Id == command.ReservePieceId);
+                bool belongsToOpponent = state.ReserveBelongsToOpponent(
+                    command.Player, command.ReservePieceId);
                 return CommandResult.Failed(belongsToOpponent
                     ? CommandFailureReason.NotPieceOwner
                     : CommandFailureReason.ReservePieceNotFound);
@@ -328,51 +349,7 @@ namespace GCCC.BoardGame.Core
 
         private IReadOnlyList<GameCommand> BuildLegalCommands(PlayerId player)
         {
-            GameSnapshot snapshot = Snapshot;
-            List<GameCommand> commands = new List<GameCommand>();
-            foreach (PieceState piece in snapshot.Pieces)
-            {
-                if (piece.Owner != player)
-                {
-                    continue;
-                }
-
-                foreach (GridPosition destination in
-                         movementRule.GetLegalDestinations(snapshot, piece))
-                {
-                    commands.Add(new MovePieceCommand(player, piece.Id, destination));
-                }
-
-                if (CanRandomizePower(piece))
-                {
-                    commands.Add(new RandomizePowerCommand(player, piece.Id));
-                }
-            }
-
-            if (fusionResolver.IsEnabled)
-            {
-                foreach (FusionPair pair in fusionResolver.GetLegalFusions(snapshot, player))
-                {
-                    commands.Add(new FusePiecesCommand(
-                        player, pair.FirstPieceId, pair.SecondPieceId));
-                }
-            }
-
-            if (GetBoardPieceCount(player) < definition.MaxPiecesPerPlayer)
-            {
-                GridPosition[] deploymentPositions =
-                    GetLegalReserveDeploymentPositions(player).ToArray();
-                foreach (ReservePieceState reservePiece in reservesByPlayer[player])
-                {
-                    foreach (GridPosition destination in deploymentPositions)
-                    {
-                        commands.Add(new DeployReservePieceCommand(
-                            player, reservePiece.Id, destination));
-                    }
-                }
-            }
-
-            return commands;
+            return legalCommandGenerator.Generate(Snapshot, player);
         }
 
         private bool CanRandomizePower(PieceState piece)
@@ -513,70 +490,7 @@ namespace GCCC.BoardGame.Core
             {
                 return piece;
             }
-
-            PieceState currentPiece = piece;
-            foreach (string effectId in cell.EffectIds)
-            {
-                if (!definition.TryGetCellEffectDefinition(
-                    effectId, out CellEffectDefinition effectDefinition))
-                {
-                    throw new InvalidOperationException(
-                        $"Cell effect '{effectId}' is not registered.");
-                }
-
-                bool alreadyApplied =
-                    effectDefinition.Lifetime ==
-                    CellEffectLifetime.PermanentOncePerPiece
-                        ? currentPiece.HasAppliedPermanentEffect(effectId)
-                        : currentPiece.HasActiveEffect(effectId);
-                if (alreadyApplied)
-                {
-                    continue;
-                }
-
-                ICellEffectHandler handler = cellEffectHandlers[effectId];
-                int previousPower = currentPiece.EffectiveCombatPower;
-                CellEffectResult result = handler.Apply(
-                    new CellEffectContext(
-                        Snapshot, currentPiece, cell, effectDefinition));
-                ValidateCellEffectResult(currentPiece, result.Piece);
-
-                PieceState updatedPiece = result.Piece;
-                if (effectDefinition.Lifetime ==
-                    CellEffectLifetime.PermanentOncePerPiece)
-                {
-                    updatedPiece = updatedPiece.WithPermanentEffectApplied(effectId);
-                }
-                else if (!updatedPiece.HasActiveEffect(effectId))
-                {
-                    updatedPiece = updatedPiece.WithActiveEffect(effectId);
-                }
-
-                events.Add(new CellEffectTriggered(
-                    effectId, currentPiece.Id, cell.Position));
-                if (previousPower != updatedPiece.EffectiveCombatPower)
-                {
-                    events.Add(new PiecePowerChanged(
-                        currentPiece.Id,
-                        previousPower,
-                        updatedPiece.EffectiveCombatPower));
-                }
-
-                foreach (ReservePieceGrant grant in result.ReservePieceGrants)
-                {
-                    AddReservePiece(grant, events);
-                }
-
-                foreach (GameEvent additionalEvent in result.Events)
-                {
-                    events.Add(additionalEvent);
-                }
-
-                currentPiece = updatedPiece;
-                SetPiece(currentPiece);
-            }
-
-            return currentPiece;
+            return cellEffectProcessor.Apply(piece, cell, events);
         }
 
         private void AddReservePiece(
@@ -604,73 +518,21 @@ namespace GCCC.BoardGame.Core
             events.Add(new ReservePieceAdded(reservePiece));
         }
 
-        private void PrecomputeReserveDeployment()
-        {
-            foreach (PlayerId player in new[] { PlayerId.Player1, PlayerId.Player2 })
-            {
-                int[] ownTerritoryRows = cellsByPosition.Values
-                    .Where(cell => cell.TerritoryOwner == player)
-                    .Select(cell => cell.Position.Row)
-                    .Distinct()
-                    .ToArray();
-                int[] opponentTerritoryRows = cellsByPosition.Values
-                    .Where(cell => cell.TerritoryOwner.HasValue &&
-                                   cell.TerritoryOwner.Value != player)
-                    .Select(cell => cell.Position.Row)
-                    .Distinct()
-                    .ToArray();
-                if (ownTerritoryRows.Length != 1 || opponentTerritoryRows.Length != 1)
-                {
-                    continue;
-                }
-
-                int direction = Math.Sign(
-                    opponentTerritoryRows[0] - ownTerritoryRows[0]);
-                if (direction == 0)
-                {
-                    continue;
-                }
-
-                reserveDeploymentOriginRow[player] = ownTerritoryRows[0];
-                reserveDeploymentDirection[player] = direction;
-            }
-        }
-
         private IEnumerable<GridPosition> GetLegalReserveDeploymentPositions(
             PlayerId player)
         {
-            if (!reserveDeploymentOriginRow.TryGetValue(player, out int originRow) ||
-                !reserveDeploymentDirection.TryGetValue(player, out int direction))
-            {
-                yield break;
-            }
-
-            for (int distance = 1;
-                 distance <= definition.ReserveDeploymentDepth;
-                 distance++)
-            {
-                int row = originRow + direction * distance;
-                for (int column = 0; column < definition.Columns; column++)
-                {
-                    GridPosition position = new GridPosition(column, row);
-                    if (IsInside(position) &&
-                        !pieceIdsByPosition.ContainsKey(position) &&
-                        !IsOpponentTerritory(player, position))
-                    {
-                        yield return position;
-                    }
-                }
-            }
+            return reserveDeploymentRules.GetLegalPositions(
+                player, state.IsOccupied, IsOpponentTerritory);
         }
 
         private int GetBoardPieceCount(PlayerId player)
         {
-            return piecesById.Values.Count(piece => piece.Owner == player);
+            return state.GetBoardPieceCount(player);
         }
 
         private int GetOwnedPieceCount(PlayerId player)
         {
-            return GetBoardPieceCount(player) + reservesByPlayer[player].Count;
+            return state.GetOwnedPieceCount(player);
         }
 
         private void ResolveNextTurn(
@@ -717,16 +579,16 @@ namespace GCCC.BoardGame.Core
             }
 
             return GetBoardPieceCount(player) < definition.MaxPiecesPerPlayer &&
-                   reservesByPlayer[player].Count > 0 &&
+                   state.GetReserves(player).Count > 0 &&
                    GetLegalReserveDeploymentPositions(player).Any();
         }
 
         private IEnumerable<PlayerState> CreatePlayerStates()
         {
             yield return new PlayerState(
-                PlayerId.Player1, reservesByPlayer[PlayerId.Player1]);
+                PlayerId.Player1, state.GetReserves(PlayerId.Player1));
             yield return new PlayerState(
-                PlayerId.Player2, reservesByPlayer[PlayerId.Player2]);
+                PlayerId.Player2, state.GetReserves(PlayerId.Player2));
         }
 
         private void ValidateAndLoadCells()
@@ -764,8 +626,8 @@ namespace GCCC.BoardGame.Core
         {
             if (!IsInside(piece.Position) ||
                 IsOwnTerritory(piece.Owner, piece.Position) ||
-                piecesById.ContainsKey(piece.Id) ||
-                pieceIdsByPosition.ContainsKey(piece.Position))
+                state.ContainsPiece(piece.Id) ||
+                state.IsOccupied(piece.Position))
             {
                 throw new ArgumentException(
                     "The game definition contains an invalid initial piece.");
@@ -808,8 +670,8 @@ namespace GCCC.BoardGame.Core
 
         private PieceState TryGetPiece(GridPosition position)
         {
-            return pieceIdsByPosition.TryGetValue(position, out PieceId id)
-                ? piecesById[id]
+            return state.TryGetPiece(position, out PieceState piece)
+                ? piece
                 : null;
         }
 
@@ -822,39 +684,27 @@ namespace GCCC.BoardGame.Core
                     $"Movement profile '{piece.MovementProfileId}' is not registered.");
             }
 
-            piecesById.Add(piece.Id, piece);
-            pieceIdsByPosition.Add(piece.Position, piece.Id);
-            InvalidateSnapshot();
+            state.AddPiece(piece);
         }
 
         private void RemovePiece(PieceId id)
         {
-            if (!piecesById.TryGetValue(id, out PieceState piece))
-            {
-                return;
-            }
-
-            piecesById.Remove(id);
-            pieceIdsByPosition.Remove(piece.Position);
-            InvalidateSnapshot();
+            state.RemovePiece(id);
         }
 
         private void SetPiece(PieceState piece)
         {
-            piecesById[piece.Id] = piece;
-            InvalidateSnapshot();
+            state.SetPiece(piece);
         }
 
         private void AddReserve(ReservePieceState reservePiece)
         {
-            reservesByPlayer[reservePiece.Owner].Add(reservePiece);
-            InvalidateSnapshot();
+            state.AddReserve(reservePiece);
         }
 
         private void RemoveReserve(PlayerId player, ReservePieceState reservePiece)
         {
-            reservesByPlayer[player].Remove(reservePiece);
-            InvalidateSnapshot();
+            state.RemoveReserve(player, reservePiece);
         }
 
         private GameSnapshot BuildSnapshot()
@@ -862,7 +712,7 @@ namespace GCCC.BoardGame.Core
             return new GameSnapshot(
                 definition.Columns,
                 definition.Rows,
-                piecesById.Values,
+                state.Pieces,
                 cellsByPosition.Values,
                 currentPlayer,
                 winner,
@@ -876,6 +726,8 @@ namespace GCCC.BoardGame.Core
         private void InvalidateSnapshot()
         {
             cachedSnapshot = null;
+            cachedLegalCommands = null;
+            cachedLegalCommandsPlayer = null;
         }
     }
 }

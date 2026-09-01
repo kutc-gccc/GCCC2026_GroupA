@@ -6,7 +6,7 @@
 
 ## 1. EditModeテスト
 
-[`Assets/Tests/EditMode/GameSessionTests.cs`](../Assets/Tests/EditMode/GameSessionTests.cs)はUnity表示に依存せず、Coreの状態とルールを検証します。
+EditModeテストは責務別に分割しています。共通fixtureは[`GameSessionTests.cs`](../Assets/Tests/EditMode/GameSessionTests.cs)、盤面生成は[`GameSessionTestBuilder.cs`](../Assets/Tests/EditMode/GameSessionTestBuilder.cs)へ集約し、移動・戦闘・合体・セル効果・リザーブ・状態復元をそれぞれ`GameSession*Tests.cs`で検証します。[`GameSessionCachingTests.cs`](../Assets/Tests/EditMode/GameSessionCachingTests.cs)は合法手キャッシュと`WithLegalCommands`の不変データ共有を独立して検証します。
 
 検証方針:
 
@@ -28,9 +28,9 @@
 - 過去のSnapshotが後続のCommandで変化しないこと
 - リセットによる完全復元
 
-### 既存のテストヘルパー
+### 共通Session Builder
 
-新しいEditModeテストを書くときは、`GameSessionTests`が持つ次のヘルパーを再利用します。盤面生成やDefinition組み立てを書き直す必要はありません。
+新しいEditModeテストを書くときは、`GameSessionTestBuilder`へ集約した次のヘルパーを再利用します。盤面生成やDefinition組み立てを書き直す必要はありません。
 
 | ヘルパー | 用途 |
 |---|---|
@@ -44,11 +44,11 @@
 | `AssertPiece(snapshot, position, owner, combatPower)` | 位置・所有者・戦闘力をまとめて検証する |
 | `RecordingPowerEffect` | 呼び出し順を記録するテスト用`ICellEffectHandler` |
 
-これらは`private static`なので、別のテストクラスを追加する場合は同等のヘルパーをそちらにも用意するか、共有するヘルパークラスへ切り出してください。
+`GameSessionTests`のpartial fixtureからは薄いラッパー経由で利用し、別fixtureからは`GameSessionTestBuilder`を直接利用できます。表示固有の`GetPiece`／`AssertPiece`とテスト用fakeは共通fixtureに残します。
 
 ## 2. PlayModeテスト
 
-[`Assets/Tests/PlayMode/BoardGameBootstrapTests.cs`](../Assets/Tests/PlayMode/BoardGameBootstrapTests.cs)はBootstrap、View、HUD、Scene統合を検証します。
+PlayModeテストは共通fixtureを[`BoardGameBootstrapTests.cs`](../Assets/Tests/PlayMode/BoardGameBootstrapTests.cs)に置き、Board、HUD、入力、Bootstrap／Scene、Audioを`BoardGame*Tests.cs`へ分割しています。[`PresentationRefactoringTests.cs`](../Assets/Tests/PlayMode/PresentationRefactoringTests.cs)は任意陣地行、Piece reconcile、Interaction State、Config検証、Audio Resolverを独立して検証します。
 
 検証方針:
 
@@ -67,6 +67,12 @@
 - 手番側カードだけの有効化、先頭以外の個別選択・解除・選択変更、リザーブ配置候補、配置後のカード削除と駒View生成
 - リザーブパネル上のクリックが盤面入力へ貫通せず、勝敗確定後は全カードが操作不能になること
 - ランダム化ボタンが対象駒の選択中だけ有効になること
+- 任意の陣地行でもSnapshotどおりに外周が描かれること
+- 一時効果中の駒が`EffectiveCombatPower`を表示すること
+- 変更のない`PieceView`インスタンスがreconcile後も保持されること
+- HUDを再初期化してもListenerとUI階層が重複しないこと
+- Configのnull、重複、範囲外、最小行数、未登録移動プロファイルを明確に拒否すること
+- Audio ResolverがEvent列の再生順を保つこと
 
 ## 3. Unity Test Runnerで実行する
 
@@ -158,7 +164,7 @@ Test Runnerの結果保存を知らせるUnity内部ログが表示される場�
 - 特殊マス配置を含む長時間プレイでのゲームバランス
 - CPU Agentと非同期思考
 - 実機のタッチデバイス入力
-- 複数解像度・縦長画面の網羅的な表示確認
+- 縦長画面を含む全アスペクト比の網羅的な表示確認
 - Standalone PlayerのBuildと実行
 - CI上での自動テスト
 

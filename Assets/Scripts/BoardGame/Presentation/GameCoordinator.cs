@@ -17,15 +17,12 @@ namespace GCCC.BoardGame.Presentation
             Array.Empty<GridPosition>();
 
         private readonly GameSession session;
-        private readonly BoardView boardView;
-        private readonly PieceViewManager pieceViews;
-        private readonly GameHudView hudView;
-        private readonly BoardGameAudioManager audioManager;
+        private readonly IBoardGameBoardView boardView;
+        private readonly IPieceViewCollection pieceViews;
+        private readonly IGameHud hudView;
+        private readonly IGameAudio audioManager;
         private readonly Dictionary<PlayerId, IPlayerAgent> agents;
-        private PieceId? selectedPieceId;
-        private PieceId? selectedReservePieceId;
-        private bool isFusionModeActive;
-        private bool isReserveDeployModeActive;
+        private InteractionState interactionState = InteractionState.None;
 
         public GameCoordinator(
             GameSession session,
@@ -35,11 +32,30 @@ namespace GCCC.BoardGame.Presentation
             IPlayerAgent player1Agent = null,
             IPlayerAgent player2Agent = null,
             BoardGameAudioManager audioManager = null)
+            : this(
+                session,
+                (IBoardGameBoardView)boardView,
+                (IPieceViewCollection)pieceViews,
+                (IGameHud)hudView,
+                player1Agent,
+                player2Agent,
+                audioManager)
         {
-            this.session = session;
-            this.boardView = boardView;
-            this.pieceViews = pieceViews;
-            this.hudView = hudView;
+        }
+
+        internal GameCoordinator(
+            GameSession session,
+            IBoardGameBoardView boardView,
+            IPieceViewCollection pieceViews,
+            IGameHud hudView,
+            IPlayerAgent player1Agent = null,
+            IPlayerAgent player2Agent = null,
+            IGameAudio audioManager = null)
+        {
+            this.session = session ?? throw new ArgumentNullException(nameof(session));
+            this.boardView = boardView ?? throw new ArgumentNullException(nameof(boardView));
+            this.pieceViews = pieceViews ?? throw new ArgumentNullException(nameof(pieceViews));
+            this.hudView = hudView ?? throw new ArgumentNullException(nameof(hudView));
             this.audioManager = audioManager;
             agents = new Dictionary<PlayerId, IPlayerAgent>
             {
@@ -56,8 +72,10 @@ namespace GCCC.BoardGame.Presentation
         {
             get
             {
-                if (!selectedPieceId.HasValue ||
-                    !session.Snapshot.TryGetPiece(selectedPieceId.Value, out PieceState selected))
+                if (!interactionState.SelectedPieceId.HasValue ||
+                    !session.Snapshot.TryGetPiece(
+                        interactionState.SelectedPieceId.Value,
+                        out PieceState selected))
                 {
                     return null;
                 }
@@ -68,7 +86,8 @@ namespace GCCC.BoardGame.Presentation
 
         public int ExecutedCommandCount { get; private set; }
 
-        public PieceId? SelectedReservePieceId => selectedReservePieceId;
+        public PieceId? SelectedReservePieceId =>
+            interactionState.SelectedReservePieceId;
 
         public void HandleCellClick(GridPosition cell)
         {
@@ -78,13 +97,13 @@ namespace GCCC.BoardGame.Presentation
                 return;
             }
 
-            if (isFusionModeActive)
+            if (interactionState.Mode == InteractionMode.Fusion)
             {
                 HandleFusionModeClick(cell, snapshot);
                 return;
             }
 
-            if (isReserveDeployModeActive)
+            if (interactionState.Mode == InteractionMode.ReserveDeployment)
             {
                 HandleReserveDeploymentClick(cell, snapshot);
                 return;
@@ -93,15 +112,16 @@ namespace GCCC.BoardGame.Presentation
             if (snapshot.TryGetPiece(cell, out PieceState clickedPiece) &&
                 clickedPiece.Owner == snapshot.CurrentPlayer)
             {
-                CancelReserveDeployment();
-                selectedPieceId = selectedPieceId == clickedPiece.Id
-                    ? (PieceId?)null
-                    : clickedPiece.Id;
+                PieceId? selectedPieceId = interactionState.SelectedPieceId;
+                interactionState = selectedPieceId == clickedPiece.Id
+                    ? InteractionState.None
+                    : InteractionState.PieceSelected(clickedPiece.Id);
+                hudView.SetSelectedReservePiece(null);
                 RenderSelection();
                 return;
             }
 
-            if (!selectedPieceId.HasValue)
+            if (!interactionState.SelectedPieceId.HasValue)
             {
                 return;
             }
@@ -109,7 +129,8 @@ namespace GCCC.BoardGame.Presentation
             MovePieceCommand move = session.GetLegalCommands(snapshot.CurrentPlayer)
                 .OfType<MovePieceCommand>()
                 .FirstOrDefault(command =>
-                    command.PieceId == selectedPieceId.Value && command.Destination == cell);
+                    command.PieceId == interactionState.SelectedPieceId.Value &&
+                    command.Destination == cell);
             if (move == null || !(agents[snapshot.CurrentPlayer] is HumanPlayerAgent humanAgent))
             {
                 return;
@@ -120,13 +141,16 @@ namespace GCCC.BoardGame.Presentation
 
         public void ToggleFusionMode()
         {
-            if (!selectedPieceId.HasValue)
+            if (!interactionState.SelectedPieceId.HasValue)
             {
                 return;
             }
 
-            isFusionModeActive = !isFusionModeActive;
-            CancelReserveDeployment();
+            PieceId pieceId = interactionState.SelectedPieceId.Value;
+            interactionState = interactionState.Mode == InteractionMode.Fusion
+                ? InteractionState.PieceSelected(pieceId)
+                : InteractionState.Fusion(pieceId);
+            hudView.SetSelectedReservePiece(null);
             RenderSelection();
         }
 
@@ -138,7 +162,7 @@ namespace GCCC.BoardGame.Presentation
                 return;
             }
 
-            if (isReserveDeployModeActive)
+            if (interactionState.Mode == InteractionMode.ReserveDeployment)
             {
                 CancelReserveDeployment();
                 RenderSelection();
@@ -166,9 +190,8 @@ namespace GCCC.BoardGame.Presentation
                 return;
             }
 
-            if (isReserveDeployModeActive &&
-                selectedReservePieceId.HasValue &&
-                selectedReservePieceId.Value == reservePieceId)
+            if (interactionState.Mode == InteractionMode.ReserveDeployment &&
+                interactionState.SelectedReservePieceId == reservePieceId)
             {
                 CancelReserveDeployment();
                 RenderSelection();
@@ -184,10 +207,7 @@ namespace GCCC.BoardGame.Presentation
                 return;
             }
 
-            selectedPieceId = null;
-            isFusionModeActive = false;
-            isReserveDeployModeActive = true;
-            selectedReservePieceId = reservePieceId;
+            interactionState = InteractionState.ReserveDeployment(reservePieceId);
             hudView.SetSelectedReservePiece(reservePieceId);
             RenderReserveDeployment();
             hudView.ShowMessage("リザーブを配置するマスを選んでください");
@@ -201,9 +221,8 @@ namespace GCCC.BoardGame.Presentation
             }
 
             session.Reset();
-            selectedPieceId = null;
+            interactionState = InteractionState.None;
             CancelReserveDeployment();
-            isFusionModeActive = false;
             pieceViews.Rebuild(session.Snapshot);
             boardView.ShowSelection(null, NoCells, NoCells, session.Snapshot);
             hudView.Render(session.Snapshot);
@@ -222,7 +241,8 @@ namespace GCCC.BoardGame.Presentation
         private void HandleRandomizePowerButtonClicked()
         {
             GameSnapshot snapshot = session.Snapshot;
-            if (snapshot.IsGameOver || !selectedPieceId.HasValue)
+            if (snapshot.IsGameOver ||
+                !interactionState.SelectedPieceId.HasValue)
             {
                 return;
             }
@@ -233,7 +253,7 @@ namespace GCCC.BoardGame.Presentation
                     session.GetLegalCommands(snapshot.CurrentPlayer)
                         .OfType<RandomizePowerCommand>()
                         .FirstOrDefault(candidate =>
-                            candidate.PieceId == selectedPieceId.Value);
+                            candidate.PieceId == interactionState.SelectedPieceId.Value);
                 if (command != null)
                 {
                     humanAgent.TrySubmit(command);
@@ -243,26 +263,29 @@ namespace GCCC.BoardGame.Presentation
 
         private void HandleFusionModeClick(GridPosition cell, GameSnapshot snapshot)
         {
-            if (!selectedPieceId.HasValue)
+            if (!interactionState.SelectedPieceId.HasValue)
             {
-                isFusionModeActive = false;
+                interactionState = InteractionState.None;
                 return;
             }
 
             if (snapshot.TryGetPiece(cell, out PieceState clickedPiece) &&
-                clickedPiece.Id != selectedPieceId.Value &&
+                clickedPiece.Id != interactionState.SelectedPieceId.Value &&
                 clickedPiece.Owner == snapshot.CurrentPlayer &&
                 agents[snapshot.CurrentPlayer] is HumanPlayerAgent humanAgent)
             {
                 FusePiecesCommand fusion = new FusePiecesCommand(
-                    snapshot.CurrentPlayer, selectedPieceId.Value, clickedPiece.Id);
-                isFusionModeActive = false;
+                    snapshot.CurrentPlayer,
+                    interactionState.SelectedPieceId.Value,
+                    clickedPiece.Id);
+                interactionState = InteractionState.None;
                 humanAgent.TrySubmit(fusion);
                 RenderSelection();
                 return;
             }
 
-            isFusionModeActive = false;
+            interactionState = InteractionState.PieceSelected(
+                interactionState.SelectedPieceId.Value);
             RenderSelection();
         }
 
@@ -270,7 +293,7 @@ namespace GCCC.BoardGame.Presentation
             GridPosition cell,
             GameSnapshot snapshot)
         {
-            if (!selectedReservePieceId.HasValue ||
+            if (!interactionState.SelectedReservePieceId.HasValue ||
                 !(agents[snapshot.CurrentPlayer] is HumanPlayerAgent humanAgent))
             {
                 CancelReserveDeployment();
@@ -282,7 +305,8 @@ namespace GCCC.BoardGame.Presentation
                 session.GetLegalCommands(snapshot.CurrentPlayer)
                     .OfType<DeployReservePieceCommand>()
                     .FirstOrDefault(command =>
-                        command.ReservePieceId == selectedReservePieceId.Value &&
+                        command.ReservePieceId ==
+                        interactionState.SelectedReservePieceId.Value &&
                         command.Destination == cell);
             if (deployment != null)
             {
@@ -301,9 +325,8 @@ namespace GCCC.BoardGame.Presentation
             }
 
             ExecutedCommandCount++;
-            selectedPieceId = null;
-            CancelReserveDeployment();
-            isFusionModeActive = false;
+            interactionState = InteractionState.None;
+            hudView.SetSelectedReservePiece(null);
             GameSnapshot snapshot = session.Snapshot;
             pieceViews.ApplyEvents(result.Events, snapshot);
             audioManager?.PlayEvents(result.Events);
@@ -361,10 +384,12 @@ namespace GCCC.BoardGame.Presentation
         private void RenderSelection()
         {
             GameSnapshot snapshot = session.Snapshot;
-            if (!selectedPieceId.HasValue ||
-                !snapshot.TryGetPiece(selectedPieceId.Value, out PieceState selectedPiece))
+            if (!interactionState.SelectedPieceId.HasValue ||
+                !snapshot.TryGetPiece(
+                    interactionState.SelectedPieceId.Value,
+                    out PieceState selectedPiece))
             {
-                isFusionModeActive = false;
+                interactionState = InteractionState.None;
                 hudView.SetFuseButtonInteractable(false);
                 hudView.SetRandomizeButtonInteractable(false);
                 RefreshReserveDeployButton(snapshot);
@@ -394,9 +419,11 @@ namespace GCCC.BoardGame.Presentation
                 .OfType<RandomizePowerCommand>()
                 .Any(command => command.PieceId == selectedPiece.Id);
             hudView.SetRandomizeButtonInteractable(
-                canRandomize && !isFusionModeActive);
-            UpdateReserveControls(legalCommands, !isFusionModeActive);
-            if (isFusionModeActive)
+                canRandomize && interactionState.Mode != InteractionMode.Fusion);
+            UpdateReserveControls(
+                legalCommands,
+                interactionState.Mode != InteractionMode.Fusion);
+            if (interactionState.Mode == InteractionMode.Fusion)
             {
                 boardView.ShowSelection(
                     selectedPiece.Position, NoCells, fusionTargets, snapshot);
@@ -415,7 +442,7 @@ namespace GCCC.BoardGame.Presentation
         private void RenderReserveDeployment()
         {
             GameSnapshot snapshot = session.Snapshot;
-            if (!selectedReservePieceId.HasValue)
+            if (!interactionState.SelectedReservePieceId.HasValue)
             {
                 CancelReserveDeployment();
                 RenderSelection();
@@ -426,7 +453,8 @@ namespace GCCC.BoardGame.Presentation
                 session.GetLegalCommands(snapshot.CurrentPlayer)
                     .OfType<DeployReservePieceCommand>()
                     .Where(command =>
-                        command.ReservePieceId == selectedReservePieceId.Value)
+                        command.ReservePieceId ==
+                        interactionState.SelectedReservePieceId.Value)
                     .Select(command => command.Destination)
                     .ToList();
             if (destinations.Count == 0)
@@ -468,8 +496,11 @@ namespace GCCC.BoardGame.Presentation
 
         private void CancelReserveDeployment()
         {
-            isReserveDeployModeActive = false;
-            selectedReservePieceId = null;
+            if (interactionState.Mode == InteractionMode.ReserveDeployment)
+            {
+                interactionState = InteractionState.None;
+            }
+
             hudView.SetSelectedReservePiece(null);
         }
     }

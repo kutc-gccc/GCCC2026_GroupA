@@ -26,7 +26,7 @@ flowchart TB
 | Core Commands | プレイヤーからの操作要求 | Viewの直接操作 |
 | Core Events | コマンド実行によって起きた事実 | Unity演出の指定 |
 | Core Rules | 移動、戦闘、合体、特殊効果、手番 | InputやUIの参照 |
-| `GameSession` | 状態所有、検証、コマンド実行、イベント生成 | Unityオブジェクトの保持 |
+| `GameSession` | 公開APIを保つFacade、検証、コマンド実行、イベント生成 | Unityオブジェクトの保持 |
 | Presentation Input | マウス・タッチを盤面座標へ変換 | ルール判定の再実装 |
 | `GameCoordinator` | 選択状態、Agent、Command、Viewの仲介 | Core状態の直接変更 |
 | Presentation Views | SnapshotとEventに従った表示 | 勝敗やダメージの独自計算 |
@@ -58,13 +58,13 @@ flowchart TB
 
 ### 不変性
 
-`PieceState`の変更は`WithPosition`、`WithCombatPower`、`WithMovementProfile`、`WithAttributes`で新しいインスタンスを作成します。移動方向は状態として重複保持せず、`MovementProfileId`と現在の戦闘力から`ProfileMoveDirectionResolver`が算出します。`GameSnapshot`も駒とセルをコピーするため、ViewやCPUが過去のSnapshotや進行中の状態を書き換えることはできません。
+`PieceState`の変更は`WithPosition`、`WithCombatPower`、`WithMovementProfile`、`WithAttributes`で新しいインスタンスを作成します。移動方向は状態として重複保持せず、`MovementProfileId`と現在の戦闘力から`ProfileMoveDirectionResolver`が算出します。`GameSnapshot`の公開コンストラクタは駒とセルをコピーするため、ViewやCPUが過去のSnapshotや進行中の状態を書き換えることはできません。`WithLegalCommands`は既に不変化された盤面データを共有し、合法Command一覧だけを差し替えます。
 
 戦闘力が0以下になった駒は、戦闘力0の`PieceState`として残すのではなく`GameSession`の管理対象から削除されます。「盤上に存在する駒は必ず戦闘力1以上」という不変条件を型のレベルで保証するためです。
 
 ### `GameSession`
 
-`GameSession`は実行時状態を所有する唯一のクラスです。内部では駒をIDと座標の両方で検索できるDictionaryに保持し、セル定義、現在手番、勝者、引き分け状態を管理します。外部コードはDictionaryへアクセスできません。
+`GameSession`は実行時状態へアクセスできる唯一の公開Facadeです。内部では`GameStateStore`が駒とリザーブ、`LegalCommandGenerator`が合法手生成、`CellEffectProcessor`がセル効果、`ReserveDeploymentRules`が配置範囲を担当します。状態更新時にはSnapshotと合法Commandキャッシュが同時に無効化されます。外部コードはこれらのinternal型やDictionaryへアクセスできません。
 
 ```csharp
 GameSnapshot Snapshot { get; }
@@ -91,7 +91,7 @@ Commandは「状態をこの値に変える」というデータではなく、�
 1. Commandがnullではない。
 2. ゲームが終了していない。
 3. Commandのプレイヤーが現在手番と一致する。
-4. 対応するCommand Handlerが存在する。
+4. Command型がFacadeの型switchに対応している。
 5. 対象駒の存在、所有権、個別ルールが正しい。
 
 ### `CommandResult`
@@ -194,7 +194,7 @@ Ruleは状態を直接所有せず、`GameSession`から渡された入力を計
 
 起動Sceneは`TitleScene`です。`TitleScreenController`が「ゲーム開始」を受け取り、ゲーム本体の`SampleScene`を読み込みます。ゲーム終了時は`GameHudView`がリザルトを重ね、`BoardGameBootstrap`が「スタート画面に戻る」を受け取って`TitleScene`へ遷移します。Scene遷移はPresentationに閉じ、CoreはScene名や`SceneManager`を参照しません。
 
-`SampleScene`のルートはMain Cameraと`Board Game Bootstrap`です。Bootstrapと同じGameObjectに`BoardGameAudioManager`を配置し、EventSystem、BGM／SFX用AudioSource、盤面UIは実行時に生成します。`BoardGameBootstrap`は次を組み立てます。
+`SampleScene`にはMain Camera、`Board Game Bootstrap`、`EventSystem`を明示配置します。Bootstrapと同じGameObjectに`BoardGameAudioManager`を配置し、BGM／SFX用AudioSourceだけを実行時に生成します。HUD階層は`GameHud.prefab`に保存します。`BoardGameBootstrap`は次を組み立てます。
 
 1. `BoardGameConfig`から`GameDefinition`を生成する。
 2. `GameSession`と`RuntimeSpriteFactory`を作る。
@@ -203,7 +203,7 @@ Ruleは状態を直接所有せず、`GameSession`から渡された入力を計
 5. Board、Piece、HUDのPrefabを生成する。
 6. `GameCoordinator`、`BoardInputController`、音声イベントを接続する。
 
-Prefab参照が未設定の場合は、同じComponentを持つGameObjectを実行時に生成するフォールバックがあります。
+`GameHud.prefab`は必須です。参照やPrefab内の必須UIが欠けている場合は、不完全なUIを実行時生成せず明確なエラーで停止します。
 
 `BoardGameBootstrap`はPresentationのComposition Rootです。独自の`IMovementRule`、`ICombatResolver`、`IFusionResolver`、`ICellEffectHandler`、`IPlayerAgent`を実ゲームで使用する場合は、ここで生成して`GameSession`または`GameCoordinator`へ注入します。Coreへ型を追加しただけでは標準Sceneの実行経路へ接続されません。変更種別ごとの配線手順は[拡張ガイドの変更影響マトリクス](EXTENSION_GUIDE.md#変更影響マトリクス)を参照してください。
 
@@ -212,7 +212,7 @@ Prefab参照が未設定の場合は、同じComponentを持つGameObjectを実�
 | クラス | 表示上の責務 | 保持・判断しないもの |
 |---|---|---|
 | `BoardView` | 60セル、陣地枠、ラベル、選択、移動候補、リザーブ配置候補、座標変換 | 駒の戦闘力や勝敗ルール |
-| `PieceViewManager` | `PieceView`の生成、Eventに従った更新・削除、リセット時の再構築 | 戦闘結果の再計算 |
+| `PieceViewManager` | Snapshotとの差分をreconcileし、既存`PieceView`を保持したまま生成・更新・削除 | 戦闘結果の再計算 |
 | `PieceView` | 1個の駒の所有者色、位置、戦闘力テキスト | Coreの`PieceState`の直接変更 |
 | `GameHudView` | 手番、操作ボタン、音量スライダー、リザルト表示、各UI Viewの仲介と入力遮断 | 手番や勝者の決定 |
 | `ReservePanelView` | 2人分のリザーブ一覧、個数、選択可能状態をSnapshotから同期 | 配置先や手番の決定 |
@@ -221,11 +221,15 @@ Prefab参照が未設定の場合は、同じComponentを持つGameObjectを実�
 
 `PieceState`と`PieceView`は1対1で対応しますが、役割は異なります。`PieceState`はCore上の正しいゲーム状態、`PieceView`はUnity上の見た目です。各駒GameObjectへ戦闘ルールを持たせず、`PieceViewManager`がSnapshotとEventを使って見た目だけを同期します。
 
+`GameCoordinator`の操作状態は`InteractionState` 1つで表現します。通常選択、合体、リザーブ配置は排他的で、複数のboolとnullable IDが矛盾した状態を作れません。Coordinatorが依存するBoard、Piece、HUD、Audioはinternalインターフェースで抽象化されています。
+
+AudioのEvent判定は純粋な`GameEventAudioResolver`へ分離しています。ResolverがEvent列を再生順どおりの`AudioCue`へ変換し、`BoardGameAudioManager`はClip選択とAudioSource再生だけを担当します。
+
 ## 9. 設定とAsset
 
 盤面の初期設定は`StandardBoardGameConfig.asset`が持ちます。設定項目と標準値は[開発ガイド §5](DEVELOPMENT.md#5-standardboardgameconfig)を参照してください。
 
-盤面、駒、HUDを個別Prefabに分けているのは、UI担当と盤面担当が同じScene YAMLを同時に編集する可能性を減らすためです。ゲーム本体はBootstrapをComposition Rootとし、Scene上ではAudioManagerをBootstrapと同じGameObjectへ保持します。EventSystemとAudioSourceは実行時に生成します。
+盤面、駒、HUDを個別Prefabに分けているのは、UI担当と盤面担当が同じScene YAMLを同時に編集する可能性を減らすためです。`GameHud.prefab`はCanvas、操作バー、手番、メッセージ、音量、凡例、リザーブ、リザルトを実体として持ち、AnchorとLayoutGroupで配置します。Scene上ではAudioManagerをBootstrapと同じGameObjectへ、EventSystemを独立したSceneオブジェクトとして保持します。
 
 ## 10. 共有変更になりやすい箇所
 

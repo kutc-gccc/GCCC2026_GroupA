@@ -5,10 +5,8 @@ namespace GCCC.BoardGame.Presentation.Views
 {
     public sealed class PieceView : MonoBehaviour
     {
-        // 駒の大きさ
         private const float PieceScale = 0.45f;
 
-        // 駒の色
         private static readonly Color PieceColor =
             Color.white;
 
@@ -85,10 +83,6 @@ namespace GCCC.BoardGame.Presentation.Views
 
         private void EnsureRenderer()
         {
-            // ========================================
-            // 駒のSpriteRenderer
-            // ========================================
-
             if (pieceRenderer == null)
             {
                 pieceRenderer =
@@ -103,10 +97,6 @@ namespace GCCC.BoardGame.Presentation.Views
 
             pieceRenderer.sortingOrder = 10;
 
-            // ========================================
-            // 戦闘力表示
-            // ========================================
-
             if (combatPowerLabel == null)
             {
                 GameObject labelObject =
@@ -117,7 +107,6 @@ namespace GCCC.BoardGame.Presentation.Views
                     transform,
                     false);
 
-                // 駒の中央
                 labelObject.transform.localPosition =
                     new Vector3(
                         0f,
@@ -130,24 +119,19 @@ namespace GCCC.BoardGame.Presentation.Views
                 combatPowerLabel =
                     labelObject.AddComponent<TextMesh>();
 
-                // 文字を中央揃え
                 combatPowerLabel.anchor =
                     TextAnchor.MiddleCenter;
 
                 combatPowerLabel.alignment =
                     TextAlignment.Center;
 
-                // 文字を大きくする
                 combatPowerLabel.fontSize = 64;
 
-                // 駒の大きさに合わせた文字サイズ
                 combatPowerLabel.characterSize = 0.20f;
 
-                // 濃い緑色の駒の上でも見やすいように白
                 combatPowerLabel.color =
                     Color.white;
 
-                // フォントを太く見せる
                 combatPowerLabel.fontStyle =
                     FontStyle.Bold;
 
@@ -156,10 +140,8 @@ namespace GCCC.BoardGame.Presentation.Views
 
                 if (meshRenderer != null)
                 {
-                    // SpriteRendererより手前に表示
                     meshRenderer.sortingOrder = 11;
 
-                    // Spriteと同じSorting Layerを使用
                     meshRenderer.sortingLayerID =
                         pieceRenderer.sortingLayerID;
                 }
@@ -175,7 +157,7 @@ namespace GCCC.BoardGame.Presentation.Views
             }
 
             combatPowerLabel.text =
-                state.CombatPower.ToString();
+                state.EffectiveCombatPower.ToString();
         }
     }
 }

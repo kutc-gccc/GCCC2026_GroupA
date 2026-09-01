@@ -2,7 +2,9 @@
   "name": "GCCC.BoardGame.EditorTools",
   "rootNamespace": "GCCC.BoardGame.EditorTools",
   "references": [
-    "GCCC.BoardGame.Presentation"
+    "GCCC.BoardGame.Presentation",
+    "Unity.InputSystem",
+    "Unity.ugui"
   ],
   "includePlatforms": [
     "Editor"

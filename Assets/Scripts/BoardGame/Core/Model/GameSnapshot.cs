@@ -82,6 +82,32 @@ namespace GCCC.BoardGame.Core.Model
                 playerCopies.ToDictionary(player => player.Player));
         }
 
+        private GameSnapshot(
+            GameSnapshot source,
+            IReadOnlyList<GameCommand> legalCommands)
+        {
+            Columns = source.Columns;
+            Rows = source.Rows;
+            CurrentPlayer = source.CurrentPlayer;
+            Winner = source.Winner;
+            IsDraw = source.IsDraw;
+            MaxPiecesPerPlayer = source.MaxPiecesPerPlayer;
+            ReserveDeploymentDepth = source.ReserveDeploymentDepth;
+
+            Pieces = source.Pieces;
+            Cells = source.Cells;
+            CellEffectDefinitions = source.CellEffectDefinitions;
+            Players = source.Players;
+            piecesById = source.piecesById;
+            piecesByPosition = source.piecesByPosition;
+            cellsByPosition = source.cellsByPosition;
+            effectDefinitionsById = source.effectDefinitionsById;
+            playersById = source.playersById;
+
+            LegalCommands = new ReadOnlyCollection<GameCommand>(
+                (legalCommands ?? Array.Empty<GameCommand>()).ToArray());
+        }
+
         public int Columns { get; }
 
         public int Rows { get; }
@@ -153,19 +179,7 @@ namespace GCCC.BoardGame.Core.Model
 
         public GameSnapshot WithLegalCommands(IReadOnlyList<GameCommand> legalCommands)
         {
-            return new GameSnapshot(
-                Columns,
-                Rows,
-                Pieces,
-                Cells,
-                CurrentPlayer,
-                Winner,
-                IsDraw,
-                legalCommands,
-                CellEffectDefinitions,
-                Players,
-                MaxPiecesPerPlayer,
-                ReserveDeploymentDepth);
+            return new GameSnapshot(this, legalCommands);
         }
 
         private static PieceState CopyPiece(PieceState piece)

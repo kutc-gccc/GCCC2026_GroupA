@@ -145,7 +145,7 @@ var session = new GameSession(
 
 ### Core実装
 
-Coreには`FusePiecesCommand`、`FusePiecesCommandHandler`、`IFusionResolver`、`PiecesFused`があります。標準では隣接自駒を25%大成功、50%成功、25%失敗で処理する`AdjacentFusionResolver`が使用されます。
+Coreには`FusePiecesCommand`、`IFusionResolver`、`PiecesFused`があります。`GameSession`の型switchがCommandを合体処理へdispatchし、標準では隣接自駒を25%大成功、50%成功、25%失敗で処理する`AdjacentFusionResolver`が使用されます。
 
 ```csharp
 public interface IFusionResolver
@@ -182,7 +182,7 @@ public interface IFusionResolver
 | 経路 | 実装場所 |
 |---|---|
 | 「合体」ボタンと2駒選択 | `GameHudView.FuseRequested` → `GameCoordinator.ToggleFusionMode` → `HandleFusionModeClick` |
-| 合体後のView差し替え | `PieceViewManager.ApplyEvents`の`case PiecesFused` |
+| 合体後のView差し替え | `PieceViewManager.ApplyEvents`が実行後Snapshotとreconcile |
 | 合体成功時のSFX | `BoardGameAudioManager.PlayEvents`の`PiecesFused` |
 | 成功・失敗のメッセージ | `GameCoordinator.ShowFusionResultMessage` |
 
@@ -328,11 +328,11 @@ CPU実装は将来の`GCCC.BoardGame.AI`アセンブリへ置き、Coreだけを
 
 新しい操作が既存の`MovePieceCommand`、`FusePiecesCommand`、`RandomizePowerCommand`、`DeployReservePieceCommand`で表現できない場合にだけCommandを追加します。
 
-Commandの追加はCoreアセンブリ内でのみ可能です。`IGameCommandHandler`と`GameSession`の各操作実行メソッドは`internal`で、Handlerの登録先は`GameSession`のコンストラクタ内にある固定配列です。外部アセンブリからHandlerを登録する口はありません。他の拡張と違って`GameSession`本体の変更を伴うため、[§1](#1-拡張時の共通原則)のとおり契約だけを先行PRとして確定してから進めます。
+Commandの追加はCoreアセンブリ内でのみ可能です。`GameSession`は公開Facadeで、`Execute`の型switchから各操作実行メソッドへdispatchします。外部アセンブリからdispatch処理を登録する口はありません。他の拡張と違って`GameSession`本体の変更を伴うため、[§1](#1-拡張時の共通原則)のとおり契約だけを先行PRとして確定してから進めます。
 
 1. Core Commandsへ`GameCommand`派生型を追加します。
-2. `IGameCommandHandler`実装を追加します。
-3. `GameSession`の`commandHandlers`へHandlerを登録し、対応する内部状態更新処理を追加します。
+2. `GameSession.Execute`の型switchへ分岐を追加します。
+3. 対応する内部状態更新処理を追加し、状態更新がSnapshotと合法手キャッシュを無効化することを確認します。
 4. 成功時に必要な`GameEvent`派生型をCore Eventsへ追加します。
 5. 状態変更は必ず`GameSession`内部で行います。
 
@@ -389,7 +389,7 @@ Command・Eventの引数と値は`CORE_API.md`、実行順と責務は`ARCHITECT
 
 ### Core実装
 
-パワーランダム化は`RandomizePowerCommand`、`RandomizePowerCommandHandler`、`RandomizePowerEvent`で構成されます。`GameSession`が`randomSource.NextInt(1, 4)`で新しい通常戦闘力（1〜3）を決め、手番を消費します。
+パワーランダム化は`RandomizePowerCommand`、`GameSession.ExecuteRandomizePower`、`RandomizePowerEvent`で構成されます。`GameSession`が`randomSource.NextInt(1, 4)`で新しい通常戦闘力（1〜3）を決め、手番を消費します。
 
 変更する内容ごとに触る場所が違います。
 
@@ -426,7 +426,7 @@ Command・Eventの引数と値は`CORE_API.md`、実行順と責務は`ARCHITECT
 
 ### Core実装
 
-リザーブ駒は盤外に保管され、`DeployReservePieceCommand`で盤上へ出します。構成は`DeployReservePieceCommandHandler`と`ReservePieceDeployed`、失敗理由の`ReservePieceNotFound`・`PieceLimitReached`・`InvalidDeploymentPosition`です。獲得側は特殊マスの`ReservePieceGrant`が担当します（[§5](#5-特殊マスを追加する)）。
+リザーブ駒は盤外に保管され、`DeployReservePieceCommand`で盤上へ出します。`GameSession.ExecuteDeployReservePiece`と`ReserveDeploymentRules`、`ReservePieceDeployed`、失敗理由の`ReservePieceNotFound`・`PieceLimitReached`・`InvalidDeploymentPosition`で構成されます。獲得側は特殊マスの`ReservePieceGrant`が担当します（[§5](#5-特殊マスを追加する)）。
 
 | 変えたいこと | 変更場所 |
 |---|---|
@@ -456,10 +456,10 @@ Command・Eventの引数と値は`CORE_API.md`、実行順と責務は`ARCHITECT
 | 個別カードの選択 | `ReservePieceCardView` → `ReservePanelView.ReservePieceSelected` → `GameHudView.ReservePieceSelected` → `GameCoordinator.ToggleReservePieceSelection` |
 | 配置先の選択 | `GameCoordinator.HandleReserveDeploymentClick` |
 | 候補マスの表示 | `GameCoordinator.RenderReserveDeployment` → `BoardView.ShowSelection`の移動候補（緑） |
-| 配置後のView生成 | `PieceViewManager.ApplyEvents`の`case ReservePieceDeployed` |
+| 配置後のView生成 | `PieceViewManager.ApplyEvents`が実行後Snapshotとreconcile |
 | ボタン・カードの有効状態 | `GameHudView.SetReserveDeployButtonInteractable`と`SetDeployableReservePieces` |
 
-配置モードは合体モードと排他で、どちらかに入るともう一方と駒選択が解除されます。新しいモードを足す場合は`GameCoordinator`の`HandleCellClick`冒頭にある分岐順を確認してください。
+配置モードは合体モードと排他で、`InteractionState`が同時状態を表現できないようにします。新しいモードを足す場合はStateのFactoryと`GameCoordinator.HandleCellClick`冒頭の分岐を同時に更新してください。
 
 ### 設定
 
@@ -493,10 +493,10 @@ Coreは変更しません。音声はEventを受け取って鳴らすだけで�
 音は[`BoardGameAudioManager`](../Assets/Scripts/BoardGame/Presentation/Audio/BoardGameAudioManager.cs)に閉じています。新しいEventへ音を付ける手順は次のとおりです。
 
 1. `AudioClip`の`SerializeField`を追加します。
-2. `PlayEvents`の`switch`へEvent型の分岐を追加します。
+2. 純粋な`GameEventAudioResolver`へEvent型と`AudioCue`の対応を追加します。
 3. Prefabまたは`SampleScene`上のAudioManagerへClipを割り当てます。
 
-現在音が付いているのは`PieceMoved`、`CombatResolved`、`PieceDestroyed`、`PiecesFused`、`GameEnded`の5種で、他のEventは無音です。`PlayEvents`は`GameCoordinator`がCommand実行後にEvent列ごと渡すので、Event側の順序がそのまま再生順になります。
+現在音が付いているのは`PieceMoved`、`CombatResolved`、`PieceDestroyed`、`PiecesFused`、`FusionAttemptFailed`、`GameEnded`の6種です。`GameEventAudioResolver`はEvent列の順序を保った`AudioCue`列を返すため、戦闘後の破壊音など複数SFXの既存順序も維持されます。
 
 音量は`SetBgmVolume`と`SetSfxVolume`をHUDのスライダーが呼びます。BGMは`BgmMaximumVolume`で上限が掛かるため、スライダーの1.0がAudioSourceの1.0ではありません。
 

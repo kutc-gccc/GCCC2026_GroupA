@@ -89,10 +89,10 @@ Set-Location GCCC2026_GroupA
 ## 6. SceneとPrefabの編集
 
 - `TitleScene`にはタイトルUIとScene遷移用Controllerを置きます。
-- `SampleScene`にはMain CameraとBootstrapを置き、Bootstrapと同じGameObjectへ`BoardGameAudioManager`を追加します。EventSystemとAudioSourceは実行時に生成されます。
+- `SampleScene`にはMain Camera、Bootstrap、`EventSystem`と`InputSystemUIInputModule`を明示配置し、Bootstrapと同じGameObjectへ`BoardGameAudioManager`を追加します。AudioSourceだけが実行時に生成されます。
 - 盤面表示は`BoardView.prefab`、駒管理は`PieceViews.prefab`、HUDは`GameHud.prefab`を編集します。
 - Prefabの公開設定を増やす場合は、Bootstrapの参照が維持されているかSampleSceneで確認します。
-- Runtime生成されるセル、駒、Canvasの子要素をPlay中に変更してもAssetには保存されません。
+- HUDの固定階層は`GameHud.prefab`で編集します。Runtime生成されるセル、駒、リザーブカードをPlay中に変更してもAssetには保存されません。
 - Scene変更を含むPRでは、意図しないProjectSettings差分がないか必ず確認します。
 
 ## 7. Package管理

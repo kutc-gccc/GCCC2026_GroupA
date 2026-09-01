@@ -42,7 +42,7 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
 
 ## 3. 起動時に何が起きるか
 
-ゲーム本体の`SampleScene`のルートには **Main Camera と Bootstrap しかありません**。残りはコードが実行時に組み立てます。
+ゲーム本体の`SampleScene`には **Main Camera、Bootstrap、EventSystem** があり、HUD階層は`GameHud.prefab`に保存されています。
 
 `Presentation/Bootstrap/BoardGameBootstrap.cs` の `Awake()` が順に行うことは次のとおりです。
 
@@ -50,11 +50,11 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
 2. Configからセル効果Handlerを作り、`new GameSession(definition, cellEffectHandlers: ...)`でゲーム本体を作る
 3. `new RuntimeSpriteFactory()` で画像を実行時に生成する
 4. `ConfigureCamera()`で盤面が収まる正投影サイズを設定し、`BoardGameAudioManager`を取得または生成する
-5. `BoardView` / `PieceViewManager` / `GameHudView`を生成して`Initialize()`し、HUD内で`ReservePanelView`とリザーブカードを構築する
+5. `BoardView` / `PieceViewManager` / 必須の`GameHudView` Prefabを生成して`Initialize()`する。HUDの固定階層はPrefab、リザーブカードだけはSnapshotに応じて生成する
 6. `GameCoordinator`を作り、リセット、合体、パワーランダム化、リザーブカード選択、タイトル復帰、音声の経路を接続する
 7. `BoardInputController`を作って配線する
 
-依存関係の組み立てがこの1メソッドに集まっています（Composition Root）。Prefab参照が未設定でも、同じComponentを持つGameObjectを実行時に作るフォールバックがあります。
+依存関係の組み立ては`Awake`から呼ぶ小さな生成・配線メソッドへ分かれていますが、所有者はBootstrap 1つです（Composition Root）。HUD PrefabまたはSceneのEventSystemが未設定なら、不完全な代替UIを作らずエラーで停止します。
 
 独自のRule、Resolver、Handler、AgentをCoreへ追加しただけでは、標準Sceneの実行経路には接続されません。実ゲームで使う実装はこのComposition Rootで生成し、`GameSession`または`GameCoordinator`へ注入します。変更箇所の一覧は[拡張ガイドの変更影響マトリクス](EXTENSION_GUIDE.md#変更影響マトリクス)を参照してください。
 
@@ -89,7 +89,7 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
      = GameCoordinator.ExecuteSubmittedCommand
           ↓
 ⑥ GameSession.Execute(command)
-     null? / ゲーム終了? / 手番一致? / Handlerある? の4段階を検証
+     null? / ゲーム終了? / 手番一致? / 対応Command型? の4段階を検証
           ↓
 ⑦ Command の型に対応する実行メソッドへ分岐（以下は移動の場合）
      ExecuteMove / ExecuteFusion / ExecuteRandomizePower / ExecuteDeployReservePiece
@@ -107,7 +107,7 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
 ⑩ CommandResult に GameEvent のリストを詰めて返す
           ↓
 ⑪ PieceViewManager.ApplyEvents(events, snapshot) / BoardGameAudioManager.PlayEvents(events)
-     Eventの型に応じてViewを更新し、対応するSFXを再生
+     PieceViewをSnapshotとreconcileし、GameEventAudioResolverの順序でSFXを再生
           ↓
 ⑫ BoardViewの選択表示を解除し、GameHudView.Render(snapshot)からReservePanelViewを含む手番・勝敗・リザーブ表示を更新
 ```

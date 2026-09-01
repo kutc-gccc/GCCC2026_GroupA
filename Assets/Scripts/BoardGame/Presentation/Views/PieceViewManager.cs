@@ -1,12 +1,14 @@
 using System.Collections.Generic;
+using System.Linq;
 using GCCC.BoardGame.Core.Events;
 using GCCC.BoardGame.Core.Model;
+using GCCC.BoardGame.Presentation;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
 namespace GCCC.BoardGame.Presentation.Views
 {
-    public sealed class PieceViewManager : MonoBehaviour
+    public sealed class PieceViewManager : MonoBehaviour, IPieceViewCollection
     {
         [SerializeField] private PieceView pieceViewPrefab;
 
@@ -46,18 +48,40 @@ namespace GCCC.BoardGame.Presentation.Views
         public void Rebuild(
             GameSnapshot snapshot)
         {
-            ClearAll();
-
             columns =
                 snapshot.Columns;
 
             rows =
                 snapshot.Rows;
 
-            foreach (PieceState state
-                     in snapshot.Pieces)
+            Reconcile(snapshot);
+        }
+
+        public void Reconcile(GameSnapshot snapshot)
+        {
+            columns = snapshot.Columns;
+            rows = snapshot.Rows;
+
+            HashSet<PieceId> visibleIds = new HashSet<PieceId>(
+                snapshot.Pieces.Select(piece => piece.Id));
+            foreach (PieceId removedId in pieceViews.Keys
+                         .Where(id => !visibleIds.Contains(id))
+                         .ToArray())
             {
-                CreatePieceView(state);
+                RemovePieceView(removedId);
+            }
+
+            foreach (PieceState state in snapshot.Pieces)
+            {
+                if (pieceViews.TryGetValue(state.Id, out PieceView existingView) &&
+                    existingView != null)
+                {
+                    existingView.Render(state, GetPieceSprite(state.Owner));
+                }
+                else
+                {
+                    CreatePieceView(state);
+                }
             }
         }
 
@@ -65,13 +89,7 @@ namespace GCCC.BoardGame.Presentation.Views
             IReadOnlyList<GameEvent> events,
             GameSnapshot snapshot)
         {
-            // 現在はイベントごとのアニメーションよりも
-            // 最新のGameSnapshotを確実に表示することを優先する。
-            //
-            // そのため、移動・撃破・合体・戦闘力変更など、
-            // どのイベントが発生しても盤面を再構築する。
-
-            Rebuild(snapshot);
+            Reconcile(snapshot);
         }
 
         private void CreatePieceView(
@@ -140,6 +158,20 @@ namespace GCCC.BoardGame.Presentation.Views
             }
 
             pieceViews.Clear();
+        }
+
+        private void RemovePieceView(PieceId id)
+        {
+            if (!pieceViews.TryGetValue(id, out PieceView pieceView))
+            {
+                return;
+            }
+
+            pieceViews.Remove(id);
+            if (pieceView != null)
+            {
+                DestroyGeneratedObject(pieceView.gameObject);
+            }
         }
 
         private static void DestroyGeneratedObject(

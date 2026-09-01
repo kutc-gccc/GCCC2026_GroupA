@@ -7,6 +7,7 @@ using GCCC.BoardGame.Presentation.Config;
 using GCCC.BoardGame.Presentation.Input;
 using GCCC.BoardGame.Presentation.Views;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 
 namespace GCCC.BoardGame.Presentation.Bootstrap
@@ -35,6 +36,8 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
         public GameCoordinator Coordinator { get; private set; }
         public BoardView BoardView { get; private set; }
         public PieceViewManager PieceViews { get; private set; }
+
+        public GameHudView HudView => hudView;
 
         public GameSnapshot Snapshot =>
             Session != null ? Session.Snapshot : null;
@@ -71,131 +74,118 @@ namespace GCCC.BoardGame.Presentation.Bootstrap
 
         private void Awake()
         {
-            GameDefinition definition =
-                config != null
-                    ? config.CreateDefinition()
-                    : GameDefinition.CreateStandard();
+            GameDefinition definition = CreateDefinition();
+            Session = CreateSession(definition);
+            spriteFactory = new RuntimeSpriteFactory();
+            Camera boardCamera = ConfigureCamera(
+                definition.Columns, definition.Rows);
+            audioManager = CreateAudioManager();
+            BoardView = CreateBoard(boardCamera);
+            PieceViews = CreatePieceViews();
+            hudView = CreateHud();
+            EnsureSceneEventSystem();
+            Coordinator = CreateCoordinator();
+            WireHudEvents();
+            CreateInputController();
+            CreateMarbleBackground(definition.Columns, definition.Rows);
+        }
 
-            // ゲームセッションを作成
-            Session = new GameSession(
+        private GameDefinition CreateDefinition()
+        {
+            return config != null
+                ? config.CreateDefinition()
+                : GameDefinition.CreateStandard();
+        }
+
+        private GameSession CreateSession(GameDefinition definition)
+        {
+            return new GameSession(
                 definition,
                 cellEffectHandlers: config != null
                     ? config.CreateCellEffectHandlers()
                     : Array.Empty<ICellEffectHandler>());
+        }
 
-            spriteFactory = new RuntimeSpriteFactory();
+        private BoardGameAudioManager CreateAudioManager()
+        {
+            BoardGameAudioManager manager = audioManagerPrefab != null
+                ? CreatePresentationComponent(
+                    audioManagerPrefab, "Board Game Audio")
+                : GetComponent<BoardGameAudioManager>();
+            return manager != null
+                ? manager
+                : CreatePresentationComponent<BoardGameAudioManager>(
+                    null, "Board Game Audio");
+        }
 
-            // カメラ
-            Camera boardCamera =
-                ConfigureCamera(
-                    definition.Columns,
-                    definition.Rows);
+        private BoardView CreateBoard(Camera boardCamera)
+        {
+            BoardView view = CreatePresentationComponent(
+                boardViewPrefab, "Board View");
+            view.Initialize(
+                boardCamera, spriteFactory.SquareSprite, Session.Snapshot);
+            return view;
+        }
 
-            // オーディオ
-            audioManager =
-                audioManagerPrefab != null
-                    ? CreatePresentationComponent(
-                        audioManagerPrefab,
-                        "Board Game Audio")
-                    : GetComponent<BoardGameAudioManager>();
+        private PieceViewManager CreatePieceViews()
+        {
+            PieceViewManager views = CreatePresentationComponent(
+                pieceViewsPrefab, "Piece Views");
+            views.Initialize(
+                player1PieceSprite, player2PieceSprite, Session.Snapshot);
+            return views;
+        }
 
-            if (audioManager == null)
+        private GameHudView CreateHud()
+        {
+            if (hudViewPrefab == null)
             {
-                audioManager =
-                    CreatePresentationComponent<BoardGameAudioManager>(
-                        null,
-                        "Board Game Audio");
+                throw new InvalidOperationException(
+                    "BoardGameBootstrap requires a configured GameHud prefab.");
             }
 
-            // ========================================
-            // 盤
-            // ========================================
+            GameHudView view = CreatePresentationComponent(
+                hudViewPrefab, "Game HUD");
+            view.Initialize(
+                audioManager, player1PieceSprite, player2PieceSprite);
+            return view;
+        }
 
-            BoardView =
-                CreatePresentationComponent(
-                    boardViewPrefab,
-                    "Board View");
+        private GameCoordinator CreateCoordinator()
+        {
+            return new GameCoordinator(
+                Session,
+                BoardView,
+                PieceViews,
+                hudView,
+                audioManager: audioManager);
+        }
 
-            BoardView.Initialize(
-                boardCamera,
-                spriteFactory.SquareSprite,
-                Session.Snapshot);
-
-            // ========================================
-            // 駒
-            // ========================================
-
-            PieceViews =
-                CreatePresentationComponent(
-                    pieceViewsPrefab,
-                    "Piece Views");
-
-            PieceViews.Initialize(
-                player1PieceSprite,
-                player2PieceSprite,
-                Session.Snapshot);
-
-            // ========================================
-            // HUD
-            // ========================================
-
-            hudView =
-                CreatePresentationComponent(
-                    hudViewPrefab,
-                    "Game HUD");
-
-            hudView.Initialize(
-                audioManager,
-                player1PieceSprite,
-                player2PieceSprite);
-
-            // ========================================
-            // ゲーム進行
-            // ========================================
-
-            Coordinator =
-                new GameCoordinator(
-                    Session,
-                    BoardView,
-                    PieceViews,
-                    hudView,
-                    audioManager: audioManager);
-
+        private void WireHudEvents()
+        {
             hudView.ResetRequested += Coordinator.Reset;
             hudView.FuseRequested += Coordinator.ToggleFusionMode;
-            hudView.ReserveDeployRequested +=
-                Coordinator.ToggleReserveDeployMode;
-            hudView.ReservePieceSelected +=
-                Coordinator.ToggleReservePieceSelection;
-            hudView.StartScreenRequested +=
-                ReturnToTitleScreen;
+            hudView.ReserveDeployRequested += Coordinator.ToggleReserveDeployMode;
+            hudView.ReservePieceSelected += Coordinator.ToggleReservePieceSelection;
+            hudView.StartScreenRequested += ReturnToTitleScreen;
+        }
 
-            // ========================================
-            // 入力
-            // ========================================
-
-            GameObject inputObject =
-                new GameObject("Board Input");
-
-            inputObject.transform.SetParent(
-                transform,
-                false);
-
+        private void CreateInputController()
+        {
+            GameObject inputObject = new GameObject("Board Input");
+            inputObject.transform.SetParent(transform, false);
             BoardInputController input =
                 inputObject.AddComponent<BoardInputController>();
+            input.Initialize(BoardView, hudView, Coordinator);
+        }
 
-            input.Initialize(
-                BoardView,
-                hudView,
-                Coordinator);
-
-            // ========================================
-            // 大理石背景
-            // ========================================
-
-            CreateMarbleBackground(
-                definition.Columns,
-                definition.Rows);
+        private static void EnsureSceneEventSystem()
+        {
+            if (EventSystem.current == null)
+            {
+                throw new InvalidOperationException(
+                    "SampleScene requires an EventSystem with InputSystemUIInputModule.");
+            }
         }
 
         private T CreatePresentationComponent<T>(

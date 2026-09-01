@@ -1,44 +1,42 @@
 using System;
 using System.Collections.Generic;
 using GCCC.BoardGame.Core.Model;
+using GCCC.BoardGame.Presentation;
 using GCCC.BoardGame.Presentation.Audio;
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
-using Object = UnityEngine.Object;
 
 namespace GCCC.BoardGame.Presentation.Views
 {
-    public sealed class GameHudView : MonoBehaviour
+    public sealed class GameHudView : MonoBehaviour, IGameHud
     {
-        // 大理石背景の上でテキストを読ませるための共通の下地色。
-        private static readonly Color PanelBackgroundColor =
-            new Color32(35, 41, 52, 225);
+        [Header("Status")]
+        [SerializeField] private Text statusLabel;
+        [SerializeField] private Text messageLabel;
 
+        [Header("Controls")]
+        [SerializeField] private Button resetButton;
         [SerializeField] private Button randomizePowerButton;
+        [SerializeField] private Button fuseButton;
+        [SerializeField] private Button reserveDeployButton;
+        [SerializeField] private RectTransform audioControlsRect;
+        [SerializeField] private Slider bgmSlider;
+        [SerializeField] private Slider sfxSlider;
 
-        private RectTransform resetButtonRect;
-        private RectTransform randomizeButtonRect;
-        private RectTransform fuseButtonRect;
-        private RectTransform reserveDeployButtonRect;
-        private RectTransform audioControlsRect;
-        private Text statusLabel;
-        private Text messageLabel;
-        private Text resultLabel;
-        private ReservePanelView reservePanelView;
-        private GameObject effectLegend;
-        private GameObject resultOverlay;
-        private GameObject createdEventSystem;
-        private Slider bgmSlider;
-        private Slider sfxSlider;
-        private Button resetButton;
-        private Button fuseButton;
-        private Button reserveDeployButton;
-        private Button resultButton;
+        [Header("Reserve and effects")]
+        [SerializeField] private ReservePanelView reservePanelView;
+        [SerializeField] private GameObject effectLegend;
+        [SerializeField] private Font uiFont;
+
+        [Header("Result")]
+        [SerializeField] private GameObject resultOverlay;
+        [SerializeField] private Text resultLabel;
+        [SerializeField] private Button resultButton;
+
         private bool randomizeButtonInteractable;
         private bool fuseButtonInteractable;
         private bool reserveDeployButtonInteractable;
+        private bool isInitialized;
         private BoardGameAudioManager audioManager;
         private string reserveText = string.Empty;
 
@@ -60,46 +58,66 @@ namespace GCCC.BoardGame.Presentation.Views
         public bool IsEffectLegendVisible =>
             effectLegend != null && effectLegend.activeSelf;
 
-        private void Start()
-        {
-            if (randomizePowerButton != null)
-            {
-                randomizePowerButton.onClick.RemoveListener(OnRandomizeClicked);
-                randomizePowerButton.onClick.AddListener(OnRandomizeClicked);
-            }
-        }
-
         public void Initialize()
         {
             Initialize(null, null, null);
         }
 
-        public void Initialize(BoardGameAudioManager audioManager)
+        public void Initialize(BoardGameAudioManager manager)
         {
-            Initialize(audioManager, null, null);
+            Initialize(manager, null, null);
         }
 
         public void Initialize(
-            BoardGameAudioManager audioManager,
+            BoardGameAudioManager manager,
             Sprite player1PieceSprite,
             Sprite player2PieceSprite)
         {
-            this.audioManager = audioManager;
-            BuildUi(audioManager, player1PieceSprite, player2PieceSprite);
-        }
-
-        public void SetRandomizeButtonInteractable(bool interactable)
-        {
-            randomizeButtonInteractable = interactable;
-            if (randomizePowerButton != null)
+            if (!ValidateRequiredReferences())
             {
-                randomizePowerButton.interactable = interactable && !IsResultVisible;
+                Debug.LogError(
+                    "GameHudView requires the configured GameHud prefab. " +
+                    "No runtime fallback UI will be generated.",
+                    this);
+                enabled = false;
+                return;
             }
+
+            UnbindListeners();
+            audioManager = manager;
+            reservePanelView.Initialize(
+                uiFont, player1PieceSprite, player2PieceSprite);
+            reservePanelView.ReservePieceSelected += OnReservePieceSelected;
+
+            resetButton.onClick.AddListener(OnResetClicked);
+            randomizePowerButton.onClick.AddListener(OnRandomizeClicked);
+            fuseButton.onClick.AddListener(OnFuseClicked);
+            reserveDeployButton.onClick.AddListener(OnReserveDeployClicked);
+            resultButton.onClick.AddListener(OnStartScreenClicked);
+
+            if (audioManager != null)
+            {
+                bgmSlider.SetValueWithoutNotify(audioManager.BgmVolume);
+                sfxSlider.SetValueWithoutNotify(audioManager.SfxVolume);
+                bgmSlider.onValueChanged.AddListener(audioManager.SetBgmVolume);
+                sfxSlider.onValueChanged.AddListener(audioManager.SetSfxVolume);
+                audioControlsRect.gameObject.SetActive(true);
+            }
+            else
+            {
+                audioControlsRect.gameObject.SetActive(false);
+            }
+
+            isInitialized = true;
+            HideResult();
         }
 
         public void Render(GameSnapshot snapshot)
         {
-            if (statusLabel == null) return;
+            if (!isInitialized || snapshot == null)
+            {
+                return;
+            }
 
             reserveText =
                 $"リザーブ　青: {snapshot.GetPlayer(PlayerId.Player1).ReservePieces.Count}" +
@@ -109,11 +127,11 @@ namespace GCCC.BoardGame.Presentation.Views
 
             if (snapshot.Winner.HasValue)
             {
-                string resultText = snapshot.Winner.Value == PlayerId.Player1
+                string text = snapshot.Winner.Value == PlayerId.Player1
                     ? "プレイヤー1の勝利"
                     : "プレイヤー2の勝利";
-                statusLabel.text = resultText;
-                ShowResult(resultText);
+                statusLabel.text = text;
+                ShowResult(text);
                 return;
             }
 
@@ -137,13 +155,21 @@ namespace GCCC.BoardGame.Presentation.Views
                 return true;
             }
 
-            return IsPointerOverRect(resetButtonRect, screenPosition) ||
-                   IsPointerOverRect(randomizeButtonRect, screenPosition) ||
-                   IsPointerOverRect(fuseButtonRect, screenPosition) ||
-                   IsPointerOverRect(reserveDeployButtonRect, screenPosition) ||
+            return IsPointerOver(resetButton, screenPosition) ||
+                   IsPointerOver(randomizePowerButton, screenPosition) ||
+                   IsPointerOver(fuseButton, screenPosition) ||
+                   IsPointerOver(reserveDeployButton, screenPosition) ||
                    IsPointerOverRect(audioControlsRect, screenPosition) ||
-                   (reservePanelView != null &&
-                    reservePanelView.IsPointerOver(screenPosition));
+                   reservePanelView.IsPointerOver(screenPosition);
+        }
+
+        public void SetRandomizeButtonInteractable(bool interactable)
+        {
+            randomizeButtonInteractable = interactable;
+            if (randomizePowerButton != null)
+            {
+                randomizePowerButton.interactable = interactable && !IsResultVisible;
+            }
         }
 
         public void SetFuseButtonInteractable(bool interactable)
@@ -189,239 +215,63 @@ namespace GCCC.BoardGame.Presentation.Views
             }
         }
 
-        private void BuildUi(
-            BoardGameAudioManager audioManager,
-            Sprite player1PieceSprite,
-            Sprite player2PieceSprite)
+        private bool ValidateRequiredReferences()
         {
-            GameObject canvasObject = new GameObject(
-                "Board UI", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            canvasObject.transform.SetParent(transform, false);
-            Canvas canvas = canvasObject.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-
-            CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
-
-            Font font = CreateUiFont();
-            // 背景は大理石でほぼ白なので、重要なテキストは暗いパネルの上に置く。
-            statusLabel = CreateTextPanel(
-                "Turn Status", canvasObject.transform, font, 28, TextAnchor.MiddleLeft,
-                new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(24f, -24f), new Vector2(420f, 64f));
-
-            messageLabel = CreateUiText(
-                "Fusion Message", canvasObject.transform, font, 24,
-                TextAnchor.MiddleLeft, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(24f, -96f), new Vector2(520f, 48f));
-            messageLabel.color = new Color32(255, 213, 79, 255);
-            messageLabel.text = string.Empty;
-
-            GameObject reservePanelObject = new GameObject(
-                "Reserve Panels", typeof(RectTransform), typeof(ReservePanelView));
-            reservePanelView = reservePanelObject.GetComponent<ReservePanelView>();
-            reservePanelView.Initialize(
-                canvasObject.transform,
-                font,
-                player1PieceSprite,
-                player2PieceSprite);
-            reservePanelView.ReservePieceSelected += OnReservePieceSelected;
-
-            effectLegend = CreateEffectLegend(canvasObject.transform, font);
-
-            if (audioManager != null)
-            {
-                audioControlsRect = CreateAudioControls(
-                    canvasObject.transform, font, audioManager);
-            }
-
-            // 幅520では右上のボタン群（左端x=1060）と重なるため320に収める。
-            Text player2Label = CreateTextPanel(
-                "Player 2 Territory Label", canvasObject.transform, font, 22,
-                TextAnchor.MiddleCenter, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(0f, -12f), new Vector2(320f, 42f));
-            player2Label.text = "プレイヤー2の陣地";
-
-            Text player1Label = CreateTextPanel(
-                "Player 1 Territory Label", canvasObject.transform, font, 22,
-                TextAnchor.MiddleCenter, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-                new Vector2(0f, 12f), new Vector2(320f, 42f));
-            player1Label.text = "プレイヤー1の陣地";
-
-            GameObject buttonObject = new GameObject(
-                "Reset Button", typeof(RectTransform), typeof(CanvasRenderer),
-                typeof(Image), typeof(Button));
-            buttonObject.transform.SetParent(canvasObject.transform, false);
-            resetButtonRect = buttonObject.GetComponent<RectTransform>();
-            resetButtonRect.anchorMin = Vector2.one;
-            resetButtonRect.anchorMax = Vector2.one;
-            resetButtonRect.pivot = Vector2.one;
-            resetButtonRect.sizeDelta = new Vector2(180f, 64f);
-            resetButtonRect.anchoredPosition = new Vector2(-24f, -24f);
-
-            Image image = buttonObject.GetComponent<Image>();
-            image.color = new Color32(235, 238, 244, 255);
-            resetButton = buttonObject.GetComponent<Button>();
-            resetButton.targetGraphic = image;
-            resetButton.onClick.AddListener(OnResetClicked);
-
-            Text resetLabel = CreateUiText(
-                "Label", buttonObject.transform, font, 24, TextAnchor.MiddleCenter,
-                Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
-            resetLabel.rectTransform.anchorMin = Vector2.zero;
-            resetLabel.rectTransform.anchorMax = Vector2.one;
-            resetLabel.rectTransform.offsetMin = Vector2.zero;
-            resetLabel.rectTransform.offsetMax = Vector2.zero;
-            resetLabel.text = "リセット";
-            resetLabel.color = new Color32(35, 41, 52, 255);
-
-            GameObject randomizeObject = new GameObject(
-                "Randomize Power Button", typeof(RectTransform), typeof(CanvasRenderer),
-                typeof(Image), typeof(Button));
-            randomizeObject.transform.SetParent(canvasObject.transform, false);
-            randomizeButtonRect = randomizeObject.GetComponent<RectTransform>();
-            randomizeButtonRect.anchorMin = Vector2.one;
-            randomizeButtonRect.anchorMax = Vector2.one;
-            randomizeButtonRect.pivot = Vector2.one;
-            randomizeButtonRect.sizeDelta = new Vector2(220f, 64f);
-            randomizeButtonRect.anchoredPosition = new Vector2(-220f, -24f);
-
-            Image randomizeImage = randomizeObject.GetComponent<Image>();
-            randomizeImage.color = new Color32(235, 238, 244, 255);
-            randomizePowerButton = randomizeObject.GetComponent<Button>();
-            randomizePowerButton.targetGraphic = randomizeImage;
-            randomizePowerButton.onClick.AddListener(OnRandomizeClicked);
-            randomizePowerButton.interactable = false;
-
-            Text randomizeLabel = CreateUiText(
-                "Label", randomizeObject.transform, font, 20, TextAnchor.MiddleCenter,
-                Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
-            randomizeLabel.rectTransform.anchorMin = Vector2.zero;
-            randomizeLabel.rectTransform.anchorMax = Vector2.one;
-            randomizeLabel.rectTransform.offsetMin = Vector2.zero;
-            randomizeLabel.rectTransform.offsetMax = Vector2.zero;
-            randomizeLabel.text = "パワーランダム化";
-            randomizeLabel.color = new Color32(35, 41, 52, 255);
-
-            GameObject fuseObject = new GameObject(
-                "Fuse Button", typeof(RectTransform), typeof(CanvasRenderer),
-                typeof(Image), typeof(Button));
-            fuseObject.transform.SetParent(canvasObject.transform, false);
-            fuseButtonRect = fuseObject.GetComponent<RectTransform>();
-            fuseButtonRect.anchorMin = Vector2.one;
-            fuseButtonRect.anchorMax = Vector2.one;
-            fuseButtonRect.pivot = Vector2.one;
-            fuseButtonRect.sizeDelta = new Vector2(180f, 64f);
-            fuseButtonRect.anchoredPosition = new Vector2(-460f, -24f);
-
-            Image fuseImage = fuseObject.GetComponent<Image>();
-            fuseImage.color = new Color32(235, 238, 244, 255);
-            fuseButton = fuseObject.GetComponent<Button>();
-            fuseButton.targetGraphic = fuseImage;
-            fuseButton.onClick.AddListener(OnFuseClicked);
-            fuseButton.interactable = false;
-
-            Text fuseLabel = CreateUiText(
-                "Label", fuseObject.transform, font, 24, TextAnchor.MiddleCenter,
-                Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
-            fuseLabel.rectTransform.anchorMin = Vector2.zero;
-            fuseLabel.rectTransform.anchorMax = Vector2.one;
-            fuseLabel.rectTransform.offsetMin = Vector2.zero;
-            fuseLabel.rectTransform.offsetMax = Vector2.zero;
-            fuseLabel.text = "合体";
-            fuseLabel.color = new Color32(35, 41, 52, 255);
-
-            GameObject reserveDeployObject = new GameObject(
-                "Reserve Deploy Button", typeof(RectTransform), typeof(CanvasRenderer),
-                typeof(Image), typeof(Button));
-            reserveDeployObject.transform.SetParent(canvasObject.transform, false);
-            reserveDeployButtonRect =
-                reserveDeployObject.GetComponent<RectTransform>();
-            reserveDeployButtonRect.anchorMin = Vector2.one;
-            reserveDeployButtonRect.anchorMax = Vector2.one;
-            reserveDeployButtonRect.pivot = Vector2.one;
-            reserveDeployButtonRect.sizeDelta = new Vector2(200f, 64f);
-            reserveDeployButtonRect.anchoredPosition = new Vector2(-660f, -24f);
-
-            Image reserveDeployImage = reserveDeployObject.GetComponent<Image>();
-            reserveDeployImage.color = new Color32(235, 238, 244, 255);
-            reserveDeployButton = reserveDeployObject.GetComponent<Button>();
-            reserveDeployButton.targetGraphic = reserveDeployImage;
-            reserveDeployButton.onClick.AddListener(OnReserveDeployClicked);
-            reserveDeployButton.interactable = false;
-
-            Text reserveDeployLabel = CreateUiText(
-                "Label", reserveDeployObject.transform, font, 22,
-                TextAnchor.MiddleCenter,
-                Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
-            reserveDeployLabel.rectTransform.anchorMin = Vector2.zero;
-            reserveDeployLabel.rectTransform.anchorMax = Vector2.one;
-            reserveDeployLabel.rectTransform.offsetMin = Vector2.zero;
-            reserveDeployLabel.rectTransform.offsetMax = Vector2.zero;
-            reserveDeployLabel.text = "リザーブ配置";
-            reserveDeployLabel.color = new Color32(35, 41, 52, 255);
-
-            BuildResultOverlay(canvasObject.transform, font);
-
-            if (EventSystem.current == null)
-            {
-                createdEventSystem = new GameObject("EventSystem", typeof(EventSystem));
-                InputSystemUIInputModule inputModule =
-                    createdEventSystem.AddComponent<InputSystemUIInputModule>();
-                inputModule.AssignDefaultActions();
-            }
+            return statusLabel != null &&
+                   messageLabel != null &&
+                   resetButton != null &&
+                   randomizePowerButton != null &&
+                   fuseButton != null &&
+                   reserveDeployButton != null &&
+                   audioControlsRect != null &&
+                   bgmSlider != null &&
+                   sfxSlider != null &&
+                   reservePanelView != null &&
+                   effectLegend != null &&
+                   uiFont != null &&
+                   resultOverlay != null &&
+                   resultLabel != null &&
+                   resultButton != null;
         }
 
         private void OnResetClicked()
         {
-            if (IsResultVisible)
+            if (!IsResultVisible)
             {
-                return;
+                ResetRequested?.Invoke();
             }
-
-            ResetRequested?.Invoke();
         }
 
         private void OnRandomizeClicked()
         {
-            if (IsResultVisible)
+            if (!IsResultVisible)
             {
-                return;
+                OnRandomizePowerButtonClicked?.Invoke();
             }
-
-            OnRandomizePowerButtonClicked?.Invoke();
         }
 
         private void OnFuseClicked()
         {
-            if (IsResultVisible)
+            if (!IsResultVisible)
             {
-                return;
+                FuseRequested?.Invoke();
             }
-
-            FuseRequested?.Invoke();
         }
 
         private void OnReserveDeployClicked()
         {
-            if (IsResultVisible)
+            if (!IsResultVisible)
             {
-                return;
+                ReserveDeployRequested?.Invoke();
             }
-
-            ReserveDeployRequested?.Invoke();
         }
 
         private void OnReservePieceSelected(PieceId pieceId)
         {
-            if (IsResultVisible)
+            if (!IsResultVisible)
             {
-                return;
+                ReservePieceSelected?.Invoke(pieceId);
             }
-
-            ReservePieceSelected?.Invoke(pieceId);
         }
 
         private void OnStartScreenClicked()
@@ -431,17 +281,9 @@ namespace GCCC.BoardGame.Presentation.Views
 
         private void ShowResult(string text)
         {
-            if (resultLabel != null)
-            {
-                resultLabel.text = text;
-            }
-
-            if (resultOverlay != null)
-            {
-                resultOverlay.SetActive(true);
-                resultOverlay.transform.SetAsLastSibling();
-            }
-
+            resultLabel.text = text;
+            resultOverlay.SetActive(true);
+            resultOverlay.transform.SetAsLastSibling();
             SetBackgroundControlsInteractable(false);
         }
 
@@ -462,356 +304,42 @@ namespace GCCC.BoardGame.Presentation.Views
 
         private void SetBackgroundControlsInteractable(bool interactable)
         {
-            if (resetButton != null)
+            if (!isInitialized)
             {
-                resetButton.interactable = interactable;
+                return;
             }
 
-            if (randomizePowerButton != null)
-            {
-                randomizePowerButton.interactable =
-                    interactable && randomizeButtonInteractable;
-            }
-
-            if (fuseButton != null)
-            {
-                fuseButton.interactable = interactable && fuseButtonInteractable;
-            }
-
-            if (reserveDeployButton != null)
-            {
-                reserveDeployButton.interactable =
-                    interactable && reserveDeployButtonInteractable;
-            }
+            resetButton.interactable = interactable;
+            randomizePowerButton.interactable =
+                interactable && randomizeButtonInteractable;
+            fuseButton.interactable = interactable && fuseButtonInteractable;
+            reserveDeployButton.interactable =
+                interactable && reserveDeployButtonInteractable;
+            bgmSlider.interactable = interactable;
+            sfxSlider.interactable = interactable;
 
             if (!interactable)
             {
-                reservePanelView?.SetDeployablePieces(Array.Empty<PieceId>());
-            }
-
-            if (bgmSlider != null)
-            {
-                bgmSlider.interactable = interactable;
-            }
-
-            if (sfxSlider != null)
-            {
-                sfxSlider.interactable = interactable;
+                reservePanelView.SetDeployablePieces(Array.Empty<PieceId>());
             }
         }
 
-        private void BuildResultOverlay(Transform parent, Font font)
+        private static bool IsPointerOver(Button button, Vector2 screenPosition)
         {
-            resultOverlay = new GameObject(
-                "Result Overlay", typeof(RectTransform), typeof(CanvasRenderer),
-                typeof(Image));
-            resultOverlay.transform.SetParent(parent, false);
-
-            RectTransform overlayRect = resultOverlay.GetComponent<RectTransform>();
-            overlayRect.anchorMin = Vector2.zero;
-            overlayRect.anchorMax = Vector2.one;
-            overlayRect.offsetMin = Vector2.zero;
-            overlayRect.offsetMax = Vector2.zero;
-
-            Image overlayImage = resultOverlay.GetComponent<Image>();
-            overlayImage.color = new Color32(24, 27, 34, 220);
-            overlayImage.raycastTarget = true;
-
-            GameObject panelObject = new GameObject(
-                "Result Panel", typeof(RectTransform), typeof(CanvasRenderer),
-                typeof(Image));
-            panelObject.transform.SetParent(resultOverlay.transform, false);
-
-            RectTransform panelRect = panelObject.GetComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
-            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-            panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.anchoredPosition = Vector2.zero;
-            panelRect.sizeDelta = new Vector2(720f, 400f);
-
-            Image panelImage = panelObject.GetComponent<Image>();
-            panelImage.color = new Color32(42, 47, 57, 255);
-
-            resultLabel = CreateUiText(
-                "Result Text", panelObject.transform, font, 48,
-                TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f), new Vector2(0f, 70f),
-                new Vector2(640f, 120f));
-            resultLabel.fontStyle = FontStyle.Bold;
-
-            GameObject buttonObject = new GameObject(
-                "Return To Title Button", typeof(RectTransform), typeof(CanvasRenderer),
-                typeof(Image), typeof(Button));
-            buttonObject.transform.SetParent(panelObject.transform, false);
-
-            RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
-            buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
-            buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
-            buttonRect.pivot = new Vector2(0.5f, 0.5f);
-            buttonRect.anchoredPosition = new Vector2(0f, -90f);
-            buttonRect.sizeDelta = new Vector2(360f, 72f);
-
-            Image buttonImage = buttonObject.GetComponent<Image>();
-            buttonImage.color = new Color32(235, 238, 244, 255);
-
-            resultButton = buttonObject.GetComponent<Button>();
-            resultButton.targetGraphic = buttonImage;
-            resultButton.onClick.AddListener(OnStartScreenClicked);
-
-            Text buttonLabel = CreateUiText(
-                "Label", buttonObject.transform, font, 24, TextAnchor.MiddleCenter,
-                Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
-            buttonLabel.rectTransform.anchorMin = Vector2.zero;
-            buttonLabel.rectTransform.anchorMax = Vector2.one;
-            buttonLabel.rectTransform.offsetMin = Vector2.zero;
-            buttonLabel.rectTransform.offsetMax = Vector2.zero;
-            buttonLabel.text = "スタート画面に戻る";
-            buttonLabel.color = new Color32(35, 41, 52, 255);
-
-            resultOverlay.SetActive(false);
+            return button != null &&
+                   IsPointerOverRect(button.transform as RectTransform, screenPosition);
         }
 
-        /// <summary>
-        /// 暗い背景パネルの上にテキストを置いて返す。大理石背景に埋もれないようにするための共通形。
-        /// </summary>
-        private static Text CreateTextPanel(
-            string name,
-            Transform parent,
-            Font font,
-            int fontSize,
-            TextAnchor alignment,
-            Vector2 anchor,
-            Vector2 pivot,
-            Vector2 anchoredPosition,
-            Vector2 size)
+        private static bool IsPointerOverRect(
+            RectTransform rect,
+            Vector2 screenPosition)
         {
-            RectTransform panelRect = CreateBackgroundPanel(
-                name, parent, anchor, pivot, anchoredPosition, size);
-
-            Text label = CreateUiText(
-                name + " Text", panelRect.transform, font, fontSize,
-                alignment, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero);
-            label.rectTransform.anchorMin = Vector2.zero;
-            label.rectTransform.anchorMax = Vector2.one;
-            label.rectTransform.offsetMin = new Vector2(12f, 6f);
-            label.rectTransform.offsetMax = new Vector2(-12f, -6f);
-            return label;
+            return rect != null &&
+                   RectTransformUtility.RectangleContainsScreenPoint(
+                       rect, screenPosition);
         }
 
-        private static RectTransform CreateBackgroundPanel(
-            string name,
-            Transform parent,
-            Vector2 anchor,
-            Vector2 pivot,
-            Vector2 anchoredPosition,
-            Vector2 size)
-        {
-            GameObject panelObject = new GameObject(
-                name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            panelObject.transform.SetParent(parent, false);
-            RectTransform panelRect = panelObject.GetComponent<RectTransform>();
-            panelRect.anchorMin = anchor;
-            panelRect.anchorMax = anchor;
-            panelRect.pivot = pivot;
-            panelRect.anchoredPosition = anchoredPosition;
-            panelRect.sizeDelta = size;
-
-            Image panelImage = panelObject.GetComponent<Image>();
-            panelImage.color = PanelBackgroundColor;
-            // 盤面クリックを吸わないようにする。当たり判定は IsPointerOverControl が持つ。
-            panelImage.raycastTarget = false;
-            return panelRect;
-        }
-
-        private static GameObject CreateEffectLegend(Transform parent, Font font)
-        {
-            RectTransform panelRect = CreateBackgroundPanel(
-                "Cell Effect Legend", parent,
-                new Vector2(0f, 0f), new Vector2(0f, 0f),
-                new Vector2(24f, 24f), new Vector2(300f, 74f));
-
-            // 色名の文字ではなく実際の色を見せる。値は BoardView と共有する。
-            CreateLegendRow(
-                panelRect.transform, font, "滞在中効果",
-                BoardView.WhileOccupiedEffectColor, -8f);
-            CreateLegendRow(
-                panelRect.transform, font, "一度で永続する効果",
-                BoardView.PermanentEffectColor, -42f);
-
-            panelRect.gameObject.SetActive(false);
-            return panelRect.gameObject;
-        }
-
-        private static void CreateLegendRow(
-            Transform parent,
-            Font font,
-            string text,
-            Color swatchColor,
-            float offsetY)
-        {
-            GameObject swatchObject = new GameObject(
-                "Legend Swatch", typeof(RectTransform), typeof(CanvasRenderer),
-                typeof(Image));
-            swatchObject.transform.SetParent(parent, false);
-            RectTransform swatchRect = swatchObject.GetComponent<RectTransform>();
-            swatchRect.anchorMin = new Vector2(0f, 1f);
-            swatchRect.anchorMax = new Vector2(0f, 1f);
-            swatchRect.pivot = new Vector2(0f, 1f);
-            swatchRect.anchoredPosition = new Vector2(12f, offsetY);
-            swatchRect.sizeDelta = new Vector2(22f, 22f);
-
-            Image swatchImage = swatchObject.GetComponent<Image>();
-            // 盤面では半透明で重ねるが、凡例では色そのものを見せる。
-            swatchImage.color = new Color(
-                swatchColor.r, swatchColor.g, swatchColor.b, 1f);
-            swatchImage.raycastTarget = false;
-
-            CreateUiText(
-                "Legend Label", parent, font, 18, TextAnchor.MiddleLeft,
-                new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(44f, offsetY), new Vector2(244f, 22f)).text = text;
-        }
-
-        private static bool IsPointerOverRect(RectTransform rect, Vector2 screenPosition)
-        {
-            return rect != null && RectTransformUtility.RectangleContainsScreenPoint(
-                rect, screenPosition);
-        }
-
-        private RectTransform CreateAudioControls(
-            Transform parent,
-            Font font,
-            BoardGameAudioManager audioManager)
-        {
-            GameObject panelObject = new GameObject(
-                "Audio Volume Controls", typeof(RectTransform), typeof(CanvasRenderer),
-                typeof(Image));
-            panelObject.transform.SetParent(parent, false);
-            RectTransform panelRect = panelObject.GetComponent<RectTransform>();
-            // 手番表示がある左上を空け、凡例の上へ積む。
-            panelRect.anchorMin = new Vector2(0f, 0f);
-            panelRect.anchorMax = new Vector2(0f, 0f);
-            panelRect.pivot = new Vector2(0f, 0f);
-            // 内部のラベルとスライダーは高さ150を前提に配置しているため据え置く。
-            panelRect.anchoredPosition = new Vector2(24f, 110f);
-            panelRect.sizeDelta = new Vector2(300f, 150f);
-
-            Image panelImage = panelObject.GetComponent<Image>();
-            panelImage.color = PanelBackgroundColor;
-
-            CreateUiText("BGM Label", panelObject.transform, font, 20,
-                TextAnchor.MiddleLeft, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(16f, -26f), new Vector2(72f, 36f)).text = "BGM";
-            CreateUiText("SFX Label", panelObject.transform, font, 20,
-                TextAnchor.MiddleLeft, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(16f, -92f), new Vector2(72f, 36f)).text = "SFX";
-
-            bgmSlider = CreateVolumeSlider(
-                panelObject.transform, "BGM Slider", new Vector2(96f, -26f),
-                audioManager.BgmVolume);
-            sfxSlider = CreateVolumeSlider(
-                panelObject.transform, "SFX Slider", new Vector2(96f, -92f),
-                audioManager.SfxVolume);
-
-            bgmSlider.onValueChanged.AddListener(audioManager.SetBgmVolume);
-            sfxSlider.onValueChanged.AddListener(audioManager.SetSfxVolume);
-            return panelRect;
-        }
-
-        private static Slider CreateVolumeSlider(
-            Transform parent,
-            string objectName,
-            Vector2 anchoredPosition,
-            float value)
-        {
-            GameObject sliderObject = new GameObject(
-                objectName, typeof(RectTransform), typeof(CanvasRenderer),
-                typeof(Image), typeof(Slider));
-            sliderObject.transform.SetParent(parent, false);
-            RectTransform sliderRect = sliderObject.GetComponent<RectTransform>();
-            sliderRect.anchorMin = new Vector2(0f, 1f);
-            sliderRect.anchorMax = new Vector2(0f, 1f);
-            sliderRect.pivot = new Vector2(0f, 1f);
-            sliderRect.anchoredPosition = anchoredPosition;
-            sliderRect.sizeDelta = new Vector2(184f, 36f);
-
-            Image background = sliderObject.GetComponent<Image>();
-            background.color = new Color32(90, 99, 112, 255);
-
-            Slider slider = sliderObject.GetComponent<Slider>();
-            slider.minValue = 0f;
-            slider.maxValue = 1f;
-            slider.wholeNumbers = false;
-            slider.direction = Slider.Direction.LeftToRight;
-
-            GameObject slideArea = new GameObject("Handle Slide Area", typeof(RectTransform));
-            slideArea.transform.SetParent(sliderObject.transform, false);
-            RectTransform slideAreaRect = slideArea.GetComponent<RectTransform>();
-            slideAreaRect.anchorMin = Vector2.zero;
-            slideAreaRect.anchorMax = Vector2.one;
-            slideAreaRect.offsetMin = new Vector2(14f, 0f);
-            slideAreaRect.offsetMax = new Vector2(-14f, 0f);
-
-            GameObject handleObject = new GameObject(
-                "Handle", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            handleObject.transform.SetParent(slideArea.transform, false);
-            RectTransform handleRect = handleObject.GetComponent<RectTransform>();
-            handleRect.anchorMin = new Vector2(0f, 0f);
-            handleRect.anchorMax = new Vector2(0f, 1f);
-            handleRect.pivot = new Vector2(0.5f, 0.5f);
-            handleRect.sizeDelta = new Vector2(28f, 0f);
-
-            Image handleImage = handleObject.GetComponent<Image>();
-            handleImage.color = new Color32(235, 238, 244, 255);
-            slider.handleRect = handleRect;
-            slider.targetGraphic = handleImage;
-            slider.value = value;
-            return slider;
-        }
-
-        private static Text CreateUiText(
-            string objectName,
-            Transform parent,
-            Font font,
-            int fontSize,
-            TextAnchor alignment,
-            Vector2 anchor,
-            Vector2 pivot,
-            Vector2 anchoredPosition,
-            Vector2 size)
-        {
-            GameObject labelObject = new GameObject(
-                objectName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-            labelObject.transform.SetParent(parent, false);
-            RectTransform rect = labelObject.GetComponent<RectTransform>();
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.pivot = pivot;
-            rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = size;
-
-            Text label = labelObject.GetComponent<Text>();
-            label.font = font;
-            label.fontSize = fontSize;
-            label.alignment = alignment;
-            label.color = Color.white;
-            label.raycastTarget = false;
-            return label;
-        }
-
-        private static Font CreateUiFont()
-        {
-            string[] preferredFonts =
-            {
-                "Yu Gothic UI", "Meiryo UI", "Hiragino Sans", "Noto Sans CJK JP", "Arial"
-            };
-            Font font = Font.CreateDynamicFontFromOSFont(preferredFonts, 24);
-            return font != null
-                ? font
-                : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        }
-
-        private void OnDestroy()
+        private void UnbindListeners()
         {
             if (resetButton != null)
             {
@@ -833,14 +361,14 @@ namespace GCCC.BoardGame.Presentation.Views
                 reserveDeployButton.onClick.RemoveListener(OnReserveDeployClicked);
             }
 
-            if (reservePanelView != null)
-            {
-                reservePanelView.ReservePieceSelected -= OnReservePieceSelected;
-            }
-
             if (resultButton != null)
             {
                 resultButton.onClick.RemoveListener(OnStartScreenClicked);
+            }
+
+            if (reservePanelView != null)
+            {
+                reservePanelView.ReservePieceSelected -= OnReservePieceSelected;
             }
 
             if (bgmSlider != null && audioManager != null)
@@ -852,18 +380,11 @@ namespace GCCC.BoardGame.Presentation.Views
             {
                 sfxSlider.onValueChanged.RemoveListener(audioManager.SetSfxVolume);
             }
+        }
 
-            if (createdEventSystem != null)
-            {
-                if (Application.isPlaying)
-                {
-                    Object.Destroy(createdEventSystem);
-                }
-                else
-                {
-                    Object.DestroyImmediate(createdEventSystem);
-                }
-            }
+        private void OnDestroy()
+        {
+            UnbindListeners();
         }
     }
 }
