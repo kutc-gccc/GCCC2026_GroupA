@@ -48,7 +48,7 @@ EditModeテストは責務別に分割しています。共通fixtureは[`GameSe
 
 ## 2. PlayModeテスト
 
-PlayModeテストは共通fixtureを[`BoardGameBootstrapTests.cs`](../Assets/Tests/PlayMode/BoardGameBootstrapTests.cs)に置き、Board、HUD、入力、Bootstrap／Scene、Audioを`BoardGame*Tests.cs`へ分割しています。[`PresentationRefactoringTests.cs`](../Assets/Tests/PlayMode/PresentationRefactoringTests.cs)は任意陣地行、Piece reconcile、Interaction State、Config検証、Audio Resolverを独立して検証します。
+PlayModeテストは共通fixtureを[`BoardGameBootstrapTests.cs`](../Assets/Tests/PlayMode/BoardGameBootstrapTests.cs)に置き、Board、HUD、入力、Bootstrap／Scene、Audio、遊び方を`BoardGame*Tests.cs`へ分割しています。[`PresentationRefactoringTests.cs`](../Assets/Tests/PlayMode/PresentationRefactoringTests.cs)は任意陣地行、Piece reconcile、Interaction State、Config検証、Audio Resolverを独立して検証します。
 
 検証方針:
 
@@ -74,12 +74,26 @@ PlayModeテストは共通fixtureを[`BoardGameBootstrapTests.cs`](../Assets/Tes
 - Configのnull、重複、範囲外、最小行数、未登録移動プロファイルを明確に拒否すること
 - Audio ResolverがEvent列の再生順を保つこと
 
+### 遊び方の既存テスト
+
+[`BoardGameHowToPlayTests.cs`](../Assets/Tests/PlayMode/BoardGameHowToPlayTests.cs)には次のテストがあります。テストの存在と実行済みであることは別なので、実行結果はその都度Test Runnerで確認します。
+
+| テスト名 | 検証内容 |
+|---|---|
+| `HowToPageBuildsEverySectionAndSwitchesBetweenThem` | 各節の生成、ナビでの切り替え |
+| `HowToPageReturnsToFirstSectionWhenReopened` | 開き直したときの先頭節への復帰 |
+| `HowToPageSectionsFitInsideTheContentArea` | 生成された要素の表示領域への収まり |
+| `HowToPlayViewStopsWithAnErrorWhenReferencesAreMissing` | 必須参照不足時のエラーと生成停止 |
+| `HowToPageUsesTheSameWordsAsTheGameScreen` | 操作ボタン名・凡例の用語の一致 |
+
+タイトルからの接続は[`BoardGameBootstrapSceneTests.cs`](../Assets/Tests/PlayMode/BoardGameBootstrapSceneTests.cs)の`TitleSceneShowsHowToAndStartsFreshGame`が担当します。用語一致テストだけで説明文のルール上の正しさを保証するわけではありません。方向図とCore標準プロファイル、合体条件、特殊マスの獲得条件はソースと実画面でも照合します。
+
 ## 3. Unity Test Runnerで実行する
 
 1. Unity Editorでプロジェクトを開きます。
 2. `Window > General > Test Runner`を開きます。
-3. EditModeタブで`Run All`を実行します。
-4. PlayModeタブで`Run All`を実行します。
+3. Core変更はEditMode、表示・入力・Scene変更はPlayModeで該当テストを選んで実行します。
+4. 両層にまたがる変更では両方を実行します。全体の回帰確認が必要なときに`Run All`を使います。
 5. 失敗が0件であることを確認します。
 
 PlayMode実行中は一時Sceneが生成・破棄されます。Test Runnerが停止した場合は、Play Modeを終了してから再実行してください。
@@ -135,6 +149,9 @@ Test Runnerの結果保存を知らせるUnity内部ログが表示される場�
 - [ ] 大理石背景を隠さず、濃紺のSerifタイトルと副題「6×10 の陣地到達型ボードゲーム」が読める
 - [ ] 「ゲーム開始」が塗りの主操作、「遊び方」が線のみの副操作として判別できる
 - [ ] 「遊び方」で説明ページへ切り替わり、「戻る」でタイトルへ復帰できる
+- [ ] 左ナビの「勝ち方／自分の駒／1手の行動／動ける向き／戦闘／あとで」がすべて表示され、選択した節だけが本文に出る
+- [ ] 第6節から閉じて開き直すと第1節へ戻り、ナビや本文が重複しない
+- [ ] 全6節の見出し・本文・図・注記がパネル内に収まり、ゲーム画面と操作名・▲▼・点・枠の意味が一致する
 - [ ] 「ゲーム開始」でゲーム本体へ遷移できる
 - [ ] 60マス、上向き▲6駒、下向き▼6駒が表示される
 - [ ] 全駒の初期戦闘力が1と表示される
@@ -144,7 +161,7 @@ Test Runnerの結果保存を知らせるUnity内部ログが表示される場�
 - [ ] 左側の凡例に、選択・移動・戦闘・合体・永続効果・滞在中効果の6項目が盤面と同じ形で表示される
 - [ ] 選択中の合法な自駒だけ「パワーランダム化」が有効になり、1〜3への変更後に手番が進む
 - [ ] 隣接する自駒で「合体」が有効になり、青い候補の選択後に結果表示と手番更新が行われる
-- [ ] 8方向へ1マスだけ動ける
+- [ ] 戦闘力1の駒が、占有・陣地などの制約を除き8方向へ1マス動ける。戦闘力変更後は対応する方向に変わる
 - [ ] 自陣、盤外、自駒上へ移動できない
 - [ ] 同戦闘力の衝突で両駒が消滅する
 - [ ] 相手陣地到達でリザルトが表示され、その後の盤面操作が止まる
@@ -155,7 +172,9 @@ Test Runnerの結果保存を知らせるUnity内部ログが表示される場�
 - [ ] リセットが右下に単独配置され、右上の通常操作ボタンと隣接しない
 - [ ] リセットが透明背景・赤枠・赤文字で、ほかの操作と区別できる
 - [ ] リセットボタン押下で背後の盤面が反応しない
-- [ ] 通常再生中のConsole Error・Warningが0件
+- [ ] 通常再生中にゲーム由来のConsole Errorがない。Warningは内容と発生元を確認し、未解決事項を記録する
+
+実画面の基準画像と2026-09-02の確認範囲は[画面・操作ガイド §6](SCREEN_GUIDE.md#6-確認記録と更新方法)にあります。画像を更新する際は、実際のGame View全体を16:9で撮影し、HUDを含めます。カメラだけの描画ではScreen Space OverlayのUIが欠落するため、画面合成後のキャプチャを使用してください。
 
 ## 6. 新機能に必要なテスト
 
@@ -183,7 +202,7 @@ Test Runnerの結果保存を知らせるUnity内部ログが表示される場�
 機能変更では[拡張ガイドの変更影響マトリクス](EXTENSION_GUIDE.md#変更影響マトリクス)を確認し、対象となるCore、Bootstrap、Config・Asset、テスト、文書が同じPRに揃っていることを確認します。
 
 - EditModeとPlayModeの必要なテストが成功している。
-- Config使用時とCore Fallbackで標準設定が一致している。
+- ConfigとCore Fallbackが共有する標準移動プロファイル・基本値が一致している。特殊マスは標準Assetだけが持つ差分として確認する。
 - 差し替えた実装がBootstrapから本番経路へ注入されている。
 - Markdownの相対リンクと見出しリンクがGitHub Previewで開ける。
 - `git status --short`に意図しないScene、Package、ProjectSettings、生成ファイルがない。

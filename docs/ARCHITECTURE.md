@@ -46,7 +46,7 @@ flowchart TB
 | `MovementProfileId` | 駒が使用する戦闘力別移動プロファイルのID |
 | `PowerMovementBand` | 戦闘力の最小値・最大値と、その範囲で許可する方向 |
 | `PowerMovementProfile` | 戦闘力1以上を隙間なく覆う移動帯域の集合 |
-| `PieceState` | ID、所有者、位置、通常／一時戦闘力、移動プロファイルID、効果状態を持つ不変オブジェクト |
+| `PieceState` | ID、所有者、位置、通常／一時戦闘力、移動プロファイルID、効果状態、合体成功履歴`HasFused`を持つ不変オブジェクト |
 | `CellDefinition` | 位置、陣地所有者、特殊効果IDの順序付き一覧 |
 | `CellEffectDefinition` | 効果IDと`WhileOccupied`／`PermanentOncePerPiece`の固定定義 |
 | `InitialPieceDefinition` | リセット時に生成する駒の定義 |
@@ -192,7 +192,11 @@ Ruleは状態を直接所有せず、`GameSession`から渡された入力を計
 
 ### SceneとBootstrap
 
-起動Sceneは`TitleScene`です。`TitleScreenController`はタイトルページと遊び方ページを同一Scene内で切り替え、「ゲーム開始」を受け取るとゲーム本体の`SampleScene`を読み込みます。遊び方の内容は`How To Content`配下へ追加します。ゲーム終了時は`GameHudView`がリザルトを重ね、`BoardGameBootstrap`が「スタート画面に戻る」を受け取って`TitleScene`へ遷移します。Scene遷移はPresentationに閉じ、CoreはScene名や`SceneManager`を参照しません。
+起動Sceneは`TitleScene`です。`TitleScreenController`はタイトルページと遊び方ページを同一Scene内で切り替え、「ゲーム開始」を受け取るとゲーム本体の`SampleScene`を読み込みます。ゲーム終了時は`GameHudView`がリザルトを重ね、`BoardGameBootstrap`が「スタート画面に戻る」を受け取って`TitleScene`へ遷移します。独立した遊び方SceneやResultSceneはありません。Scene遷移はPresentationに閉じ、CoreはScene名や`SceneManager`を参照しません。
+
+遊び方は`How To Content`上の`HowToPlayView`が初回表示時に6節を生成します。`HowToPlayContent`が文言と図解データ、Viewがレイアウトと左ナビの切り替えを担当します。Controllerは再表示時に`ResetToFirstSection()`を呼びます。固定の外枠・見出し・戻るボタンはScene側の責務です。画面一覧は[画面・操作ガイド](SCREEN_GUIDE.md)を参照してください。
+
+Viewはフォント、▲▼のSprite、盤面Configを必須とし、不足時は生成しません。盤の図はConfigから、点・枠は`RuntimeSpriteFactory`から、対応する色は`BoardView`の定義から取得します。方向図や戦闘例はContent側の固定データなので、ルール変更時には別途同期が必要です。
 
 `SampleScene`にはMain Camera、`Board Game Bootstrap`、`EventSystem`を明示配置します。Bootstrapと同じGameObjectに`BoardGameAudioManager`を配置し、BGM／SFX用AudioSourceだけを実行時に生成します。HUD階層は`GameHud.prefab`に保存します。`BoardGameBootstrap`は次を組み立てます。
 
@@ -217,7 +221,9 @@ Ruleは状態を直接所有せず、`GameSession`から渡された入力を計
 | `GameHudView` | 手番、操作ボタン、音量スライダー、リザルト表示、各UI Viewの仲介と入力遮断 | 手番や勝者の決定 |
 | `ReservePanelView` | 2人分のリザーブ一覧、個数、選択可能状態をSnapshotから同期 | 配置先や手番の決定 |
 | `ReservePieceCardView` | 1個のリザーブ駒のSprite、戦闘力、移動プロファイル、選択表示 | `ReservePieceState`の変更 |
-| `RuntimeSpriteFactory` | 盤面セルのSpriteを実行時生成 | ゲーム状態 |
+| `HowToPlayView` | 説明の6節、左ナビ、図解を実行時生成して切り替え | プレイ中の状態変更や勝敗判定 |
+| `HowToPlayContent` | 説明文・方向図・操作手順・戦闘例のデータ | レイアウト寸法やゲームルールの実行 |
+| `RuntimeSpriteFactory` | 四角・円・枠・三角のSpriteを実行時生成し破棄 | ゲーム状態 |
 
 `PieceState`と`PieceView`は1対1で対応しますが、役割は異なります。`PieceState`はCore上の正しいゲーム状態、`PieceView`はUnity上の見た目です。各駒GameObjectへ戦闘ルールを持たせず、`PieceViewManager`がSnapshotとEventを使って見た目だけを同期します。
 

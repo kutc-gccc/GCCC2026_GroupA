@@ -11,7 +11,7 @@
 - 差し替え可能なRuleやResolverを実ゲームで使うには、Coreへの実装だけでなく、Composition Rootである`BoardGameBootstrap`から生成・注入します。
 - 新しい共通契約は、利用側の機能PRより先に共有PRとして確定します。
 
-`BoardGameBootstrap.Awake`は現在すべての実装差し替えが集中する唯一の注入口で、Resolverを選ぶSerializeFieldもFactoryもありません。移動・戦闘・合体・特殊マス・CPUのどの担当者も同じメソッドを編集するため、担当PRではCore側の実装とテストを先に確定し、`Awake`への配線は最後の1コミットにまとめてください。恒久的な解決は[§13](#13-将来の構造改善候補)のSession Factoryです。
+`BoardGameBootstrap`が実装差し替えのComposition Rootです。`Awake`から呼ぶ`CreateSession`でRule・Resolver・Handler、`CreateCoordinator`でAgentを注入します。生成・配線メソッドは分割済みですが、Resolverを選ぶSerializeFieldや独立したSession Factoryはありません。担当PRではCore側の実装とテストを先に確定し、本番への配線を最後にまとめてください。将来案は[§13](#13-将来の構造改善候補)を参照してください。
 
 ### 変更影響マトリクス
 
@@ -29,6 +29,7 @@
 | CPU | `IPlayerAgent`実装 | Agentを生成して`GameCoordinator`へ注入 | 対戦形式を選択する場合に追加 | Agent単体、Human対CPU／CPU対CPUのPlayMode | READMEの実装状況、必要に応じて設計文書 |
 | 新Command・Event | 派生型、Handler、状態更新、Event | `GameSession`のdispatchとPresentationの送受信経路 | 操作を設定化する場合だけ追加 | 拒否時不変性、Event値・順序、View反映 | `CORE_API.md`、`ARCHITECTURE.md` |
 | UI・入力 | ルール変更がなければ変更しない | `GameCoordinator`、Input、View、Prefab | 表示値を設定化する場合だけ追加 | PlayMode、実機入力は手動確認 | `GAME_RULES.md`の表示・入力、`CODE_WALKTHROUGH.md` |
+| 遊び方・画面の説明 | ルール自体は変更しない | `HowToPlayContent`の文言・図解データ、`HowToPlayView`の生成とナビ、`TitleScreenController`の復帰 | `TitleScene`の固定UI・フォント・Sprite・Config参照 | 全節表示、切り替え、再表示、用語一致、参照不足、実画面確認 | `SCREEN_GUIDE.md`と画像、必要に応じてルール・設計文書 |
 | 音声 | 変更しない | `BoardGameAudioManager.PlayEvents`とClip参照 | Prefab／SceneへのAudioClip割り当て | PlayModeの再生経路と音量 | `ARCHITECTURE.md`のAudio責務 |
 | Scene遷移 | 変更しない | `BoardGameSceneNames`、`TitleScreenController`、`BoardGameBootstrap` | Build SettingsへのScene登録 | 起動Sceneとタイトル復帰のPlayMode | `ARCHITECTURE.md` §8、README |
 
@@ -81,6 +82,8 @@ RuleSetをUnity上で選択できるようにする場合は、ConfigからRule�
 4. `GameSessionTests`の方向、戦闘力境界、未登録ID・不連続帯域の検証。
 5. 標準ルールの一次情報源である[ゲームルール §5](GAME_RULES.md#5-移動ルール)。
 
+遊び方の`HowToPlayContent.DirectionSteps`と説明文も同期します。盤面配置はConfigから取得しますが、方向図の配列は自動更新されません。
+
 `BoardGameBootstrap`にConfigが設定されている通常のSceneではAsset側が使われ、Config未設定時は`GameDefinition.CreateStandard()`のCore標準定義が使われます。片方だけを変更してはいけません。
 
 ### テスト
@@ -91,7 +94,7 @@ RuleSetをUnity上で選択できるようにする場合は、ConfigからRule�
 - 禁止方向、盤外、自陣、自駒上。
 - 敵駒マスが戦闘候補になること。
 - `GetLegalCommands`と候補表示の一致。
-- Config使用時とCore Fallbackで標準ルールが一致すること。
+- Config使用時とCore Fallbackで標準移動プロファイルが一致すること。特殊マスは標準Asset側だけにあるため、盤面全体の同一性は前提にしない。
 
 ### 文書更新
 
@@ -147,6 +150,8 @@ var session = new GameSession(
 
 Coreには`FusePiecesCommand`、`IFusionResolver`、`PiecesFused`があります。`GameSession`の型switchがCommandを合体処理へdispatchし、標準では隣接自駒を25%大成功、50%成功、25%失敗で処理する`AdjacentFusionResolver`が使用されます。
 
+標準Resolverは双方の`HasFused`が`false`であることを候補生成と実行時の両方で確認します。成功した駒は再合体できず、確率失敗した駒は後の手番で再試行できます。この条件を変更する場合は`PieceState`のフラグ保持も含めて確認します。
+
 ```csharp
 public interface IFusionResolver
 {
@@ -175,7 +180,7 @@ public interface IFusionResolver
 
 合体は既に本番へ配線済みです。UI、View、音声はそのまま使えるため、**Resolverを差し替えるだけなら触る場所は1箇所です**。
 
-1. `BoardGameBootstrap.Awake`の`new GameSession(...)`へ`fusionResolver:`引数を追加し、生成したResolverを渡します。
+1. `BoardGameBootstrap.CreateSession`の`new GameSession(...)`へ`fusionResolver:`引数を追加し、生成したResolverを渡します。
 
 次の経路は既に存在するので、作り直してはいけません。
 
@@ -186,7 +191,7 @@ public interface IFusionResolver
 | 合体成功時のSFX | `BoardGameAudioManager.PlayEvents`の`PiecesFused` |
 | 成功・失敗のメッセージ | `GameCoordinator.ShowFusionResultMessage` |
 
-Resolverが新しいEventを発生させる場合だけ、[§8](#8-新しいcommandやeventを追加する)と[§11](#11-音声を変更する)に従ってViewと音声へ分岐を追加します。
+Resolverの結果に対応する新しいEventをSessionから発生させる場合だけ、[§7](#7-新しいcommandやeventを追加する)と[§11](#11-音声を変更する)に従ってViewと音声へ分岐を追加します。
 
 ### 設定
 
@@ -369,6 +374,8 @@ Command・Eventの引数と値は`CORE_API.md`、実行順と責務は`ARCHITECT
 
 入力は`BoardInputController`から`GameCoordinator`へ渡し、ViewはSnapshotとEventから更新します。ルール判定をInputやViewへ複製してはいけません。
 
+遊び方の文章・図解データは`HowToPlayContent`、寸法・図の組み立て・ナビは`HowToPlayView`を変更します。`BoardView`の色定義と`RuntimeSpriteFactory`の点・枠を共用し、説明だけに別の意味の色を導入しないでください。固定の外枠はScene、繰り返し要素は実行時生成です。文言変更後は全6節の収まりとゲーム画面のボタン名を確認し、再表示時の`ResetToFirstSection()`を維持します。
+
 ### 設定
 
 色、Prefab、表示値を調整可能にする場合だけSerializeFieldとAssetを更新します。Runtime生成された子要素をPlay中に変更してもAssetには保存されません。
@@ -404,7 +411,7 @@ Command・Eventの引数と値は`CORE_API.md`、実行順と責務は`ARCHITECT
 
 ### 本番への配線
 
-配線済みです。ボタンは`GameHudView.OnRandomizePowerButtonClicked`から`GameCoordinator.HandleRandomizePowerButtonClicked`へ渡り、合法な`RandomizePowerCommand`があるときだけ`GameHudView.SetRandomizeButtonInteractable`で有効になります。乱数を差し替える場合だけ`BoardGameBootstrap.Awake`の`new GameSession(...)`へ`randomSource:`引数を追加します。
+配線済みです。ボタンは`GameHudView.OnRandomizePowerButtonClicked`から`GameCoordinator.HandleRandomizePowerButtonClicked`へ渡り、合法な`RandomizePowerCommand`があるときだけ`GameHudView.SetRandomizeButtonInteractable`で有効になります。乱数を差し替える場合だけ`BoardGameBootstrap.CreateSession`の`new GameSession(...)`へ`randomSource:`引数を追加します。
 
 ### 設定
 
@@ -414,7 +421,7 @@ Command・Eventの引数と値は`CORE_API.md`、実行順と責務は`ARCHITECT
 
 - 固定`IRandomSource`で下限・上限・同値になる場合を再現すること。
 - `BlocksPowerRandomization`を持つ効果の適用中・適用済みで拒否されること。
-- 成否にかかわらず手番が進むこと。
+- 合法なランダム化は結果が同値でも手番が進み、不正なCommandの拒否では手番・状態が変わらないこと。
 - 変更後の実効戦闘力で移動方向が更新されること。
 - ボタンの有効・無効がPlayModeで合法手と一致すること。
 

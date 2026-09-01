@@ -25,23 +25,27 @@ Set-Location GCCC2026_GroupA
 3. ConsoleのErrorが0件であることを確認します。
 4. `Assets/Scenes/TitleScene.unity`を開いてPlayし、「ゲーム開始」を押します。
 
+Editorメニューの`GCCC > タイトルから再生`でも起動できます。通常のPlayは現在開いているSceneから始まるため、Build Settingsの先頭がタイトルでも自動でタイトルへ切り替わるわけではありません。未保存Sceneは保存・破棄を自分で判断してから切り替えてください。
+
 初回起動時に生成される`Library`、`Temp`、`Logs`、`UserSettings`はGit管理しません。
 
 ## 3. 操作確認
 
-1. Game Viewを16:9にし、タイトルと「ゲーム開始」が表示されることを確認します。
+1. Game Viewを16:9にし、タイトルと「ゲーム開始」「遊び方」が表示されることを確認します。「遊び方」の6節を左ナビで切り替え、「戻る」で閉じて開き直すと先頭節になることも確認します。
 2. 「ゲーム開始」で`SampleScene`へ移動します。
-3. プレイヤー1の上向き▲の駒を選択し、緑の空きマスへ移動できることを確認します。
+3. プレイヤー1の上向き▲の駒を選択し、琥珀の選択枠と白い点の移動候補を確認して移動します。
 4. 「パワーランダム化」で選択駒の通常戦闘力が1〜3に設定され、結果が同じ値でも手番を消費することを確認します。
 5. 隣接する自駒を選び、「合体」から青表示の候補を選ぶと成功・大成功・失敗の結果が表示され、手番を消費することを確認します。
-6. オレンジの敵駒マスへ移動すると戦闘が発生することを確認します。
+6. 赤い枠の敵駒マスへ移動すると戦闘が発生することを確認します。
 7. 移動・戦闘・破壊・合体で対応する効果音が再生され、BGM／SFXスライダーが音量へ反映されることを確認します。
 8. シアン色の戦闘力アップマス`(2,2)(3,7)`に駒が到達すると、駒の戦闘力が+2され、退出時に元に戻ることを確認します。
-9. 紫色のリザーブ獲得マス`(1,4)(4,5)`に駒が到達すると、戦闘力1の新しい駒がリザーブへ追加されることを確認します。
-10. 獲得した駒が右側のリザーブ一覧へ表示され、手番側のカードだけを選んで緑の候補マスへ配置できることを確認します。
+9. 戦闘・合体で所有駒を6個未満にしてから、未獲得の駒を紫色のリザーブ獲得マス`(1,4)(4,5)`へ進め、戦闘力1の駒がリザーブへ追加されることを確認します。初期状態は上限6個のため獲得できません。
+10. 獲得した駒が右側のリザーブ一覧へ表示され、手番側のカードだけを選んで白い点の候補マスへ配置できることを確認します。
 11. リセットで12駒、リザーブと駒の効果履歴が空、シアン色2個・紫色2個の特殊マス、プレイヤー1の手番へ戻ることを確認します。
 12. 勝敗確定後にリザルトが表示され、背後の操作、リザーブカード、音量スライダーが無効になることを確認します。
 13. 「スタート画面に戻る」でBGMが停止し、タイトルへ戻ることを確認します。
+
+実画面と確認済み範囲は[画面・操作ガイド](SCREEN_GUIDE.md)を参照してください。音量は左下、リセットは右下にあります。
 
 ## 4. フォルダと担当境界
 
@@ -79,18 +83,22 @@ Set-Location GCCC2026_GroupA
 | `reserveDeploymentDepth` | 2 | 自陣行から前方へリザーブ配置を許可する行数 |
 | `initialMovementProfileId` | standard | 全初期駒が参照する移動プロファイルID |
 | `movementProfiles` | standard 1件 | 戦闘力範囲と移動方向の対応表 |
-| `cellEffects` | `(1,4)`、`(4,5)`に`reserve-piece-grant` | 座標ごとの効果ID |
-| `cellEffectDefinitions` | `ReservePieceGrantEffect` 1件 | 効果定義とHandlerを生成する`CellEffectConfig` Asset |
+| `cellEffects` | `(1,4)(4,5)`に`reserve-piece-grant`、`(2,2)(3,7)`に`combat-power-boost` | 座標ごとの効果ID |
+| `cellEffectDefinitions` | リザーブ獲得・戦闘力アップの2件 | 効果定義とHandlerを生成する`CellEffectConfig` Asset |
 
 行設定は盤面内でなければなりません。両陣地を同じ行にする、自分の陣地と初期配置を同じ行にする、両プレイヤーの初期配置を同じ行にすると、`CreateDefinition`が`InvalidOperationException`を送出します。
 
 各`movementProfiles`は戦闘力1から`int.MaxValue`までを隙間・重複なく覆う必要があります。`initialMovementProfileId`が未登録、IDが重複、帯域が不連続の場合はCore定義の生成時に例外になります。標準設定の正確な方向表は[ゲームルール §5](GAME_RULES.md#5-移動ルール)を参照してください。
+
+この表は標準Sceneが参照するAssetの値です。Coreの`GameDefinition.CreateStandard()`は特殊マス・効果定義を持たないため、Config未設定時のFallbackは標準Sceneと同じ特殊マスを生成しません。
 
 特殊効果を追加する場合は、`CombatPowerBoostEffectConfig`または`ReservePieceGrantEffectConfig` Assetを作り、`cellEffectDefinitions`へ登録してから対象座標の`cellEffects`へ同じIDを設定します。`BoardGameBootstrap`が定義とHandlerを同時に生成します。異なるLifetimeを同じセルに設定する、未登録IDを参照する、リザーブ獲得へ`WhileOccupied`を指定すると生成時に例外になります。
 
 ## 6. SceneとPrefabの編集
 
 - `TitleScene`にはタイトルUIとScene遷移用Controllerを置きます。
+- 遊び方の固定パネルと「戻る」は`TitleScene`、6節の文言・図解データは`HowToPlayContent`、ナビと本文・図の実行時生成は`HowToPlayView`が担当します。生成済みの子オブジェクトを手編集せず、内容はContent、寸法や生成処理はViewを変更します。
+- `HowToPlayView`にはフォント、▲▼のSprite、`BoardGameConfig`が必須です。`TitleScreenController`のView参照は省略可能ですが、標準Sceneでは割り当てて再表示時に先頭節へ戻します。
 - `SampleScene`にはMain Camera、Bootstrap、`EventSystem`と`InputSystemUIInputModule`を明示配置し、Bootstrapと同じGameObjectへ`BoardGameAudioManager`を追加します。AudioSourceだけが実行時に生成されます。
 - 盤面表示は`BoardView.prefab`、駒管理は`PieceViews.prefab`、HUDは`GameHud.prefab`を編集します。
 - Prefabの公開設定を増やす場合は、Bootstrapの参照が維持されているかSampleSceneで確認します。
@@ -160,6 +168,7 @@ Set-Location GCCC2026_GroupA
 
 | 情報 | 一次情報源 |
 |---|---|
+| 実画面、画面遷移、操作手順、画面文言の注意点 | [`docs/SCREEN_GUIDE.md`](SCREEN_GUIDE.md) |
 | ゲームルール、8方向、勝敗条件 | [`docs/GAME_RULES.md`](GAME_RULES.md) |
 | 設計方針、レイヤー責務、データフロー | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) |
 | コードの読み方、処理の流れ | [`docs/CODE_WALKTHROUGH.md`](CODE_WALKTHROUGH.md) |

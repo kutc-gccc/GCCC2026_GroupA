@@ -42,6 +42,10 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
 
 ## 3. 起動時に何が起きるか
 
+通常の入口は`TitleScene`です。`TitleScreenController`が「ゲーム開始」「遊び方」「戻る」を配線し、タイトルと説明ページを同じScene内で切り替えます。「ゲーム開始」だけが`SampleScene`を読み込みます。
+
+遊び方は`How To Content`の`HowToPlayView`が初めて表示されたときに6節を生成します。文章・図解データは`HowToPlayContent`、寸法・ナビ・図の生成は`HowToPlayView`です。開き直すと`ResetToFirstSection()`で先頭へ戻り、子要素は重複生成しません。固定の背景・見出し・戻るボタンはScene側にあります。実際の見た目は[画面・操作ガイド](SCREEN_GUIDE.md#2-遊び方)を参照してください。
+
 ゲーム本体の`SampleScene`には **Main Camera、Bootstrap、EventSystem** があり、HUD階層は`GameHud.prefab`に保存されています。
 
 `Presentation/Bootstrap/BoardGameBootstrap.cs` の `Awake()` が順に行うことは次のとおりです。
@@ -79,7 +83,7 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
      ├─ 合体モード中        → HandleFusionModeClick()        → FusePiecesCommand
      ├─ 配置モード中        → HandleReserveDeploymentClick() → DeployReservePieceCommand
      ├─ 自分の駒だった      → 選択 / 選択解除して RenderSelection()
-     │                          合法手を緑（空きマス）とオレンジ（敵駒）で表示
+     │                          琥珀の選択枠、白い点（空きマス）、赤い枠（敵駒）で表示
      └─ 合法な移動先だった  → HumanPlayerAgent.TrySubmit(move)
 
    「パワーランダム化」ボタンは盤面クリックを経ずに
@@ -114,7 +118,7 @@ Coreに状態・Command・Event・Ruleを集め、PresentationはScene、入力�
 
 ### 読むときの要点
 
-**Viewは「なぜそうなったか」を判断しません。** `PieceDestroyed` が来たから駒を消すのであって、戦闘力を見て「0以下だから消そう」とは考えません。ルールがView側に二重実装されるのを防ぐためです。
+**Viewは「なぜそうなったか」を判断しません。** 現在の`PieceViewManager.ApplyEvents`はEventを個別処理せず、実行後Snapshotとの照合で駒を生成・更新・削除します。Viewが戦闘力から生死を再計算することはありません。音声側はEvent列を使います。
 
 **失敗しても状態は変わりません。** 不正な手を送ると `CommandResult.Success` が `false` になり、盤面は一切変更されません。これはテストや将来のCPUが手を安全に試せる前提でもあります。
 
@@ -133,7 +137,7 @@ IMoveDirectionResolver.Resolve(piece)
         ↓ 標準実装は ProfileMoveDirectionResolver
 piece.MovementProfileId でプロファイルを引く
         ↓
-PowerMovementProfile.GetDirections(piece.CombatPower)
+PowerMovementProfile.GetDirections(piece.EffectiveCombatPower)
         ↓ 戦闘力が入る帯域を探す
 MoveDirections（実効的な移動方向）
 ```
@@ -150,43 +154,45 @@ MoveDirections（実効的な移動方向）
 
 コードを読むと気づく、細かいが効いている部分です。
 
-### 盤面セルのSpriteは実行時生成
+### 盤面の印と説明図のSpriteは実行時生成
 
 `Presentation/Views/RuntimeSpriteFactory.cs` が起動時にテクスチャを生成しています。
 
-- **マスの四角** — 1×1ピクセルの白テクスチャを引き伸ばして使う
-- **円** — 64×64のテクスチャに、中心からの距離でアルファ値を計算して円を描く。境界でアルファを補間しているのでアンチエイリアスが効く
+- **四角** — `SquareSprite`。1×1ピクセルの白テクスチャをセル・効果表示などに使う
+- **円** — `CircleSprite`。移動・リザーブ配置候補の白い点に使う
+- **中抜きの枠** — `FrameSprite`。選択・戦闘・合体の色付き枠に使う
+- **三角形** — `TriangleSprite`。陣地所有者の向きの印に使う
 
-どちらも `HideFlags.DontSave` 付きで生成し、`Dispose()` で破棄します。
+いずれも`HideFlags.DontSave`付きで生成し、所有する`RuntimeSpriteFactory.Dispose()`で破棄します。`HowToPlayView`も同じFactoryと`BoardView`の色定義を使い、ゲームと説明図の印を揃えています。
 
-実際に使われているのは四角の`SquareSprite`だけで、`BoardView`がセル・指標・陣地枠に利用します。`CircleSprite`は生成されていますが、現在どこからも参照されていません。駒は`Assets/Art/Pieces/`の三角形スプライトを`BoardGameBootstrap`のSerializeFieldから受け取ります。
+駒そのものは`Assets/Art/Pieces/`の三角形スプライトを`BoardGameBootstrap`のSerializeFieldから受け取ります。遊び方にも▲▼の駒スプライトと盤面Configを割り当て、盤の図を標準配置から生成します。
 
-タイトル背景、駒、フォント、BGM、SFXはAssetとして保持します。実行時生成なのは盤面セルのSpriteだけであり、プロジェクト全体が画像・音声Assetを持たないわけではありません。
+タイトル背景、駒、フォント、BGM、SFXはAssetとして保持します。固定Assetと、繰り返し要素の実行時生成を使い分けています。
 
-### Sceneをほぼ空にしてある
+### 固定UIと実行時生成の境界
 
-盤面・駒・HUDがそれぞれ別Prefabに分かれ、Sceneのルートには2つしか置きません。複数人が同じScene YAMLを同時に編集してコンフリクトするのを避けるためです（[アーキテクチャ §9](ARCHITECTURE.md#9-設定とasset)）。
+ゲーム本体のSceneにはCamera、Bootstrap、EventSystemがあり、盤面・駒・HUDを別Prefabから組み立てます。HUDの固定階層はPrefab、盤面セル・駒・リザーブカードは実行時生成です。タイトル・遊び方の外枠は`TitleScene`に保存し、説明のナビ・各節だけを実行時生成します（[アーキテクチャ §9](ARCHITECTURE.md#9-設定とasset)）。
 
 ### カメラの自動調整
 
 `BoardGameBootstrap.ConfigureCamera()` が盤面の行数・列数と画面アスペクト比から正投影サイズを計算します。設定で盤面サイズを変えてもカメラを触る必要がありません。
 
-### 日本語フォントの自動選択
+### UIフォントは明示的に割り当てる
 
-`GameHudView.CreateUiFont()` が `Yu Gothic UI` → `Meiryo UI` → `Hiragino Sans` → `Noto Sans CJK JP` → `Arial` の順にOSフォントを探し、見つからなければUnity組み込みフォントに落とします。Windows以外でも文字化けしません。
+`GameHudView`と`HowToPlayView`には`uiFont`を割り当てます。OSフォントを自動探索する`CreateUiFont()`は現行実装にはありません。標準HUDと遊び方は同じフォントAssetを参照し、必須参照が不足するとエラーで停止します。駒上の数字は`PieceView`が生成する`TextMesh`です。
 
 ## 7. 今のゲームで実際に起きること
 
 コードを追うと分かる、現在の標準設定の挙動です。仕様の欠陥ではなく、**拡張の土台が先に用意されている**状態だと理解してください。
 
-初期戦闘力は1ですが、パワーランダム化と合体で戦闘力2以上へ変化するため、標準移動プロファイルの各帯域は通常プレイで発動します。標準Configでは`(1,4)`と`(4,5)`へ共通の`reserve-piece-grant`が設定され、どちらのプレイヤーも駒ごとに一度、戦闘力1・`standard`移動プロファイルのリザーブ駒を獲得できます。所有駒上限6に達している場合は追加されません。
+初期戦闘力は1ですが、パワーランダム化・合体・戦闘・特殊マスで実効戦闘力と合法方向が変化します。標準Configにはリザーブ獲得2マスと戦闘力アップ2マスがあります。正確な座標と条件は[ゲームルール §8](GAME_RULES.md#8-パワーランダム化合体特殊マス)を参照してください。Configなしの`GameDefinition.CreateStandard()`は特殊マスを持たない点に注意してください。
 
 現在の拡張状況は次のとおりです。
 
 | 機能 | 用意されているもの | 足りないもの |
 |---|---|---|
 | 合体 | `AdjacentFusionResolver`、確率判定、2駒選択UI | 追加ルールが必要な場合だけResolverを差し替える |
-| 特殊マス | 2種のLifetime、戦闘力増加、リザーブ獲得、盤面・HUD表示、標準盤面の獲得マス2個 | 追加効果や配置を増やす場合だけConfigを拡張する |
+| 特殊マス | 2種のLifetime、戦闘力増加、リザーブ獲得、盤面・HUD表示、標準盤面の特殊マス4個 | 追加効果や配置を増やす場合だけConfigを拡張する |
 | CPU | `IPlayerAgent`、Agentの注入口 | 実装そのもの |
 
 追加手順は[拡張ガイド](EXTENSION_GUIDE.md)にあります。

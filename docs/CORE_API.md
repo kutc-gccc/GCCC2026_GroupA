@@ -39,10 +39,11 @@ MoveDirections directions = MoveDirections.North | MoveDirections.East;
 | `id` | `PieceId` | 駒を一意に識別するID |
 | `owner` | `PlayerId` | 駒を所有するプレイヤー |
 | `position` | `GridPosition` | 盤面上の現在位置 |
-| `combatPower` | `int` | 現在の戦闘力。1以上を指定する |
+| `combatPower` | `int` | 通常戦闘力。一時戦闘力は含めず、1以上を指定する |
 | `movementProfileId` | `MovementProfileId` | 駒が使用する戦闘力別移動プロファイル |
 | `appliedPermanentEffectIds` | `IEnumerable<string>` | 適用済み永続効果ID。省略可 |
 | `activeCellEffects` | `IEnumerable<ActiveCellEffectState>` | 現在の滞在中効果と一時戦闘力。省略可 |
+| `hasFused` | `bool` | 合体成功済みか。省略時は`false` |
 
 たとえば、座標`(2, 1)`にいる「プレイヤー1が所有する、戦闘力2で標準プロファイルを使う駒」は次のように生成します。
 
@@ -78,10 +79,13 @@ PieceState damagedPiece = movedPiece.WithCombatPower(1);
 | `WithPermanentEffectApplied(effectId)` | 永続効果の適用履歴へIDを追加する |
 | `WithActiveEffect(effectId, temporaryCombatPower = 0)` | 滞在中効果と一時戦闘力を付与する |
 | `WithoutActiveEffects()` | 滞在中効果をすべて解除する |
-| `ApplyDamage(damage)` | 一時戦闘力、通常戦闘力の順にダメージを適用する |
-| `MergeWith(second, bonus)` | 合体後の駒を作る。永続効果履歴は和集合、滞在中効果は第一駒のものを継承する |
+| `ApplyDamage(damage)` | 一時戦闘力、通常戦闘力の順にダメージを適用し、生存できなければ`null`を返す |
+| `MergeWith(second, bonus)` | 合体後の駒を作る。永続効果履歴は和集合、滞在中効果は第一駒のものを継承し、`HasFused`を`true`にする |
+| `WithFusedFlag(hasFused)` | 合体成功履歴だけを変更したコピーを返す |
 
 `ApplyDamage`は`GameSession`が戦闘処理で、`MergeWith`は合体Resolverが使う経路です。通常の`ICellEffectHandler`実装で使うのは`With`系だけです。
+
+標準の`AdjacentFusionResolver`は`HasFused`が`true`の駒を合体候補から除外します。失敗した合体試行ではこのフラグは変わりません。移動・戦闘力変更・Snapshotコピーでもフラグは保持されます。
 
 ### 戦闘力別移動プロファイル
 
@@ -130,7 +134,7 @@ var player1TerritoryCell = new CellDefinition(
 
 ### `InitialPieceDefinition`
 
-現在盤上にいる駒ではなく「開始時やリセット時に、どの駒を作るか」という設定です。引数の意味と順番は`PieceState`と同じです。
+現在盤上にいる駒ではなく「開始時やリセット時に、どの駒を作るか」という設定です。引数は`PieceState`の先頭5つと同じです。効果履歴・滞在中効果・合体成功履歴は受け取らず、`CreateState()`はそれらを持たない初期駒を作ります。
 
 ```csharp
 var initialPiece = new InitialPieceDefinition(
@@ -164,7 +168,7 @@ GameDefinition definition = GameDefinition.CreateStandard();
 - `reserveDeploymentDepth`が負、または`rows`以上 → `ArgumentOutOfRangeException`
 - いずれかのプレイヤーの初期駒が`maxPiecesPerPlayer`を超える → `ArgumentException`
 
-Unity上では`BoardGameConfig.CreateDefinition()`が設定アセットから同等の定義を生成します。設定項目は[開発ガイド §5](DEVELOPMENT.md#5-standardboardgameconfig)を参照してください。
+Unity上では`BoardGameConfig.CreateDefinition()`が設定アセットから定義を生成します。標準Assetには特殊マス4個と効果定義2件がありますが、Coreの`CreateStandard()`には特殊マスも効果定義もありません。Sceneと同じ効果を使うには定義とHandlerの両方が必要です。設定項目は[開発ガイド §5](DEVELOPMENT.md#5-standardboardgameconfig)を参照してください。
 
 ### `GameSnapshot`
 
@@ -244,8 +248,8 @@ Ruleの差し替え例は[拡張ガイド](EXTENSION_GUIDE.md)を参照してく
 |---|---|---|
 | `MovePieceCommand` | `player`, `pieceId`, `destination` | 指定した自分の駒を目的地へ動かす要求 |
 | `FusePiecesCommand` | `player`, `firstPieceId`, `secondPieceId` | 隣接する自駒2個の確率合体を試みる要求 |
-| `RandomizePowerCommand` | `player`, `pieceId` | 効果のない自駒の通常戦闘力を1〜3へ変更する要求 |
-| `DeployReservePieceCommand` | `player`, `reservePieceId`, `destination` | リザーブ駒を自陣の前方2行にある空きマスへ配置する要求 |
+| `RandomizePowerCommand` | `player`, `pieceId` | ランダム化禁止効果を持たない自駒の通常戦闘力を1〜3へ変更する要求 |
+| `DeployReservePieceCommand` | `player`, `reservePieceId`, `destination` | リザーブ駒を設定の`ReserveDeploymentDepth`内の空きマスへ配置する要求（標準は自陣前方2行） |
 
 ```csharp
 var move = new MovePieceCommand(
