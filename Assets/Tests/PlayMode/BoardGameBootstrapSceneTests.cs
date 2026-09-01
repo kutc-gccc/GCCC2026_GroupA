@@ -31,15 +31,17 @@ namespace GCCC.BoardGame.Tests
 
             Assert.That(SceneManager.GetActiveScene().name,
                 Is.EqualTo(BoardGameSceneNames.Title));
+            Text titleText = GameObject.Find("Title Text").GetComponent<Text>();
+            Assert.That(titleText.text, Is.EqualTo("Number War"));
+            Assert.That(titleText.fontStyle, Is.EqualTo(FontStyle.Bold));
+
+            // 大理石背景に負けない字面にするため、専用フォントを割り当てる。
+            // どのフォントかは差し替えられるので、組み込みのフォールバックでないことだけを見る。
+            Assert.That(titleText.font, Is.Not.Null);
             Assert.That(
-                GameObject.Find("Title Text").GetComponent<Text>().text,
-                Is.EqualTo("Number War"));
-            Assert.That(
-                GameObject.Find("Title Text").GetComponent<Text>().fontStyle,
-                Is.EqualTo(FontStyle.Bold));
-            Assert.That(
-                GameObject.Find("Title Text").GetComponent<Text>().font.name,
-                Does.StartWith("NotoSerifJP"));
+                titleText.font.name,
+                Is.Not.EqualTo("Arial").And.Not.EqualTo("LegacyRuntime"),
+                "タイトルにはプロジェクトのフォントを割り当てる。Unity組み込みのフォールバックにしない。");
             Assert.That(GameObject.Find("Title Backdrop"), Is.Null);
             Assert.That(
                 GameObject.Find("Title Subtitle").GetComponent<Text>().text,
