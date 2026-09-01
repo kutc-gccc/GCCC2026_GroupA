@@ -77,7 +77,7 @@ namespace GCCC.BoardGame.Presentation.Config
                 pieces,
                 firstPlayer,
                 coreMovementProfiles,
-                (cellEffectDefinitions ?? new List<CellEffectConfig>())
+                GetValidCellEffectConfigs()
                 .Select(effect => effect.CreateDefinition()),
                 maxPiecesPerPlayer,
                 reserveDeploymentDepth);
@@ -85,10 +85,32 @@ namespace GCCC.BoardGame.Presentation.Config
 
         public IReadOnlyList<ICellEffectHandler> CreateCellEffectHandlers()
         {
-            ValidateCellEffectDefinitions();
-            return cellEffectDefinitions
+            return GetValidCellEffectConfigs()
                 .Select(effect => effect.CreateHandler())
                 .ToArray();
+        }
+
+        /// <summary>
+        /// Inspectorのリストに残った空要素（None）は警告のうえ読み飛ばす。
+        /// 効果が本当に足りない場合は、セルが参照するIDに対応する定義がないとして
+        /// <see cref="GameDefinition"/> の生成時に弾かれる。
+        /// </summary>
+        private IEnumerable<CellEffectConfig> GetValidCellEffectConfigs()
+        {
+            foreach (CellEffectConfig effect in
+                     cellEffectDefinitions ?? new List<CellEffectConfig>())
+            {
+                if (effect == null)
+                {
+                    Debug.LogWarning(
+                        "BoardGameConfig has an empty (None) entry in Cell Effect " +
+                        "Definitions. Assign an asset to that slot or remove it. Skipping.",
+                        this);
+                    continue;
+                }
+
+                yield return effect;
+            }
         }
 
         private void AddStartingRow(
@@ -171,7 +193,6 @@ namespace GCCC.BoardGame.Presentation.Config
 
             ValidateMovementProfiles();
             ValidateCellEffects();
-            ValidateCellEffectDefinitions();
         }
 
         private void ValidateMovementProfiles()
@@ -241,16 +262,6 @@ namespace GCCC.BoardGame.Presentation.Config
             {
                 throw new InvalidOperationException(
                     "BoardGameConfig cell effect positions must be inside the board.");
-            }
-        }
-
-        private void ValidateCellEffectDefinitions()
-        {
-            if (cellEffectDefinitions == null ||
-                cellEffectDefinitions.Any(effect => effect == null))
-            {
-                throw new InvalidOperationException(
-                    "BoardGameConfig cell effect definitions must not contain null.");
             }
         }
 

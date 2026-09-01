@@ -57,5 +57,12 @@ MonoBehaviour:
   - position: {x: 4, y: 5}
     effectIds:
     - reserve-piece-grant
+  - position: {x: 2, y: 2}
+    effectIds:
+    - combat-power-boost
+  - position: {x: 3, y: 7}
+    effectIds:
+    - combat-power-boost
   cellEffectDefinitions:
   - {fileID: 11400000, guid: 12979524917bc0e4bafe01b9467daa0a, type: 2}
+  - {fileID: 11400000, guid: b0c4c2b0d63acb54db8114afb7d8e254, type: 2}
