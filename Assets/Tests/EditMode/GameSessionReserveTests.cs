@@ -54,6 +54,12 @@ namespace GCCC.BoardGame.Tests
             CommandResult secondEntry = custom.Execute(new MovePieceCommand(
                 PlayerId.Player1, new PieceId(1), new GridPosition(2, 3)));
             Assert.That(secondEntry.Events.OfType<ReservePieceAdded>(), Is.Empty);
+            CellEffectAlreadyApplied skipped = secondEntry.Events
+                .OfType<CellEffectAlreadyApplied>().Single();
+            Assert.That(skipped.EffectId, Is.EqualTo(effectId));
+            Assert.That(skipped.PieceId, Is.EqualTo(new PieceId(1)));
+            Assert.That(skipped.Position, Is.EqualTo(new GridPosition(2, 3)));
+            Assert.That(secondEntry.Events.OfType<CellEffectTriggered>(), Is.Empty);
             Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
                 .ReservePieces.Count, Is.EqualTo(1));
 
@@ -155,6 +161,12 @@ namespace GCCC.BoardGame.Tests
 
             Assert.That(result.Success, Is.True);
             Assert.That(result.Events.OfType<ReservePieceAdded>(), Is.Empty);
+            ReservePieceGrantBlockedByLimit blocked = result.Events
+                .OfType<ReservePieceGrantBlockedByLimit>().Single();
+            Assert.That(blocked.Owner, Is.EqualTo(PlayerId.Player1));
+            Assert.That(blocked.OwnedPieceCount, Is.EqualTo(6));
+            Assert.That(blocked.MaxPiecesPerPlayer, Is.EqualTo(6));
+            Assert.That(custom.Snapshot.CurrentPlayer, Is.EqualTo(PlayerId.Player2));
             Assert.That(custom.Snapshot.GetOwnedPieceCount(PlayerId.Player1),
                 Is.EqualTo(6));
             Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1).ReservePieces,

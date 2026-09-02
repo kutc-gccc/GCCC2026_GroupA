@@ -28,6 +28,7 @@ namespace GCCC.BoardGame.Presentation.Views
         [Header("Status")]
         [SerializeField] private Text statusLabel;
         [SerializeField] private Text messageLabel;
+        [SerializeField] private ScrollRect messageScrollRect;
 
         [Header("Controls")]
         [SerializeField] private Button resetButton;
@@ -73,6 +74,7 @@ namespace GCCC.BoardGame.Presentation.Views
         public event Action StartScreenRequested;
 
         public string StatusText => statusLabel != null ? statusLabel.text : string.Empty;
+        public string MessageText => messageLabel != null ? messageLabel.text : string.Empty;
         public string ResultText => resultLabel != null ? resultLabel.text : string.Empty;
         public bool IsResultVisible => resultOverlay != null && resultOverlay.activeSelf;
 
@@ -208,6 +210,8 @@ namespace GCCC.BoardGame.Presentation.Views
                    IsPointerOver(randomizePowerButton, screenPosition) ||
                    IsPointerOver(fuseButton, screenPosition) ||
                    IsPointerOver(reserveDeployButton, screenPosition) ||
+                   IsPointerOverRect(messageScrollRect != null
+                       ? messageScrollRect.transform as RectTransform : null, screenPosition) ||
                    IsPointerOverRect(audioControlsRect, screenPosition) ||
                    reservePanelView.IsPointerOver(screenPosition);
         }
@@ -218,6 +222,10 @@ namespace GCCC.BoardGame.Presentation.Views
             SetRandomizeButtonInteractable(randomizeButtonInteractable);
             SetFuseButtonInteractable(fuseButtonInteractable);
             SetReserveDeployButtonInteractable(reserveDeployButtonInteractable);
+            if (messageScrollRect != null)
+            {
+                messageScrollRect.enabled = !IsOverlayVisible;
+            }
         }
 
         public void SetRandomizeButtonInteractable(bool interactable)
@@ -333,6 +341,19 @@ namespace GCCC.BoardGame.Presentation.Views
             if (messageLabel != null)
             {
                 messageLabel.text = text ?? string.Empty;
+                if (messageScrollRect != null)
+                {
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(
+                        messageScrollRect.transform as RectTransform);
+                    messageLabel.rectTransform.SetSizeWithCurrentAnchors(
+                        RectTransform.Axis.Vertical,
+                        Mathf.Max(messageScrollRect.viewport.rect.height, messageLabel.preferredHeight + 8f));
+                    messageScrollRect.StopMovement();
+                    // Equal content/viewport heights have no normalized scroll range.
+                    messageScrollRect.content.anchoredPosition = new Vector2(
+                        messageScrollRect.content.anchoredPosition.x, 0f);
+                    messageScrollRect.verticalNormalizedPosition = 1f;
+                }
             }
         }
 
@@ -340,6 +361,7 @@ namespace GCCC.BoardGame.Presentation.Views
         {
             return statusLabel != null &&
                    messageLabel != null &&
+                   messageScrollRect != null &&
                    resetButton != null &&
                    randomizePowerButton != null &&
                    fuseButton != null &&
@@ -466,6 +488,7 @@ namespace GCCC.BoardGame.Presentation.Views
                 interactable && reserveDeployButtonInteractable;
             bgmSlider.interactable = interactable;
             sfxSlider.interactable = interactable;
+            messageScrollRect.enabled = interactable && !IsOverlayVisible;
 
             if (!interactable)
             {

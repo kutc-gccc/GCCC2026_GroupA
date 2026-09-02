@@ -127,8 +127,10 @@ Eventは「何をしてほしいか」ではなく、Command実行によって�
 | `FusionAttemptFailed` | 合法な合体を試みたが確率判定に失敗した |
 | `RandomizePowerEvent` | パワーランダム化による変更前後の値が確定した |
 | `CellEffectTriggered` | セル効果が順序どおりに発動した |
+| `CellEffectAlreadyApplied` | 適用済みのセル効果を見送った |
 | `CellEffectExpired` | 退出により滞在中効果が終了した |
 | `ReservePieceAdded` | プレイヤーのリザーブへ駒が追加された |
+| `ReservePieceGrantBlockedByLimit` | 所有駒上限によりリザーブ獲得を見送った（Commandは成功） |
 | `ReservePieceDeployed` | リザーブ駒が盤上へ配置された |
 | `TurnChanged` | 手番が交代、または自動パスされた |
 | `GameEnded` | 勝者または引き分けが確定した |
@@ -162,6 +164,8 @@ sequenceDiagram
 ```
 
 `HumanPlayerAgent.BeginTurn`は最新Snapshot、合法Command一覧、送信用callbackを受け取ります。将来のCPUも同じ`IPlayerAgent`契約を利用します。
+
+`GameCoordinator`は実行前Snapshotも保存し、成功したCommandとEventを`ActionResultMessageBuilder`へ渡します。確定した戦闘値、効果の失効・発動、リザーブ獲得／上限理由を行動順にまとめ、`GameHudView.ShowMessage`で直前の結果を表示します。結果は次の成功した行動まで保持し、配置案内は一時的に優先表示、キャンセル時に結果へ戻します。HUDの結果欄は縦スクロールに対応し、`IsPointerOverControl`で盤面入力への貫通を防ぎます。
 
 ## 7. RuleとPlayerAgentの差し替え口
 

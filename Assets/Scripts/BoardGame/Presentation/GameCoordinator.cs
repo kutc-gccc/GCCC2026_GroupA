@@ -23,6 +23,8 @@ namespace GCCC.BoardGame.Presentation
         private readonly IGameAudio audioManager;
         private readonly Dictionary<PlayerId, IPlayerAgent> agents;
         private InteractionState interactionStateValue = InteractionState.None;
+        private string lastActionResultMessage = string.Empty;
+        private string displayedMessage;
 
         /// <summary>
         /// モードは11箇所から書き換わるので、代入経路を1本にまとめて
@@ -38,6 +40,7 @@ namespace GCCC.BoardGame.Presentation
                     value.Mode == InteractionMode.Fusion);
                 hudView.SetReserveDeployModeActive(
                     value.Mode == InteractionMode.ReserveDeployment);
+                RefreshMessage();
             }
         }
 
@@ -183,7 +186,7 @@ namespace GCCC.BoardGame.Presentation
             {
                 CancelReserveDeployment();
                 RenderSelection();
-                hudView.ShowMessage(string.Empty);
+                RefreshMessage();
                 return;
             }
 
@@ -212,7 +215,7 @@ namespace GCCC.BoardGame.Presentation
             {
                 CancelReserveDeployment();
                 RenderSelection();
-                hudView.ShowMessage(string.Empty);
+                RefreshMessage();
                 return;
             }
 
@@ -227,7 +230,7 @@ namespace GCCC.BoardGame.Presentation
             interactionState = InteractionState.ReserveDeployment(reservePieceId);
             hudView.SetSelectedReservePiece(reservePieceId);
             RenderReserveDeployment();
-            hudView.ShowMessage("リザーブを配置するマスを選んでください");
+            RefreshMessage();
         }
 
         public void Reset()
@@ -238,12 +241,13 @@ namespace GCCC.BoardGame.Presentation
             }
 
             session.Reset();
+            lastActionResultMessage = string.Empty;
             interactionState = InteractionState.None;
             CancelReserveDeployment();
             pieceViews.Rebuild(session.Snapshot);
             boardView.ShowSelection(null, NoCells, NoCells, session.Snapshot);
             hudView.Render(session.Snapshot);
-            hudView.ShowMessage(string.Empty);
+            RefreshMessage(true);
             hudView.SetRandomizeButtonInteractable(false);
             hudView.SetReserveDeployButtonInteractable(false);
             hudView.SetDeployableReservePieces(Array.Empty<PieceId>());
@@ -334,6 +338,7 @@ namespace GCCC.BoardGame.Presentation
         private void ExecuteSubmittedCommand(GameCommand command)
         {
             agents[command.Player].EndTurn();
+            GameSnapshot before = session.Snapshot;
             CommandResult result = session.Execute(command);
             if (!result.Success)
             {
@@ -351,33 +356,22 @@ namespace GCCC.BoardGame.Presentation
             hudView.Render(snapshot);
             hudView.SetRandomizeButtonInteractable(false);
             hudView.SetReserveDeployButtonInteractable(false);
-            ShowFusionResultMessage(result.Events);
+            lastActionResultMessage = ActionResultMessageBuilder.Build(command, before, result.Events);
+            RefreshMessage(true);
             if (!snapshot.IsGameOver)
             {
                 BeginCurrentTurn();
             }
         }
 
-        private void ShowFusionResultMessage(IReadOnlyList<GameEvent> events)
+        private void RefreshMessage(bool force = false)
         {
-            foreach (GameEvent gameEvent in events)
-            {
-                if (gameEvent is PiecesFused fused)
-                {
-                    hudView.ShowMessage(fused.Bonus >= 2
-                        ? "大成功！ 戦闘力+2で合体しました"
-                        : "合体成功！ 戦闘力+1で合体しました");
-                    return;
-                }
-
-                if (gameEvent is FusionAttemptFailed)
-                {
-                    hudView.ShowMessage("合体失敗…　駒はそのまま残りました");
-                    return;
-                }
-            }
-
-            hudView.ShowMessage(string.Empty);
+            string message = interactionState.Mode == InteractionMode.ReserveDeployment
+                ? "リザーブを配置するマスを選んでください"
+                : lastActionResultMessage;
+            if (!force && message == displayedMessage) return;
+            displayedMessage = message;
+            hudView.ShowMessage(message);
         }
 
         private void BeginCurrentTurn()

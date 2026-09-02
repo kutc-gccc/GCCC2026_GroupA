@@ -504,8 +504,11 @@ namespace GCCC.BoardGame.Core
                     "Reserve pieces must use a registered movement profile.");
             }
 
-            if (GetOwnedPieceCount(grant.Owner) >= definition.MaxPiecesPerPlayer)
+            int ownedPieceCount = GetOwnedPieceCount(grant.Owner);
+            if (ownedPieceCount >= definition.MaxPiecesPerPlayer)
             {
+                events.Add(new ReservePieceGrantBlockedByLimit(
+                    grant.Owner, ownedPieceCount, definition.MaxPiecesPerPlayer));
                 return;
             }
 

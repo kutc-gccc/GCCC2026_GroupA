@@ -304,14 +304,20 @@ else
 | `PiecesFused` | 合体元2個と合体後の`PieceId`、`Bonus` |
 | `FusionAttemptFailed` | 合体を試みた2個の`PieceId` |
 | `CellEffectTriggered` | `EffectId`, `PieceId`, `Position` |
+| `CellEffectAlreadyApplied` | `EffectId`, `PieceId`, `Position`。適用済みのため追加効果なし |
 | `CellEffectExpired` | `EffectId`, `PieceId`, `Position` |
 | `ReservePieceAdded` | 追加された`ReservePieceState` |
+| `ReservePieceGrantBlockedByLimit` | `Owner`, `OwnedPieceCount`, `MaxPiecesPerPlayer`。所有上限で獲得を見送った |
 | `ReservePieceDeployed` | `PieceId`, `Owner`, `Position` |
 | `RandomizePowerEvent` | `PieceId`, `PreviousPower`, `NewPower` |
 | `TurnChanged` | 交代前後の`PlayerId`, `TurnWasPassed` |
 | `GameEnded` | `Winner`, `IsDraw` |
 
 各Eventがどういうときに発生するかは[アーキテクチャ §5](ARCHITECTURE.md#5-event)を参照してください。
+
+セル効果のEventは効果単位で連続します。`CellEffectTriggered`の後に、その効果の`PiecePowerChanged`、リザーブ獲得／上限通知、Handlerの追加Eventが続きます。次の`CellEffectTriggered`／`CellEffectAlreadyApplied`、または`TurnChanged`／`GameEnded`が区切りです。適用済みなら`CellEffectAlreadyApplied`だけを発行し、`CellEffectTriggered`は発行しません。
+
+上限通知はCommandの失敗ではありません。移動と手番消費は成立し、リザーブ数だけが増えません。Coreは文章を保持せず、Presentationの`ActionResultMessageBuilder`が実行前Snapshot・Command・Eventから行動結果を組み立てます。戦闘値は`CombatResolved`の確定値であり、表示側で再計算しません。
 
 ## 8. Rule差し替えで使う型
 

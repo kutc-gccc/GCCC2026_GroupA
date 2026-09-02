@@ -49,6 +49,8 @@ namespace GCCC.BoardGame.Core.Internal
                 if (HasAlreadyApplied(
                         currentPiece, effectId, effectDefinition.Lifetime))
                 {
+                    events.Add(new CellEffectAlreadyApplied(
+                        effectId, currentPiece.Id, cell.Position));
                     continue;
                 }
 
@@ -62,6 +64,8 @@ namespace GCCC.BoardGame.Core.Internal
                 PieceState updatedPiece =
                     RecordApplication(result.Piece, effectId, effectDefinition.Lifetime);
 
+                // A triggered marker precedes its power/grant outcomes. Keep each effect's
+                // events contiguous so consumers can attribute outcomes without guessing IDs.
                 events.Add(new CellEffectTriggered(
                     effectId, currentPiece.Id, cell.Position));
                 if (previousPower != updatedPiece.EffectiveCombatPower)

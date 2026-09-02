@@ -247,6 +247,8 @@ var session = new GameSession(
 
 効果定義またはHandlerが未登録の場合は`GameDefinition`／`GameSession`生成時に拒否されるため、Handler登録とAsset設定を同じ変更に含めます。
 
+画面内の行動ログは`ActionResultMessageBuilder`へ接続されています。標準の戦闘力変更・リザーブ獲得は、効果IDや色に依存せずEventの実値とLifetimeから説明します。独自の効果結果を追加する場合はここへ説明を追加してください。未対応の結果は「特殊マスの効果が発動」と表示し、効果内容を推測しません。`CellEffectProcessor`が発行する効果単位のEvent順序は[Core API §7](CORE_API.md#7-eventが保持する値)の契約を維持し、Handlerから別の効果の区切りEventを混入させないでください。
+
 ### 設定
 
 1. `CombatPowerBoostEffectConfig`、`ReservePieceGrantEffectConfig`、または新しい`CellEffectConfig`派生Assetを作成し、固有の`EffectId`とLifetime、効果値を設定します。
@@ -265,6 +267,7 @@ var session = new GameSession(
 - 複数効果の累積。
 - 未登録IDと不正な結果の拒否。
 - `CellEffectTriggered`、`PiecePowerChanged`、追加Eventの値と順序。
+- `CellEffectAlreadyApplied`と`ReservePieceGrantBlockedByLimit`、複数効果・一部獲得時のEvent順序とログ表示。
 - Bootstrapで登録したHandlerがConfig上のセルで発動するPlayMode統合。
 - リザーブ獲得時に盤上＋リザーブが`MaxPiecesPerPlayer`を超えないこと。
 - `DeployReservePieceCommand`が`ReserveDeploymentDepth`内の空きマスだけを合法手として返すこと。
