@@ -5,6 +5,7 @@ using GCCC.BoardGame.Presentation;
 using GCCC.BoardGame.Presentation.Views;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
@@ -20,7 +21,8 @@ namespace GCCC.BoardGame.Tests
         private static readonly string[] SharedTerms =
         {
             "パワーランダム化", "リザーブ", "滞在中効果", "永続効果",
-            "選択中", "琥珀の枠", "白い点", "赤い枠", "青い枠", "合体"
+            "選択中", "琥珀の枠", "白い点", "赤い枠", "青い枠", "合体",
+            "合体した駒"
         };
 
         /// <summary>ゲーム画面と食い違っていた古い言い回し。復活していないことを確かめる。</summary>
@@ -176,6 +178,62 @@ namespace GCCC.BoardGame.Tests
                 Assert.That(explained, Does.Not.Contain(retired),
                     $"遊び方ページに旧表記「{retired}」が残っている。");
             }
+        }
+
+        /// <summary>
+        /// 押せるものにホバー・フォーカスの反応が付いていることを確かめる。
+        /// uGUIのColorTintは塗りが透明だと何も変えないため、実測では「遊び方」ボタンに
+        /// フォーカスを移しても1画素も変化していなかった。目視では気づけないので、
+        /// 反応を出す部品が付いているかと、実際に状態が変わるかをここで見る。
+        /// </summary>
+        [UnityTest]
+        public IEnumerator ButtonsShowAHoverAndFocusResponse()
+        {
+            yield return SceneManager.LoadSceneAsync(
+                BoardGameSceneNames.Title, LoadSceneMode.Single);
+            yield return null;
+
+            // タイトルページを閉じる前に、そちら側のボタンを見る
+            AssertHasFocusResponse("Game Start Button");
+            AssertHasFocusResponse("How To Button");
+
+            HowToPlayView view = null;
+            yield return OpenHowToPage(result => view = result);
+            AssertHasFocusResponse("How To Back Button");
+
+            // ナビは実行時生成なので、生成側でも付けていることを確かめる
+            for (int i = 0; i < view.SectionCount; i++)
+            {
+                ButtonFocusHighlight highlight =
+                    view.GetNavButton(i).GetComponent<ButtonFocusHighlight>();
+                Assert.That(highlight, Is.Not.Null, $"ナビ{i + 1}に部品が付いていない。");
+                Assert.That(highlight.IsHighlighted, Is.False, "触れていないので反応は出さない。");
+            }
+
+            // フォーカスを移すと状態が変わる
+            ButtonFocusHighlight target = view.GetNavButton(2).GetComponent<ButtonFocusHighlight>();
+            EventSystem.current.SetSelectedGameObject(view.GetNavButton(2).gameObject);
+            yield return null;
+
+            Assert.That(target.IsHighlighted, Is.True, "フォーカスが当たったら反応を出す。");
+            Graphic overlay = view.GetNavButton(2).transform
+                .Find(ButtonFocusHighlight.HighlightObjectName).GetComponent<Graphic>();
+            Assert.That(overlay.color.a, Is.GreaterThan(0f), "重ね絵が見える状態になっていない。");
+
+            EventSystem.current.SetSelectedGameObject(null);
+            yield return null;
+            Assert.That(target.IsHighlighted, Is.False, "フォーカスが外れたら戻す。");
+            Assert.That(overlay.color.a, Is.EqualTo(0f));
+        }
+
+        private static void AssertHasFocusResponse(string buttonName)
+        {
+            GameObject button = GameObject.Find(buttonName);
+            Assert.That(button, Is.Not.Null, $"{buttonName}が見つからない。");
+            Assert.That(button.GetComponent<ButtonFocusHighlight>(), Is.Not.Null,
+                $"{buttonName}に反応を出す部品が付いていない。");
+            Assert.That(button.transform.Find(ButtonFocusHighlight.HighlightObjectName),
+                Is.Not.Null, $"{buttonName}に重ね絵が無い。");
         }
 
         private static string CollectText(Text[] texts)

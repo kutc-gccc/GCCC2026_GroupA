@@ -41,9 +41,19 @@ namespace GCCC.BoardGame.Presentation.Views
         [Header("Reserve and effects")]
         [SerializeField] private ReservePanelView reservePanelView;
         [SerializeField] private GameObject effectLegend;
+
+        // 凡例のうち特殊マスの2行だけは、盤に特殊マスがある設定でのみ出す。
+        // 残りの4行（選択中・移動可能・戦闘可能・合体候補）は常に必要なので、枠ごと消さない。
+        [SerializeField] private GameObject whileOccupiedLegendRow;
+        [SerializeField] private GameObject permanentLegendRow;
         [SerializeField] private Font uiFont;
 
         [Header("Result")]
+        // ゲーム中でも遊び方を読めるようにする。タイトルと同じPrefabを重ねる。
+        [SerializeField] private GameObject howToPage;
+        [SerializeField] private Button howToButton;
+        [SerializeField] private Button howToCloseButton;
+
         [SerializeField] private GameObject resultOverlay;
         [SerializeField] private Text resultLabel;
         [SerializeField] private Button resultButton;
@@ -65,13 +75,21 @@ namespace GCCC.BoardGame.Presentation.Views
         public string StatusText => statusLabel != null ? statusLabel.text : string.Empty;
         public string ResultText => resultLabel != null ? resultLabel.text : string.Empty;
         public bool IsResultVisible => resultOverlay != null && resultOverlay.activeSelf;
+
+        /// <summary>遊び方を重ねて表示しているか。開いている間は盤面と操作を止める。</summary>
+        public bool IsHowToVisible => howToPage != null && howToPage.activeSelf;
+
+        /// <summary>結果か遊び方が重なっていて、背景を操作できない状態か。</summary>
+        public bool IsOverlayVisible => IsResultVisible || IsHowToVisible;
         public Button RandomizePowerButton => randomizePowerButton;
         public Button ReserveDeployButton => reserveDeployButton;
         public string ReserveText => reserveText;
         public int ReserveCardCount =>
             reservePanelView != null ? reservePanelView.CardCount : 0;
+        /// <summary>特殊マスの2行（滞在中効果・永続効果）が出ているかどうか。</summary>
         public bool IsEffectLegendVisible =>
-            effectLegend != null && effectLegend.activeSelf;
+            whileOccupiedLegendRow != null && whileOccupiedLegendRow.activeSelf &&
+            permanentLegendRow != null && permanentLegendRow.activeSelf;
 
         public void Initialize()
         {
@@ -109,6 +127,8 @@ namespace GCCC.BoardGame.Presentation.Views
             fuseButton.onClick.AddListener(OnFuseClicked);
             reserveDeployButton.onClick.AddListener(OnReserveDeployClicked);
             resultButton.onClick.AddListener(OnStartScreenClicked);
+            howToButton.onClick.AddListener(OpenHowTo);
+            howToCloseButton.onClick.AddListener(CloseHowTo);
 
             if (audioManager != null)
             {
@@ -139,7 +159,12 @@ namespace GCCC.BoardGame.Presentation.Views
                 $"　プレイヤー2: {snapshot.GetPlayer(PlayerId.Player2).ReservePieces.Count}";
 
             reservePanelView.Render(snapshot);
-            effectLegend.SetActive(snapshot.CellEffectDefinitions.Count > 0);
+            // 凡例の枠は常に出す。Prefabでは非アクティブ保存なので明示的に有効化する。
+            effectLegend.SetActive(true);
+
+            bool hasCellEffects = snapshot.CellEffectDefinitions.Count > 0;
+            whileOccupiedLegendRow.SetActive(hasCellEffects);
+            permanentLegendRow.SetActive(hasCellEffects);
 
             if (snapshot.Winner.HasValue)
             {
@@ -173,12 +198,13 @@ namespace GCCC.BoardGame.Presentation.Views
 
         public bool IsPointerOverControl(Vector2 screenPosition)
         {
-            if (IsResultVisible)
+            if (IsOverlayVisible)
             {
                 return true;
             }
 
-            return IsPointerOver(resetButton, screenPosition) ||
+            return IsPointerOver(howToButton, screenPosition) ||
+                   IsPointerOver(resetButton, screenPosition) ||
                    IsPointerOver(randomizePowerButton, screenPosition) ||
                    IsPointerOver(fuseButton, screenPosition) ||
                    IsPointerOver(reserveDeployButton, screenPosition) ||
@@ -186,12 +212,20 @@ namespace GCCC.BoardGame.Presentation.Views
                    reservePanelView.IsPointerOver(screenPosition);
         }
 
+        /// <summary>重なりの出入りで、覚えている可否をそのまま引き直す。</summary>
+        private void RefreshControlInteractivity()
+        {
+            SetRandomizeButtonInteractable(randomizeButtonInteractable);
+            SetFuseButtonInteractable(fuseButtonInteractable);
+            SetReserveDeployButtonInteractable(reserveDeployButtonInteractable);
+        }
+
         public void SetRandomizeButtonInteractable(bool interactable)
         {
             randomizeButtonInteractable = interactable;
             if (randomizePowerButton != null)
             {
-                randomizePowerButton.interactable = interactable && !IsResultVisible;
+                randomizePowerButton.interactable = interactable && !IsOverlayVisible;
             }
         }
 
@@ -200,7 +234,7 @@ namespace GCCC.BoardGame.Presentation.Views
             fuseButtonInteractable = interactable;
             if (fuseButton != null)
             {
-                fuseButton.interactable = interactable && !IsResultVisible;
+                fuseButton.interactable = interactable && !IsOverlayVisible;
             }
         }
 
@@ -209,7 +243,7 @@ namespace GCCC.BoardGame.Presentation.Views
             reserveDeployButtonInteractable = interactable;
             if (reserveDeployButton != null)
             {
-                reserveDeployButton.interactable = interactable && !IsResultVisible;
+                reserveDeployButton.interactable = interactable && !IsOverlayVisible;
             }
         }
 
@@ -315,7 +349,12 @@ namespace GCCC.BoardGame.Presentation.Views
                    sfxSlider != null &&
                    reservePanelView != null &&
                    effectLegend != null &&
+                   whileOccupiedLegendRow != null &&
+                   permanentLegendRow != null &&
                    uiFont != null &&
+                   howToPage != null &&
+                   howToButton != null &&
+                   howToCloseButton != null &&
                    resultOverlay != null &&
                    resultLabel != null &&
                    resultButton != null;
@@ -323,7 +362,7 @@ namespace GCCC.BoardGame.Presentation.Views
 
         private void OnResetClicked()
         {
-            if (!IsResultVisible)
+            if (!IsOverlayVisible)
             {
                 ResetRequested?.Invoke();
             }
@@ -331,7 +370,7 @@ namespace GCCC.BoardGame.Presentation.Views
 
         private void OnRandomizeClicked()
         {
-            if (!IsResultVisible)
+            if (!IsOverlayVisible)
             {
                 OnRandomizePowerButtonClicked?.Invoke();
             }
@@ -339,7 +378,7 @@ namespace GCCC.BoardGame.Presentation.Views
 
         private void OnFuseClicked()
         {
-            if (!IsResultVisible)
+            if (!IsOverlayVisible)
             {
                 FuseRequested?.Invoke();
             }
@@ -347,7 +386,7 @@ namespace GCCC.BoardGame.Presentation.Views
 
         private void OnReserveDeployClicked()
         {
-            if (!IsResultVisible)
+            if (!IsOverlayVisible)
             {
                 ReserveDeployRequested?.Invoke();
             }
@@ -355,10 +394,33 @@ namespace GCCC.BoardGame.Presentation.Views
 
         private void OnReservePieceSelected(PieceId pieceId)
         {
-            if (!IsResultVisible)
+            if (!IsOverlayVisible)
             {
                 ReservePieceSelected?.Invoke(pieceId);
             }
+        }
+
+        /// <summary>ゲームを進めたまま遊び方を重ねる。勝敗が出ているときは結果を優先する。</summary>
+        public void OpenHowTo()
+        {
+            if (howToPage == null || IsResultVisible)
+            {
+                return;
+            }
+
+            howToPage.SetActive(true);
+            RefreshControlInteractivity();
+        }
+
+        public void CloseHowTo()
+        {
+            if (howToPage == null)
+            {
+                return;
+            }
+
+            howToPage.SetActive(false);
+            RefreshControlInteractivity();
         }
 
         private void OnStartScreenClicked()
@@ -451,6 +513,16 @@ namespace GCCC.BoardGame.Presentation.Views
             if (resultButton != null)
             {
                 resultButton.onClick.RemoveListener(OnStartScreenClicked);
+            }
+
+            if (howToButton != null)
+            {
+                howToButton.onClick.RemoveListener(OpenHowTo);
+            }
+
+            if (howToCloseButton != null)
+            {
+                howToCloseButton.onClick.RemoveListener(CloseHowTo);
             }
 
             if (reservePanelView != null)

@@ -97,7 +97,8 @@ namespace GCCC.BoardGame.Tests
                 .GetComponent<Button>();
             Assert.That(
                 backButton.transform.Find("Label").GetComponent<Text>().text,
-                Is.EqualTo("戻る"));
+                Is.EqualTo("閉じる"),
+                "ゲーム中にも同じPrefabを重ねるので、タイトル前提の「戻る」にしない。");
 
             backButton.onClick.Invoke();
             yield return null;

@@ -67,7 +67,7 @@ namespace GCCC.BoardGame.Tests
             RectTransform legendRect = boardUi.transform.Find("Cell Effect Legend")
                 .GetComponent<RectTransform>();
             Assert.That(legendRect.anchorMin, Is.EqualTo(new Vector2(0f, 0.5f)));
-            Assert.That(legendRect.childCount, Is.EqualTo(6));
+            Assert.That(legendRect.childCount, Is.EqualTo(7));
             Assert.That(legendRect.Find("Selected Legend Row"), Is.Not.Null);
             Assert.That(legendRect.Find("Movable Legend Row"), Is.Not.Null);
             Assert.That(legendRect.Find("Combat Legend Row"), Is.Not.Null);
@@ -138,6 +138,194 @@ namespace GCCC.BoardGame.Tests
             yield return null;
         }
 
+
+        /// <summary>
+        /// ゲーム中に遊び方を重ねて開けること。タイトルへ戻すと進行中のゲームが消えるため、
+        /// 同じPrefabを画面に重ねる方式にしている。開いている間は盤面と操作を止める。
+        /// </summary>
+        [UnityTest]
+        public IEnumerator HowToOverlayOpensOverTheGameAndBlocksPlay()
+        {
+            GameHudView hud = bootstrapObject.GetComponentInChildren<GameHudView>();
+            Assert.That(hud, Is.Not.Null);
+            Assert.That(hud.IsHowToVisible, Is.False, "最初は閉じている。");
+
+            int piecesBefore = bootstrap.Snapshot.Pieces.Count;
+            PlayerId turnBefore = bootstrap.Snapshot.CurrentPlayer;
+
+            GameObject button = GameObject.Find("How To Button");
+            Assert.That(button, Is.Not.Null, "ゲーム画面に遊び方ボタンが無い。");
+            Assert.That(button.GetComponentInChildren<Text>(true).text, Is.EqualTo("遊び方"));
+
+            button.GetComponent<Button>().onClick.Invoke();
+            yield return null;
+
+            Assert.That(hud.IsHowToVisible, Is.True);
+            Assert.That(hud.IsOverlayVisible, Is.True);
+            HowToPlayView view = hud.GetComponentInChildren<HowToPlayView>(true);
+            Assert.That(view, Is.Not.Null, "重ねたページに中身が生成されていない。");
+            Assert.That(view.SectionCount, Is.EqualTo(6));
+
+            // 重なっている間は盤面も操作ボタンも効かない
+            Assert.That(hud.IsPointerOverControl(new Vector2(Screen.width / 2f, Screen.height / 2f)),
+                Is.True, "盤面クリックが素通りしている。");
+            Assert.That(hud.RandomizePowerButton.interactable, Is.False);
+            Assert.That(hud.ReserveDeployButton.interactable, Is.False);
+
+            // ゲームは消えていない
+            Assert.That(bootstrap.Snapshot.Pieces.Count, Is.EqualTo(piecesBefore));
+            Assert.That(bootstrap.Snapshot.CurrentPlayer, Is.EqualTo(turnBefore));
+            Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo(BoardGameSceneNames.Game));
+
+            GameObject close = null;
+            foreach (Transform t in hud.GetComponentsInChildren<Transform>(true))
+            {
+                if (t.name == "How To Back Button") { close = t.gameObject; }
+            }
+            Assert.That(close, Is.Not.Null);
+            Assert.That(close.GetComponentInChildren<Text>(true).text, Is.EqualTo("閉じる"),
+                "ゲーム中はタイトルへ戻らないので「閉じる」にする。");
+
+            close.GetComponent<Button>().onClick.Invoke();
+            yield return null;
+
+            Assert.That(hud.IsHowToVisible, Is.False);
+            Assert.That(hud.IsOverlayVisible, Is.False);
+            Assert.That(bootstrap.Snapshot.Pieces.Count, Is.EqualTo(piecesBefore));
+        }
+
+        /// <summary>
+        /// ゲーム画面の文字が、枠に入りきらず丸ごと消えていないことを確かめる。
+        /// uGUIのTextは<c>Truncate</c>のとき1行が数px足りないだけで何も描かなくなるため、
+        /// 見た目には空白になるだけで気づきにくい。実際に凡例7行がこれで消えていた。
+        /// </summary>
+        [UnityTest]
+        public IEnumerator EveryHudLabelActuallyDrawsItsText()
+        {
+            GameHudView hud = bootstrapObject.GetComponentInChildren<GameHudView>();
+            Assert.That(hud, Is.Not.Null);
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            foreach (Text label in hud.GetComponentsInChildren<Text>(true))
+            {
+                if (!label.gameObject.activeInHierarchy ||
+                    !label.enabled ||
+                    string.IsNullOrEmpty(label.text))
+                {
+                    continue;
+                }
+
+                Assert.That(
+                    label.cachedTextGenerator.characterCount, Is.GreaterThan(0),
+                    $"「{label.text}」が1文字も描画されていない。" +
+                    $"枠 {label.rectTransform.rect.height:F1}px に対して " +
+                    $"{label.preferredHeight:F1}px 必要で、{label.verticalOverflow} により消えている。");
+            }
+        }
+
+        /// <summary>
+        /// 特殊マスが無い盤設定でも、操作の凡例（選択中・移動可能・戦闘可能・合体候補）は残す。
+        /// 消えるのは特殊マスの2行だけ。
+        /// </summary>
+        [UnityTest]
+        public IEnumerator OperationLegendStaysVisibleWithoutCellEffects()
+        {
+            GameSnapshot snapshot = CreatePlainSnapshot();
+
+            auxiliaryObject = new GameObject("Legend Without Effects Test");
+            GameHudView hud = CreateHudView(auxiliaryObject.transform);
+            hud.Initialize();
+            hud.Render(snapshot);
+            yield return null;
+
+            Transform legend = hud.GetComponentsInChildren<Transform>(true)
+                .Single(child => child.name == "Cell Effect Legend");
+            Assert.That(legend.gameObject.activeSelf, Is.True,
+                "凡例の枠ごと消してはいけない。");
+            Assert.That(hud.IsEffectLegendVisible, Is.False,
+                "特殊マスが無いので、その2行だけは隠す。");
+
+            foreach (string row in new[]
+            {
+                "Selected Legend Row", "Movable Legend Row",
+                "Combat Legend Row", "Fusion Legend Row"
+            })
+            {
+                Assert.That(
+                    legend.GetComponentsInChildren<Transform>(true)
+                        .Single(child => child.name == row).gameObject.activeSelf,
+                    Is.True,
+                    $"{row}は特殊マスと無関係なので常に出す。");
+            }
+        }
+
+        /// <summary>
+        /// リザーブ一覧の「駒 n / 6」は駒の個数ではなく占有枠を示す。
+        /// 合体してできた駒は2枠を使うので、盤上の駒が減っても表示は減らない。
+        /// </summary>
+        [UnityTest]
+        public IEnumerator ReserveHeaderCountsFusedPiecesAsTwoSlots()
+        {
+            PieceState normal = new PieceState(
+                new PieceId(1),
+                PlayerId.Player1,
+                new GridPosition(0, 1),
+                1,
+                PowerMovementProfile.StandardId);
+            PieceState fused = new PieceState(
+                new PieceId(2),
+                PlayerId.Player1,
+                new GridPosition(1, 1),
+                4,
+                PowerMovementProfile.StandardId,
+                null,
+                null,
+                true);
+
+            GameSnapshot snapshot = CreatePlainSnapshot(normal, fused);
+
+            auxiliaryObject = new GameObject("Reserve Slot Header Test");
+            GameHudView hud = CreateHudView(auxiliaryObject.transform);
+            hud.Initialize();
+            hud.Render(snapshot);
+            yield return null;
+
+            Assert.That(snapshot.GetPieceCount(PlayerId.Player1), Is.EqualTo(2),
+                "盤上の駒は2つ。");
+            Assert.That(FindReserveHeader(hud, "Player 1 Reserve Panel").text,
+                Does.Contain("駒 3 / 6"),
+                "通常1枠 + 合体2枠 = 3枠として表示する。");
+            Assert.That(FindReserveHeader(hud, "Player 2 Reserve Panel").text,
+                Does.Contain("駒 0 / 6"));
+        }
+
+        private static Text FindReserveHeader(GameHudView hud, string panelName)
+        {
+            Transform panel = hud.GetComponentsInChildren<Transform>(true)
+                .Single(child => child.name == panelName);
+            return panel.Find("Header").GetComponent<Text>();
+        }
+
+        /// <summary>特殊効果を持たない6×10の盤で、指定した駒だけを置いたスナップショット。</summary>
+        private static GameSnapshot CreatePlainSnapshot(params PieceState[] pieces)
+        {
+            List<CellDefinition> cells = new List<CellDefinition>();
+            for (int row = 0; row < 10; row++)
+            {
+                for (int column = 0; column < 6; column++)
+                {
+                    cells.Add(new CellDefinition(
+                        new GridPosition(column, row),
+                        row == 0
+                            ? PlayerId.Player1
+                            : row == 9 ? PlayerId.Player2 : (PlayerId?)null,
+                        null));
+                }
+            }
+
+            return new GameSnapshot(6, 10, pieces, cells, PlayerId.Player1, null, false);
+        }
 
         [UnityTest]
         public IEnumerator EffectCellsLegendAndReserveCountsRenderFromSnapshot()

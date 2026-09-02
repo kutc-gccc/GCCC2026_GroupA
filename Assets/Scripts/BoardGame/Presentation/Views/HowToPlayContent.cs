@@ -48,7 +48,7 @@ namespace GCCC.BoardGame.Presentation.Views
             new Section(
                 "勝ち方",
                 "相手の陣地に、1個でも届かせたら勝ち",
-                "盤は縦10マス。駒を進めて、いちばん奥の相手の陣地に入れば、その瞬間に勝ちです。",
+                "盤は縦10マス。駒を進めて、自分から見ていちばん奥の相手の陣地に入れば、その瞬間に勝ちです。",
                 FigureKind.Board,
                 "相手を全滅させても勝ちではありません。倒すのは道を空けるため。"),
             new Section(
@@ -59,14 +59,14 @@ namespace GCCC.BoardGame.Presentation.Views
                 "迷ったら画面左上の手番表示を見てください。いま動かせるのがどちらか書かれています。"),
             new Section(
                 "1手の行動",
-                "1手でできることは、3つのうち1つだけ",
-                "自分の駒を選んでから、どれかを1回。終わると相手の番になります。",
+                "選んだ駒でできることは、3つのうち1つだけ",
+                "自分の駒を選んでから、どれかを1回。終わると相手の番になります。リザーブを置くのも1手です。",
                 FigureKind.TurnActions,
                 "選ぶだけでは手番は進みません。同じ駒をもう一度押すと選択を解除できます。"),
             new Section(
                 "動ける向き",
                 "強い駒ほど、動ける向きが減る",
-                "強さが上がるたびに、動ける向きがひとつずつ永久に減ります。減った向きは、さらに強くなっても戻りません。",
+                "動ける向きは、いまの強さで決まります。強くなるほど1つずつ減り、弱くなればその強さの向きへ戻ります。",
                 FigureKind.MoveDirections,
                 "強くすれば勝てる、ではありません。強い駒はまっすぐしか進めず、回り込めなくなります。"),
             new Section(
@@ -80,7 +80,7 @@ namespace GCCC.BoardGame.Presentation.Views
                 "ここから先は、遊びながらで大丈夫",
                 "残りは出てきたときに画面が教えてくれます。いま覚える必要はありません。",
                 FigureKind.LaterTopics,
-                "持てる駒は盤上とリザーブを合わせて6個まで。合体した駒は2個ぶんを使うので、合体で枠は空きません。")
+                "持てる駒は盤上とリザーブを合わせて6個まで。合体した駒は2個ぶんなので枠は空きません。")
         };
 
         // ---- 節1: 盤面の凡例 ----
@@ -108,8 +108,8 @@ namespace GCCC.BoardGame.Presentation.Views
 
         internal static readonly IReadOnlyList<BoardKey> BoardKeys = new[]
         {
-            new BoardKey(KeySwatch.Territory, "いちばん上 ＝ 相手の陣地。入れば勝ち"),
-            new BoardKey(KeySwatch.Territory, "いちばん下 ＝ 自分の陣地。自分では入れない"),
+            new BoardKey(KeySwatch.Territory, "三角が向く先 ＝ 相手の陣地。入れば勝ち"),
+            new BoardKey(KeySwatch.Territory, "その反対側 ＝ 自分の陣地。自分では入れない"),
             new BoardKey(KeySwatch.Wood, "ふつうのマス"),
             new BoardKey(KeySwatch.Effect, "色つきのマス ＝ 特別な効果（あとで）")
         };
@@ -288,7 +288,7 @@ namespace GCCC.BoardGame.Presentation.Views
             new LaterTopic(LaterAccent.Violet, "永続効果（紫の塗り）",
                 "リザーブを1つもらえます。1駒につき1回だけ。"),
             new LaterTopic(LaterAccent.Fusion, "合体",
-                "2駒の強さを合わせて1駒に。25%で失敗し、そのまま手番が終わります。"),
+                "2駒の強さを合わせて1駒に。25%で失敗。合体した駒は少し大きくなり、再合体はできません。"),
             new LaterTopic(LaterAccent.Amber, "リザーブ",
                 "画面右のリザーブ一覧から、自陣側の空きマスへ置けます。置くと1手使います。")
         };

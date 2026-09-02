@@ -46,7 +46,7 @@ flowchart TB
 | `MovementProfileId` | 駒が使用する戦闘力別移動プロファイルのID |
 | `PowerMovementBand` | 戦闘力の最小値・最大値と、その範囲で許可する方向 |
 | `PowerMovementProfile` | 戦闘力1以上を隙間なく覆う移動帯域の集合 |
-| `PieceState` | ID、所有者、位置、通常／一時戦闘力、移動プロファイルID、効果状態、合体成功履歴`HasFused`を持つ不変オブジェクト |
+| `PieceState` | ID、所有者、位置、通常／一時戦闘力、移動プロファイルID、効果状態、合体成功履歴`HasFused`を持つ不変オブジェクト。`SlotCost`は所有上限で占める枠数（合体済みは2） |
 | `CellDefinition` | 位置、陣地所有者、特殊効果IDの順序付き一覧 |
 | `CellEffectDefinition` | 効果IDと`WhileOccupied`／`PermanentOncePerPiece`の固定定義 |
 | `InitialPieceDefinition` | リセット時に生成する駒の定義 |
@@ -224,6 +224,7 @@ Viewはフォント、▲▼のSprite、盤面Configを必須とし、不足時�
 | `HowToPlayView` | 説明の6節、左ナビ、図解を実行時生成して切り替え | プレイ中の状態変更や勝敗判定 |
 | `HowToPlayContent` | 説明文・方向図・操作手順・戦闘例のデータ | レイアウト寸法やゲームルールの実行 |
 | `RuntimeSpriteFactory` | 四角・円・枠・三角のSpriteを実行時生成し破棄 | ゲーム状態 |
+| `ButtonFocusHighlight` | ボタンのホバー・キーボードフォーカスの反応 | 押されたときの処理 |
 
 `PieceState`と`PieceView`は1対1で対応しますが、役割は異なります。`PieceState`はCore上の正しいゲーム状態、`PieceView`はUnity上の見た目です。各駒GameObjectへ戦闘ルールを持たせず、`PieceViewManager`がSnapshotとEventを使って見た目だけを同期します。
 
