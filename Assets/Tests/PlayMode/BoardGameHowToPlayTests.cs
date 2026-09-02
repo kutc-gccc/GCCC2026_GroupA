@@ -202,27 +202,46 @@ namespace GCCC.BoardGame.Tests
             yield return OpenHowToPage(result => view = result);
             AssertHasFocusResponse("How To Back Button");
 
+            // 実行中のマウスカーソルがどこにあるかはテストから選べない。カーソルが乗った
+            // ままのボタンは「触れている」状態になるので、ポインタの出入りはこちらから渡し、
+            // 検査の直前に必ず外れた状態を作る。そうしないと結果が机の上の都合で変わる。
+            var pointer = new PointerEventData(EventSystem.current);
+
             // ナビは実行時生成なので、生成側でも付けていることを確かめる
             for (int i = 0; i < view.SectionCount; i++)
             {
                 ButtonFocusHighlight highlight =
                     view.GetNavButton(i).GetComponent<ButtonFocusHighlight>();
                 Assert.That(highlight, Is.Not.Null, $"ナビ{i + 1}に部品が付いていない。");
+                highlight.OnPointerExit(pointer);
                 Assert.That(highlight.IsHighlighted, Is.False, "触れていないので反応は出さない。");
             }
 
-            // フォーカスを移すと状態が変わる
             ButtonFocusHighlight target = view.GetNavButton(2).GetComponent<ButtonFocusHighlight>();
-            EventSystem.current.SetSelectedGameObject(view.GetNavButton(2).gameObject);
-            yield return null;
-
-            Assert.That(target.IsHighlighted, Is.True, "フォーカスが当たったら反応を出す。");
             Graphic overlay = view.GetNavButton(2).transform
                 .Find(ButtonFocusHighlight.HighlightObjectName).GetComponent<Graphic>();
+
+            // ポインタが乗ると状態が変わる
+            target.OnPointerEnter(pointer);
+            Assert.That(target.IsHighlighted, Is.True, "ポインタが乗ったら反応を出す。");
+            Assert.That(overlay.color.a, Is.GreaterThan(0f), "重ね絵が見える状態になっていない。");
+
+            target.OnPointerExit(pointer);
+            Assert.That(target.IsHighlighted, Is.False, "ポインタが外れたら戻す。");
+            Assert.That(overlay.color.a, Is.EqualTo(0f));
+
+            // フォーカスを移しても状態が変わる
+            EventSystem.current.SetSelectedGameObject(view.GetNavButton(2).gameObject);
+            yield return null;
+            target.OnPointerExit(pointer);
+
+            Assert.That(target.IsHighlighted, Is.True, "フォーカスが当たったら反応を出す。");
             Assert.That(overlay.color.a, Is.GreaterThan(0f), "重ね絵が見える状態になっていない。");
 
             EventSystem.current.SetSelectedGameObject(null);
             yield return null;
+            target.OnPointerExit(pointer);
+
             Assert.That(target.IsHighlighted, Is.False, "フォーカスが外れたら戻す。");
             Assert.That(overlay.color.a, Is.EqualTo(0f));
         }

@@ -28,7 +28,7 @@ Coreは`noEngineReferences: true`のため、ここに登場する型はすべ�
 MoveDirections directions = MoveDirections.North | MoveDirections.East;
 ```
 
-各フラグと相対座標の対応は[ゲームルール §5 移動ルール](GAME_RULES.md#5-移動ルール)を参照してください。`MoveDirections`は`PieceState`へ直接保存せず、移動プロファイルから戦闘力ごとに解決されます。
+各フラグと相対座標の対応は[ゲームルール §5 移動ルール](GAME_RULES.md#5-移動ルール)を参照してください。`MoveDirections`は盤の絶対座標です。移動プロファイルは行が増える向きへ攻めるプレイヤーの視点で書き、反対側から攻めるプレイヤーへは`DirectionalMovementRule`が180°回して当てます。`MoveDirections`は`PieceState`へ直接保存せず、移動プロファイルから戦闘力ごとに解決されます。
 
 ## 2. `PieceState`
 

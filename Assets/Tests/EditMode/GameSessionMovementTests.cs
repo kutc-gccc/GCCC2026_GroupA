@@ -176,6 +176,82 @@ namespace GCCC.BoardGame.Tests
             Assert.That(session.Snapshot.CurrentPlayer, Is.EqualTo(PlayerId.Player1));
         }
 
+        /// <summary>
+        /// 上側のプレイヤーは盤を180°回した位置から見ているので、失う向きも自分から見た
+        /// 向きで決まることを確かめる。回さないと戦闘力2で失うのが自分の後方左斜めになる。
+        /// </summary>
+        [Test]
+        public void UpperPlayerLosesItsOwnForwardRightAtCombatPowerTwo()
+        {
+            GameSession custom = CreateSession(PlayerId.Player2,
+                InitialPiece(1, 2, 7, PlayerId.Player2, 2),
+                InitialPiece(2, 5, 2, PlayerId.Player1));
+
+            GridPosition[] destinations = custom.GetLegalCommands(PlayerId.Player2)
+                .OfType<MovePieceCommand>()
+                .Where(move => move.PieceId == new PieceId(1))
+                .Select(move => move.Destination)
+                .ToArray();
+
+            // 上側から見た右斜め前は盤のSouthWest。ここだけが塞がる。
+            Assert.That(destinations, Has.None.EqualTo(new GridPosition(1, 6)));
+            Assert.That(destinations, Is.EquivalentTo(new[]
+            {
+                new GridPosition(2, 8),
+                new GridPosition(3, 8),
+                new GridPosition(3, 7),
+                new GridPosition(3, 6),
+                new GridPosition(2, 6),
+                new GridPosition(1, 7),
+                new GridPosition(1, 8)
+            }));
+        }
+
+        /// <summary>
+        /// どの戦闘力でも、両プレイヤーの動ける形が点対称になっていることを確かめる。
+        /// 片側だけ有利な形が残っていればここで落ちる。
+        /// </summary>
+        [TestCase(1)]
+        [TestCase(2)]
+        [TestCase(3)]
+        [TestCase(4)]
+        [TestCase(5)]
+        [TestCase(6)]
+        [TestCase(7)]
+        [TestCase(8)]
+        public void BothPlayersLoseTheSameDirectionsFromTheirOwnSide(int combatPower)
+        {
+            GridPosition lowerFrom = new GridPosition(2, 4);
+            GameSession lower = CreateSession(PlayerId.Player1,
+                InitialPiece(1, lowerFrom.Column, lowerFrom.Row, PlayerId.Player1, combatPower),
+                InitialPiece(2, 5, 8, PlayerId.Player2));
+
+            GridPosition upperFrom = new GridPosition(3, 5);
+            GameSession upper = CreateSession(PlayerId.Player2,
+                InitialPiece(1, upperFrom.Column, upperFrom.Row, PlayerId.Player2, combatPower),
+                InitialPiece(2, 0, 1, PlayerId.Player1));
+
+            GridPosition[] lowerOffsets = MoveOffsets(lower, PlayerId.Player1, lowerFrom);
+            GridPosition[] upperOffsets = MoveOffsets(upper, PlayerId.Player2, upperFrom);
+
+            Assert.That(lowerOffsets, Is.Not.Empty);
+            Assert.That(upperOffsets, Is.EquivalentTo(lowerOffsets
+                .Select(offset => new GridPosition(-offset.Column, -offset.Row))
+                .ToArray()));
+        }
+
+        private static GridPosition[] MoveOffsets(
+            GameSession session, PlayerId player, GridPosition from)
+        {
+            return session.GetLegalCommands(player)
+                .OfType<MovePieceCommand>()
+                .Where(move => move.PieceId == new PieceId(1))
+                .Select(move => new GridPosition(
+                    move.Destination.Column - from.Column,
+                    move.Destination.Row - from.Row))
+                .ToArray();
+        }
+
         [Test]
         public void PlayersCannotMoveIntoTheirOwnTerritory()
         {

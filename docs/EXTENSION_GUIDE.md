@@ -172,6 +172,8 @@ public interface IFusionResolver
 
 合体後の戦闘力と`MovementProfileId`の決定はResolverへ閉じ込めます。`MoveDirections`を`PieceState`やViewへ直接保存してはいけません。
 
+移動プロファイルは、行が増える向きへ攻めるプレイヤーの視点だけで書きます。反対側から攻めるプレイヤーへの180°回転は`DirectionalMovementRule`が陣地の位置から判断して行うため、プロファイル側でプレイヤーを分けてはいけません。
+
 手順4に違反した結果は`CommandResult`の失敗ではなく例外になります。未登録の`MovementProfileId`を返すと`GameSession.ExecuteFusion`が`InvalidOperationException`を送出し、既存の駒とIDまたは位置が重複する駒を返すと`GameSession`内部の`AddPiece`が`ArgumentException`を送出します。Resolver側で合法性を確定させてから返してください。
 
 標準の`AdjacentFusionResolver`は`internal`のため、Core外から参照・継承・ラップできません。EditModeテストからも直接生成できないので、標準判定の挙動を固定したい場合は`GameSession`の`randomSource`へテスト用`IRandomSource`を渡します。判定そのものを変える場合は`IFusionResolver`を新規実装してください。
