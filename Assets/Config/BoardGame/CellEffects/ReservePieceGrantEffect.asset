@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: ReservePieceGrantEffect
   m_EditorClassIdentifier: GCCC.BoardGame.Presentation::GCCC.BoardGame.Presentation.Config.ReservePieceGrantEffectConfig
   effectId: reserve-piece-grant
-  lifetime: 1
+  lifetime: 2
   combatPower: 1
   movementProfileId: standard

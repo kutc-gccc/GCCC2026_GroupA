@@ -286,7 +286,7 @@ namespace GCCC.BoardGame.Presentation.Views
             new LaterTopic(LaterAccent.Cyan, "戦闘力+2（シアンの塗り）",
                 "止まっている間だけ強さ +2。離れると戻ります。"),
             new LaterTopic(LaterAccent.Violet, "リザーブ獲得（紫の塗り）",
-                "リザーブを1つもらえます。1駒につき1回だけ。"),
+                "止まるたびリザーブを1つもらえます。同じ駒で何度でも。"),
             new LaterTopic(LaterAccent.Fusion, "合体",
                 "2駒の強さを合わせて1駒に。25%で失敗。合体した駒は少し大きくなり、再合体はできません。"),
             new LaterTopic(LaterAccent.Amber, "リザーブ",

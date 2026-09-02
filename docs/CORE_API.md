@@ -114,7 +114,7 @@ MoveDirections directions = profile.GetDirections(3); // North | South
 | `CellDefinition` | 1マスの固定設定 | 座標、陣地所有者、特殊効果ID |
 | `InitialPieceDefinition` | リセット時に生成する1個の駒の初期設定 | ID、所有者、初期位置、初期戦闘力、移動プロファイルID |
 | `GameDefinition` | ゲーム開始前の設計図 | 盤面サイズ、全セル、全初期駒、先手、移動プロファイル、効果定義、駒上限、リザーブ配置範囲 |
-| `CellEffectDefinition` | 特殊効果の固定設定 | 効果ID、`WhileOccupied`／`PermanentOncePerPiece` |
+| `CellEffectDefinition` | 特殊効果の固定設定 | 効果ID、`WhileOccupied`／`PermanentOncePerPiece`／`EveryStop` |
 | `PlayerState` | プレイヤーの実行時状態 | 盤外に保管されている`ReservePieceState` |
 | `GameSnapshot` | ある時点のゲーム状態を外部へ見せる読み取り専用コピー | 現在の全駒、セル、効果定義、リザーブ、手番、勝敗、駒上限、リザーブ配置範囲 |
 

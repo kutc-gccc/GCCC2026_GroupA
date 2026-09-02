@@ -46,11 +46,8 @@ namespace GCCC.BoardGame.Core.Internal
                         $"Cell effect '{effectId}' is not registered.");
                 }
 
-                bool alreadyApplied = effectDefinition.Lifetime ==
-                    CellEffectLifetime.PermanentOncePerPiece
-                        ? currentPiece.HasAppliedPermanentEffect(effectId)
-                        : currentPiece.HasActiveEffect(effectId);
-                if (alreadyApplied)
+                if (HasAlreadyApplied(
+                        currentPiece, effectId, effectDefinition.Lifetime))
                 {
                     continue;
                 }
@@ -62,16 +59,8 @@ namespace GCCC.BoardGame.Core.Internal
                         getSnapshot(), currentPiece, cell, effectDefinition));
                 validateResult(currentPiece, result.Piece);
 
-                PieceState updatedPiece = result.Piece;
-                if (effectDefinition.Lifetime ==
-                    CellEffectLifetime.PermanentOncePerPiece)
-                {
-                    updatedPiece = updatedPiece.WithPermanentEffectApplied(effectId);
-                }
-                else if (!updatedPiece.HasActiveEffect(effectId))
-                {
-                    updatedPiece = updatedPiece.WithActiveEffect(effectId);
-                }
+                PieceState updatedPiece =
+                    RecordApplication(result.Piece, effectId, effectDefinition.Lifetime);
 
                 events.Add(new CellEffectTriggered(
                     effectId, currentPiece.Id, cell.Position));
@@ -98,6 +87,44 @@ namespace GCCC.BoardGame.Core.Internal
             }
 
             return currentPiece;
+        }
+
+        /// <summary>
+        /// この駒には、もうこの効果が効いているか。
+        /// <see cref="CellEffectLifetime.EveryStop"/>は履歴を見ないので、止まるたびに効く。
+        /// </summary>
+        private static bool HasAlreadyApplied(
+            PieceState piece, string effectId, CellEffectLifetime lifetime)
+        {
+            switch (lifetime)
+            {
+                case CellEffectLifetime.PermanentOncePerPiece:
+                    return piece.HasAppliedPermanentEffect(effectId);
+                case CellEffectLifetime.EveryStop:
+                    return false;
+                default:
+                    return piece.HasActiveEffect(effectId);
+            }
+        }
+
+        /// <summary>
+        /// 次に同じマスへ来たときの判断材料を駒へ書き込む。
+        /// <see cref="CellEffectLifetime.EveryStop"/>は何も残さない。残すと回数が頭打ちになる。
+        /// </summary>
+        private static PieceState RecordApplication(
+            PieceState piece, string effectId, CellEffectLifetime lifetime)
+        {
+            switch (lifetime)
+            {
+                case CellEffectLifetime.PermanentOncePerPiece:
+                    return piece.WithPermanentEffectApplied(effectId);
+                case CellEffectLifetime.EveryStop:
+                    return piece;
+                default:
+                    return piece.HasActiveEffect(effectId)
+                        ? piece
+                        : piece.WithActiveEffect(effectId);
+            }
         }
     }
 }

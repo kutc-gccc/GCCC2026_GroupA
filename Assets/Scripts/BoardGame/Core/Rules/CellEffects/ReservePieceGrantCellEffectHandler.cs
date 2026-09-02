@@ -41,11 +41,12 @@ namespace GCCC.BoardGame.Core.Rules.CellEffects
 
         public CellEffectResult Apply(CellEffectContext context)
         {
-            if (context.Definition.Lifetime !=
-                CellEffectLifetime.PermanentOncePerPiece)
+            // 駒がそのマスに止まった瞬間の一度きりの出来事なので、
+            // 「滞在中だけ効く」種別では意味を成さない。回数の上限は種別が決める。
+            if (context.Definition.Lifetime == CellEffectLifetime.WhileOccupied)
             {
                 throw new InvalidOperationException(
-                    "Reserve piece grants must be permanent once-per-piece effects.");
+                    "Reserve piece grants must not be while-occupied effects.");
             }
 
             return new CellEffectResult(

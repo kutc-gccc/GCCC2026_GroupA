@@ -233,7 +233,7 @@ public interface ICellEffectHandler
 
 更新後の`PieceState`は元の駒から`With`系メソッドで作ります。使えるメソッドの一覧は[Core APIリファレンス §2](CORE_API.md#2-piecestate)、`ReservePieceGrant`の引数は[同 §8](CORE_API.md#8-rule差し替えで使う型)を参照してください。
 
-効果は`CellEffectDefinition`で`WhileOccupied`または`PermanentOncePerPiece`を宣言します。同じセルに異なるLifetimeは設定できません。ID、所有者、位置を変更する結果は`GameSession`に拒否されます。
+効果は`CellEffectDefinition`で`WhileOccupied`、`PermanentOncePerPiece`、`EveryStop`のいずれかを宣言します。`EveryStop`は履歴を残さないため、停止のたびに何度でも発動します。同じセルに異なるLifetimeは設定できません。ID、所有者、位置を変更する結果は`GameSession`に拒否されます。
 
 ### 本番への配線
 

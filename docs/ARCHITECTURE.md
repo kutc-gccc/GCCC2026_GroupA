@@ -48,7 +48,7 @@ flowchart TB
 | `PowerMovementProfile` | 戦闘力1以上を隙間なく覆う移動帯域の集合 |
 | `PieceState` | ID、所有者、位置、通常／一時戦闘力、移動プロファイルID、効果状態、合体成功履歴`HasFused`を持つ不変オブジェクト |
 | `CellDefinition` | 位置、陣地所有者、特殊効果IDの順序付き一覧 |
-| `CellEffectDefinition` | 効果IDと`WhileOccupied`／`PermanentOncePerPiece`の固定定義 |
+| `CellEffectDefinition` | 効果IDと`WhileOccupied`／`PermanentOncePerPiece`／`EveryStop`の固定定義 |
 | `InitialPieceDefinition` | リセット時に生成する駒の定義 |
 | `GameDefinition` | 盤面サイズ、全セル、初期駒、先手、移動プロファイル、効果定義、駒上限、リザーブ配置範囲 |
 | `PlayerState` | プレイヤーごとのリザーブ駒を持つ不変の実行時状態 |

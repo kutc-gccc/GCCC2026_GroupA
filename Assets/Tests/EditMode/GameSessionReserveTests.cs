@@ -242,6 +242,130 @@ namespace GCCC.BoardGame.Tests
             Assert.That(custom.Snapshot.GetOwnedPieceCount(owner), Is.EqualTo(2));
         }
 
+        /// <summary>
+        /// 何度でも獲得できる種別では、同じ駒が同じマスへ戻るたびに獲得できることを確かめる。
+        /// 履歴を残す種別に戻すと1回目しか獲得できず、ここで落ちる。
+        /// </summary>
+        [Test]
+        public void RepeatableReserveGrantIsCollectedEveryTimeTheSamePieceStops()
+        {
+            const string effectId = "reserve-piece-repeatable";
+            GameDefinition definition = CreateDefinitionWithEffects(
+                PlayerId.Player1,
+                new Dictionary<GridPosition, string[]>
+                {
+                    [new GridPosition(2, 3)] = new[] { effectId }
+                },
+                new[]
+                {
+                    new CellEffectDefinition(effectId, CellEffectLifetime.EveryStop)
+                },
+                InitialPiece(1, 2, 2, PlayerId.Player1),
+                InitialPiece(2, 5, 8, PlayerId.Player2));
+            GameSession custom = new GameSession(
+                definition,
+                cellEffectHandlers: new ICellEffectHandler[]
+                {
+                    new ReservePieceGrantCellEffectHandler(
+                        effectId, 1, PowerMovementProfile.StandardId)
+                });
+
+            for (int visit = 1; visit <= 3; visit++)
+            {
+                CommandResult entry = custom.Execute(new MovePieceCommand(
+                    PlayerId.Player1, new PieceId(1), new GridPosition(2, 3)));
+
+                Assert.That(entry.Success, Is.True);
+                Assert.That(entry.Events.OfType<ReservePieceAdded>().Count(),
+                    Is.EqualTo(1), $"{visit}回目に止まったときに獲得できていない。");
+                Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
+                    .ReservePieces.Count, Is.EqualTo(visit));
+
+                custom.Execute(new RandomizePowerCommand(
+                    PlayerId.Player2, new PieceId(2)));
+                custom.Execute(new MovePieceCommand(
+                    PlayerId.Player1, new PieceId(1), new GridPosition(2, 2)));
+                custom.Execute(new RandomizePowerCommand(
+                    PlayerId.Player2, new PieceId(2)));
+            }
+
+            custom.Reset();
+            Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
+                .ReservePieces, Is.Empty);
+        }
+
+        /// <summary>
+        /// 上限に達していて獲得できなかった駒が、空きが戻れば次に止まったとき獲得できる
+        /// ことを確かめる。履歴を残す種別では、この駒は二度と獲得できなかった。
+        /// </summary>
+        [Test]
+        public void RepeatableReserveGrantResumesAfterTheOwnedPieceLimitFrees()
+        {
+            const string effectId = "reserve-piece-repeatable-limit";
+            GameDefinition definition = CreateDefinitionWithEffectsAndLimits(
+                PlayerId.Player1,
+                new Dictionary<GridPosition, string[]>
+                {
+                    [new GridPosition(2, 3)] = new[] { effectId }
+                },
+                new[]
+                {
+                    new CellEffectDefinition(effectId, CellEffectLifetime.EveryStop)
+                },
+                3,
+                2,
+                InitialPiece(1, 2, 2, PlayerId.Player1),
+                InitialPiece(2, 4, 4, PlayerId.Player1),
+                InitialPiece(3, 4, 5, PlayerId.Player2),
+                InitialPiece(4, 5, 8, PlayerId.Player2));
+            GameSession custom = new GameSession(
+                definition,
+                cellEffectHandlers: new ICellEffectHandler[]
+                {
+                    new ReservePieceGrantCellEffectHandler(
+                        effectId, 1, PowerMovementProfile.StandardId)
+                });
+
+            // 盤上2個。まだ空きがあるので獲得でき、これで上限3個に達する。
+            CommandResult first = custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 3)));
+            Assert.That(first.Events.OfType<ReservePieceAdded>().Count(),
+                Is.EqualTo(1));
+            Assert.That(custom.Snapshot.GetOwnedPieceCount(PlayerId.Player1),
+                Is.EqualTo(3));
+
+            custom.Execute(new RandomizePowerCommand(
+                PlayerId.Player2, new PieceId(4)));
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 2)));
+            custom.Execute(new RandomizePowerCommand(
+                PlayerId.Player2, new PieceId(4)));
+
+            // 上限に達しているので獲得できない。
+            CommandResult atLimit = custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 3)));
+            Assert.That(atLimit.Success, Is.True);
+            Assert.That(atLimit.Events.OfType<ReservePieceAdded>(), Is.Empty);
+
+            // 相打ちで1個減り、空きが戻る。
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player2, new PieceId(3), new GridPosition(4, 4)));
+            Assert.That(custom.Snapshot.GetOwnedPieceCount(PlayerId.Player1),
+                Is.EqualTo(2));
+
+            custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 2)));
+            custom.Execute(new RandomizePowerCommand(
+                PlayerId.Player2, new PieceId(4)));
+            CommandResult afterRoom = custom.Execute(new MovePieceCommand(
+                PlayerId.Player1, new PieceId(1), new GridPosition(2, 3)));
+
+            Assert.That(afterRoom.Events.OfType<ReservePieceAdded>().Count(),
+                Is.EqualTo(1), "空きが戻っても獲得できないなら、履歴が残っている。");
+            Assert.That(custom.Snapshot.GetPlayer(PlayerId.Player1)
+                .ReservePieces.Count, Is.EqualTo(2));
+        }
+
         [Test]
         public void DefinitionRejectsMoreThanSixInitialPiecesForOnePlayer()
         {

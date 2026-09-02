@@ -16,10 +16,10 @@ namespace GCCC.BoardGame.Presentation.Config
 
         public override ICellEffectHandler CreateHandler()
         {
-            if (Lifetime != CellEffectLifetime.PermanentOncePerPiece)
+            if (Lifetime == CellEffectLifetime.WhileOccupied)
             {
                 throw new InvalidOperationException(
-                    "Reserve piece grants must use PermanentOncePerPiece.");
+                    "Reserve piece grants must use PermanentOncePerPiece or EveryStop.");
             }
 
             return new ReservePieceGrantCellEffectHandler(

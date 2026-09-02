@@ -174,7 +174,8 @@ namespace GCCC.BoardGame.Tests
                     "reserve-piece-grant", out CellEffectDefinition effectDefinition),
                 Is.True);
             Assert.That(effectDefinition.Lifetime,
-                Is.EqualTo(CellEffectLifetime.PermanentOncePerPiece));
+                Is.EqualTo(CellEffectLifetime.EveryStop),
+                "リザーブ獲得は止まるたび何度でも獲得できる種別であること。");
             int configuredEffectCellCount = 0;
             foreach (CellDefinition cell in sceneBootstrap.Snapshot.Cells)
             {
