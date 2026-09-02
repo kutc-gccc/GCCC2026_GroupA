@@ -20,7 +20,7 @@ namespace GCCC.BoardGame.Tests
         /// </summary>
         private static readonly string[] SharedTerms =
         {
-            "パワーランダム化", "リザーブ", "滞在中効果", "永続効果",
+            "パワーランダム化", "リザーブ", "戦闘力+2", "リザーブ獲得",
             "選択中", "琥珀の枠", "白い点", "赤い枠", "青い枠", "合体",
             "合体した駒"
         };
@@ -28,7 +28,8 @@ namespace GCCC.BoardGame.Tests
         /// <summary>ゲーム画面と食い違っていた古い言い回し。復活していないことを確かめる。</summary>
         private static readonly string[] RetiredWordings =
         {
-            "パワーを振り直す", "控えの駒", "シアンのマス", "紫のマス"
+            "パワーを振り直す", "控えの駒", "シアンのマス", "紫のマス",
+            "滞在中効果", "永続効果"
         };
 
         private static readonly string[] ExpectedNavLabels =

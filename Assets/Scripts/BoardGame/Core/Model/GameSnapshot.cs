@@ -177,18 +177,6 @@ namespace GCCC.BoardGame.Core.Model
             return GetPieceCount(player) + GetPlayer(player).ReservePieces.Count;
         }
 
-        /// <summary>
-        /// 所有上限に対して占めている枠の数。合体してできた駒は2枠ぶんとして数える。
-        /// 上限の判定と画面表示はこちらを使う。駒の実数は<see cref="GetPieceCount"/>。
-        /// </summary>
-        public int GetOwnedSlotCount(PlayerId player)
-        {
-            return Pieces
-                .Where(piece => piece.Owner == player)
-                .Sum(piece => piece.SlotCost) +
-                GetPlayer(player).ReservePieces.Count;
-        }
-
         public GameSnapshot WithLegalCommands(IReadOnlyList<GameCommand> legalCommands)
         {
             return new GameSnapshot(this, legalCommands);

@@ -261,11 +261,11 @@ namespace GCCC.BoardGame.Tests
         }
 
         /// <summary>
-        /// リザーブ一覧の「駒 n / 6」は駒の個数ではなく占有枠を示す。
-        /// 合体してできた駒は2枠を使うので、盤上の駒が減っても表示は減らない。
+        /// リザーブ一覧の「駒 n / 6」は所有している駒の数。
+        /// 合体してできた駒も1駒として数える。
         /// </summary>
         [UnityTest]
-        public IEnumerator ReserveHeaderCountsFusedPiecesAsTwoSlots()
+        public IEnumerator ReserveHeaderCountsAFusedPieceAsOne()
         {
             PieceState normal = new PieceState(
                 new PieceId(1),
@@ -285,17 +285,15 @@ namespace GCCC.BoardGame.Tests
 
             GameSnapshot snapshot = CreatePlainSnapshot(normal, fused);
 
-            auxiliaryObject = new GameObject("Reserve Slot Header Test");
+            auxiliaryObject = new GameObject("Reserve Header Count Test");
             GameHudView hud = CreateHudView(auxiliaryObject.transform);
             hud.Initialize();
             hud.Render(snapshot);
             yield return null;
 
-            Assert.That(snapshot.GetPieceCount(PlayerId.Player1), Is.EqualTo(2),
-                "盤上の駒は2つ。");
             Assert.That(FindReserveHeader(hud, "Player 1 Reserve Panel").text,
-                Does.Contain("駒 3 / 6"),
-                "通常1枠 + 合体2枠 = 3枠として表示する。");
+                Does.Contain("駒 2 / 6"),
+                "合体してできた駒も1駒として数える。");
             Assert.That(FindReserveHeader(hud, "Player 2 Reserve Panel").text,
                 Does.Contain("駒 0 / 6"));
         }

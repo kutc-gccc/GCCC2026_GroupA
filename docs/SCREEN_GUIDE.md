@@ -71,9 +71,9 @@
 |---|---|
 | 左上 | 現在の手番と▲▼ |
 | 中央 | 盤面。数字は一時効果を含む現在の戦闘力。合体した駒はひと回り大きく、数字が白縁の黒字 |
-| 左中央 | 凡例7行。選択中・移動可能・戦闘可能・合体候補・合体した駒は常時、特殊マスの2行は盤に特殊マスがある設定でのみ表示 |
+| 左中央 | 凡例7行。選択中・移動可能・戦闘可能・合体候補・合体した駒は常時、リザーブ獲得と戦闘力+2の2行は盤に特殊マスがある設定でのみ表示 |
 | 右上 | リザーブ配置、合体、パワーランダム化 |
-| 右側 | 上が▼、下が▲のリザーブ一覧。`駒 n / 6`は盤上とリザーブが占める枠数。合体した駒は2枠を使う |
+| 右側 | 上が▼、下が▲のリザーブ一覧。`駒 n / 6`は盤上とリザーブを合わせた所有数。合体した駒も1駒 |
 | 左下 | BGM／SFX音量 |
 | 右下 | リセット。選択やリザーブも含めてゲームを初期状態へ戻す |
 
@@ -110,7 +110,7 @@ uGUIの既定の`ColorTint`は`targetGraphic`の色に乗算するため、枠�
 | 画面の表現 | 現行実装では |
 |---|---|
 | 第5節「序盤の戦闘は必ず相打ち」 | 初期値1同士なら相打ち。序盤でもランダム化・合体・特殊マスで数字が変われば結果は異なる |
-| 第6節「リザーブを1つもらえる」 | 占有枠が上限6に達している場合は獲得しない。現行実装はその場合も効果適用履歴を残すため、後から同じ駒で踏み直しても獲得できない |
+| 第6節「リザーブを1つもらえる」 | 所有数が上限6に達している場合は獲得しない。現行実装はその場合も効果適用履歴を残すため、後から同じ駒で踏み直しても獲得できない |
 
 ルールの確認元は[`ProfileMoveDirectionResolver`](../Assets/Scripts/BoardGame/Core/Rules/Movement/ProfileMoveDirectionResolver.cs)、[`AdjacentFusionResolver`](../Assets/Scripts/BoardGame/Core/Rules/Fusion/AdjacentFusionResolver.cs)、[`CellEffectProcessor`](../Assets/Scripts/BoardGame/Core/Internal/CellEffectProcessor.cs)、[`GameSession`](../Assets/Scripts/BoardGame/Core/GameSession.cs)です。画面文言は[`HowToPlayContent`](../Assets/Scripts/BoardGame/Presentation/Views/HowToPlayContent.cs)にあります。
 

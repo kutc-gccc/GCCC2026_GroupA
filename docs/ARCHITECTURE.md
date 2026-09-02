@@ -46,7 +46,7 @@ flowchart TB
 | `MovementProfileId` | 駒が使用する戦闘力別移動プロファイルのID |
 | `PowerMovementBand` | 戦闘力の最小値・最大値と、その範囲で許可する方向 |
 | `PowerMovementProfile` | 戦闘力1以上を隙間なく覆う移動帯域の集合 |
-| `PieceState` | ID、所有者、位置、通常／一時戦闘力、移動プロファイルID、効果状態、合体成功履歴`HasFused`を持つ不変オブジェクト。`SlotCost`は所有上限で占める枠数（合体済みは2） |
+| `PieceState` | ID、所有者、位置、通常／一時戦闘力、移動プロファイルID、効果状態、合体成功履歴`HasFused`を持つ不変オブジェクト |
 | `CellDefinition` | 位置、陣地所有者、特殊効果IDの順序付き一覧 |
 | `CellEffectDefinition` | 効果IDと`WhileOccupied`／`PermanentOncePerPiece`の固定定義 |
 | `InitialPieceDefinition` | リセット時に生成する駒の定義 |

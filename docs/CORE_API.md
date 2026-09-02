@@ -59,8 +59,6 @@ var piece = new PieceState(
 
 `PieceState`は不変です。`CombatPower`は通常戦闘力、`TemporaryCombatPower`は滞在中効果の残量、`EffectiveCombatPower`は両者の合計です。表示・戦闘・移動方向は`EffectiveCombatPower`を使用します。
 
-`SlotCost`は、この駒が所有上限のうち占める枠の数です。通常は`1`、`HasFused`が`true`の駒は`2`を返します。上限判定は駒の個数ではなくこの合計で行うため、合体しても空き枠は生まれません。
-
 ```csharp
 PieceState movedPiece = piece.WithPosition(new GridPosition(2, 2));
 PieceState damagedPiece = movedPiece.WithCombatPower(1);

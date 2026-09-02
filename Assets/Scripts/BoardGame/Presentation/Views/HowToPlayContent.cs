@@ -80,7 +80,7 @@ namespace GCCC.BoardGame.Presentation.Views
                 "ここから先は、遊びながらで大丈夫",
                 "残りは出てきたときに画面が教えてくれます。いま覚える必要はありません。",
                 FigureKind.LaterTopics,
-                "持てる駒は盤上とリザーブを合わせて6個まで。合体した駒は2個ぶんなので枠は空きません。")
+                "持てる駒は盤上とリザーブを合わせて6個まで。上限に達していると、それ以上は増えません。")
         };
 
         // ---- 節1: 盤面の凡例 ----
@@ -283,9 +283,9 @@ namespace GCCC.BoardGame.Presentation.Views
 
         internal static readonly IReadOnlyList<LaterTopic> LaterTopics = new[]
         {
-            new LaterTopic(LaterAccent.Cyan, "滞在中効果（シアンの塗り）",
+            new LaterTopic(LaterAccent.Cyan, "戦闘力+2（シアンの塗り）",
                 "止まっている間だけ強さ +2。離れると戻ります。"),
-            new LaterTopic(LaterAccent.Violet, "永続効果（紫の塗り）",
+            new LaterTopic(LaterAccent.Violet, "リザーブ獲得（紫の塗り）",
                 "リザーブを1つもらえます。1駒につき1回だけ。"),
             new LaterTopic(LaterAccent.Fusion, "合体",
                 "2駒の強さを合わせて1駒に。25%で失敗。合体した駒は少し大きくなり、再合体はできません。"),

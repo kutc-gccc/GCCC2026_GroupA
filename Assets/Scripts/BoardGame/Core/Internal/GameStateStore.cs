@@ -89,17 +89,11 @@ namespace GCCC.BoardGame.Core.Internal
             stateChanged();
         }
 
-        /// <summary>
-        /// 盤上の駒が占める枠の数。駒の個数ではなく<see cref="PieceState.SlotCost"/>の合計を返す。
-        /// </summary>
-        public int GetBoardSlotCount(PlayerId player) =>
-            piecesById.Values
-                .Where(piece => piece.Owner == player)
-                .Sum(piece => piece.SlotCost);
+        public int GetBoardPieceCount(PlayerId player) =>
+            piecesById.Values.Count(piece => piece.Owner == player);
 
-        /// <summary>盤上とリザーブを合わせて占める枠の数。</summary>
-        public int GetOwnedSlotCount(PlayerId player) =>
-            GetBoardSlotCount(player) + reservesByPlayer[player].Count;
+        public int GetOwnedPieceCount(PlayerId player) =>
+            GetBoardPieceCount(player) + reservesByPlayer[player].Count;
 
         public void AddReserve(ReservePieceState reservePiece)
         {
