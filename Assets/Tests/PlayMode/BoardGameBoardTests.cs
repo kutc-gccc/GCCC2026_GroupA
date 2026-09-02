@@ -12,6 +12,7 @@ using GCCC.BoardGame.Presentation.Bootstrap;
 using GCCC.BoardGame.Presentation.Views;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
@@ -157,7 +158,7 @@ namespace GCCC.BoardGame.Tests
             Assert.That(button, Is.Not.Null, "ゲーム画面に遊び方ボタンが無い。");
             Assert.That(button.GetComponentInChildren<Text>(true).text, Is.EqualTo("遊び方"));
 
-            button.GetComponent<Button>().onClick.Invoke();
+            ClickHowToButtonThroughRaycast(button.GetComponent<Button>());
             yield return null;
 
             Assert.That(hud.IsHowToVisible, Is.True);
@@ -186,12 +187,42 @@ namespace GCCC.BoardGame.Tests
             Assert.That(close.GetComponentInChildren<Text>(true).text, Is.EqualTo("閉じる"),
                 "ゲーム中はタイトルへ戻らないので「閉じる」にする。");
 
-            close.GetComponent<Button>().onClick.Invoke();
+            ClickHowToButtonThroughRaycast(close.GetComponent<Button>());
             yield return null;
 
             Assert.That(hud.IsHowToVisible, Is.False);
             Assert.That(hud.IsOverlayVisible, Is.False);
             Assert.That(bootstrap.Snapshot.Pieces.Count, Is.EqualTo(piecesBefore));
+            Assert.That(bootstrap.Snapshot.CurrentPlayer, Is.EqualTo(turnBefore));
+        }
+
+        private static void ClickHowToButtonThroughRaycast(Button button)
+        {
+            // onClick.Invoke() は interactable を無視するので、実際のUIクリック経路を通す。
+            Assert.That(button.IsActive(), Is.True);
+            Assert.That(button.IsInteractable(), Is.True,
+                $"{button.name}が押せない状態で保存・初期化されている。");
+            Assert.That(EventSystem.current, Is.Not.Null);
+
+            Canvas.ForceUpdateCanvases();
+            RectTransform rect = button.GetComponent<RectTransform>();
+            Canvas canvas = button.GetComponentInParent<Canvas>();
+            Camera camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay
+                ? null : canvas.worldCamera;
+            var pointer = new PointerEventData(EventSystem.current)
+            {
+                position = RectTransformUtility.WorldToScreenPoint(
+                    camera, rect.TransformPoint(rect.rect.center)),
+                button = PointerEventData.InputButton.Left
+            };
+            var hits = new List<RaycastResult>();
+            EventSystem.current.RaycastAll(pointer, hits);
+            Assert.That(hits, Is.Not.Empty, $"{button.name}にクリックが届かない。");
+            GameObject target = ExecuteEvents.GetEventHandler<IPointerClickHandler>(
+                hits[0].gameObject);
+            Assert.That(target, Is.EqualTo(button.gameObject),
+                $"{button.name}の手前で別のUIがクリックを遮っている。");
+            ExecuteEvents.Execute(target, pointer, ExecuteEvents.pointerClickHandler);
         }
 
         /// <summary>
